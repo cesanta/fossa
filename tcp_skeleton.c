@@ -249,13 +249,13 @@ int ts_printf(struct ts_connection *conn, const char *fmt, ...) {
   return len;
 }
 
-static int call_user(struct ts_connection *conn, enum ts_event ev, void *p) {
-  return conn->server->callback ? conn->server->callback(conn, ev, p) : -1;
+static void call_user(struct ts_connection *conn, enum ts_event ev) {
+  if (conn->server->callback) conn->server->callback(conn, ev);
 }
 
 static void close_conn(struct ts_connection *conn) {
   DBG(("%p %d", conn, conn->flags));
-  call_user(conn, TS_CLOSE, NULL);
+  call_user(conn, TS_CLOSE);
   REMOVE_CONNECTION(conn);
   closesocket(conn->sock);
   iobuf_free(&conn->recv_iobuf);
@@ -371,7 +371,7 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
     conn->mg_conn.local_port = ntohs(server->lsa.sin.sin_port);
 #endif
     ADD_CONNECTION(server, c);
-    call_user(c, TS_ACCEPT, NULL);
+    call_user(c, TS_ACCEPT);
     DBG(("%p", c));
   }
 
@@ -456,10 +456,12 @@ static void read_from_socket(struct ts_connection *conn) {
       }
     }
 #endif
-    call_user(conn, TS_CONNECT, &ok);
     if (ok != 0) {
       conn->flags |= TSF_CLOSE_IMMEDIATELY;
+      closesocket(conn->sock);
+      conn->sock = INVALID_SOCKET;
     }
+    call_user(conn, TS_CONNECT);
     return;
   }
 #if 0
@@ -494,13 +496,13 @@ static void read_from_socket(struct ts_connection *conn) {
     conn->flags |= TSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_append(&conn->recv_iobuf, buf, n);
-    call_user(conn, TS_RECV, NULL);
+    call_user(conn, TS_RECV);
   }
 
   DBG(("%p <- %d bytes [%.*s%s]",
        conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
 
-  call_user(conn, TS_RECV, NULL);
+  call_user(conn, TS_RECV);
 }
 
 static void write_to_socket(struct ts_connection *conn) {
@@ -533,7 +535,7 @@ static void write_to_socket(struct ts_connection *conn) {
     conn->flags |= TSF_CLOSE_IMMEDIATELY;
   }
 
-  call_user(conn, TS_SEND, NULL);
+  call_user(conn, TS_SEND);
 }
 
 int ts_send(struct ts_connection *conn, const void *buf, int len) {
@@ -562,7 +564,7 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    call_user(conn, TS_POLL, NULL);
+    call_user(conn, TS_POLL);
     add_to_set(conn->sock, &read_set, &max_fd);
     if (conn->flags & TSF_CONNECTING) {
       add_to_set(conn->sock, &write_set, &max_fd);

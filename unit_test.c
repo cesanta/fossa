@@ -47,7 +47,7 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
+static void ev_handler(struct ts_connection *conn, enum ts_event ev) {
   switch (ev) {
     case TS_CONNECT:
       ts_printf(conn, "%d %s there", 17, "hi");
@@ -68,7 +68,6 @@ static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
     default:
       break;
   }
-  return 0;
 }
 
 static const char *test_server(void) {

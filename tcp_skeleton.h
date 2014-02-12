@@ -38,7 +38,7 @@ void iobuf_remove(struct iobuf *, int data_size);
 
 struct ts_connection;
 enum ts_event {TS_POLL, TS_ACCEPT, TS_CONNECT, TS_RECV, TS_SEND, TS_CLOSE};
-typedef int (*ts_callback_t)(struct ts_connection *, enum ts_event, void *);
+typedef void (*ts_callback_t)(struct ts_connection *, enum ts_event);
 
 struct ts_server {
   void *server_data;
@@ -65,11 +65,14 @@ struct ts_connection {
 #define TSF_CONNECTING              8
 #define TSF_CLOSE_IMMEDIATELY       16
 #define TSF_ACCEPTED                32
+#define TSF_USER_1                  64
+#define TSF_USER_2                  128
 };
 
 void ts_server_init(struct ts_server *, void *server_data, ts_callback_t);
 void ts_server_free(struct ts_server *);
 int ts_server_poll(struct ts_server *, int milli);
+void ts_server_wakeup(struct ts_server *, void *conn_param);
 
 int ts_bind_to(struct ts_server *, const char *bind_addr);
 int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);

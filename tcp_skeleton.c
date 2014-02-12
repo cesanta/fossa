@@ -31,13 +31,24 @@
 
 #ifdef _WIN32
 #include <windows.h>
-typedef int socklen_t;
 #ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
 #endif
 #ifndef EWOULDBLOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #endif
+#ifndef __func__
+#define STRX(x) #x
+#define STR(x) STRX(x)
+#define __func__ __FILE__ ":" STR(__LINE__)
+#endif
+#define snprintf _snprintf
+typedef int socklen_t;
+typedef unsigned char uint8_t;
+typedef unsigned int uint32_t;
+typedef unsigned short uint16_t;
+typedef unsigned __int64 uint64_t;
+typedef __int64   int64_t;
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -49,6 +60,7 @@ typedef int socklen_t;
 #include <sys/select.h>
 #define INVALID_SOCKET (-1)
 #define closesocket(x) close(x)
+#define __cdecl
 #endif
 
 #ifdef TS_ENABLE_SSL
@@ -72,7 +84,7 @@ typedef int socklen_t;
 #define TS_FREE free
 #endif
 
-#ifdef TS_DEBUG
+#ifdef TS_ENABLE_DEBUG
 #define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \
   fflush(stdout); } while(0)
 #else
@@ -84,6 +96,18 @@ typedef int socklen_t;
 #endif
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+
+#define ADD_CONNECTION(server, conn) do {                 \
+  (conn)->next = (server)->active_connections;            \
+  if ((conn)->next != NULL) (conn)->next->prev = (conn);  \
+  (server)->active_connections = (conn);                  \
+  (conn)->prev = (server)->active_connections;            \
+} while (0)
+
+#define REMOVE_CONNECTION(conn) do {                      \
+  (conn)->prev->next = (conn)->next;                      \
+  if ((conn)->next) (conn)->next->prev = (conn)->prev;    \
+} while (0)
 
 union socket_address {
   struct sockaddr sa;
@@ -143,13 +167,15 @@ void iobuf_remove(struct iobuf *io, int n) {
   }
 }
 
+static int call_user(struct ts_connection *conn, enum ts_event ev, void *p) {
+  return conn->server->callback ? conn->server->callback(conn, ev, p) : -1;
+}
 
-static void close_conn(struct ts_connection *conn, ts_callback_t cb) {
-  if (cb != NULL) cb(conn, TS_CLOSE, NULL);
-  conn->prev->next = conn->next;
-  conn->next->prev = conn->prev;
+static void close_conn(struct ts_connection *conn) {
+  DBG(("%p %d", conn, conn->flags));
+  call_user(conn, TS_CLOSE, NULL);
+  REMOVE_CONNECTION(conn);
   closesocket(conn->sock);
-  DBG(("%p %d %d", conn, conn->flags, conn->endpoint_type));
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
   TS_FREE(conn);
@@ -229,13 +255,14 @@ static int open_listening_socket(union socket_address *sa) {
   return sock;
 }
 
-int ts_open_listening_sock(const char *str) {
+int ts_bind_to(struct ts_server *server, const char *str) {
   union socket_address sa;
   parse_port_string(str, &sa);
-  return open_listening_socket(&sa);
+  server->listening_sock = open_listening_socket(&sa);
+  return (int) ntohs(sa.sin.sin_port);
 }
 
-static struct ts_connection *accept_new_connection(struct ts_server *server) {
+static struct ts_connection *accept_conn(struct ts_server *server) {
   struct ts_connection *c = NULL;
   union socket_address sa;
   socklen_t len = sizeof(sa);
@@ -244,12 +271,15 @@ static struct ts_connection *accept_new_connection(struct ts_server *server) {
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
     closesocket(sock);
-  } else if ((c = (struct ts_connection *) calloc(1, sizeof(*c))) == NULL) {
+  } else if ((c = (struct ts_connection *) TS_MALLOC(sizeof(*c))) == NULL) {
     closesocket(sock);
   } else {
     set_close_on_exec(sock);
     set_non_blocking_mode(sock);
+    memset(c, 0, sizeof(*c));
+    c->server = server;
     c->sock = sock;
+    c->flags |= TSF_ACCEPTED;
 #if 0
     sockaddr_to_string(c->mg_conn.remote_ip,
                        sizeof(conn->mg_conn.remote_ip), &sa);
@@ -258,8 +288,9 @@ static struct ts_connection *accept_new_connection(struct ts_server *server) {
     c->mg_conn.local_ip = server->local_ip;
     conn->mg_conn.local_port = ntohs(server->lsa.sin.sin_port);
 #endif
-    //LINKED_LIST_ADD_TO_FRONT(&server->active_connections, &conn->link);
-    DBG(("added conn %p", c));
+    ADD_CONNECTION(server, c);
+    call_user(c, TS_ACCEPT, NULL);
+    DBG(("%p", c));
   }
 
   return c;
@@ -275,24 +306,89 @@ static int is_error(int n) {
     );
 }
 
-static void read_from_socket(struct ts_connection *conn, ts_callback_t cb) {
+#ifdef TS_ENABLE_HEXDUMP
+static void hexdump(const struct ts_connection *conn, const void *buf,
+                    int len, const char *marker) {
+  const unsigned char *p = (const unsigned char *) buf;
+  char path[500], date[100], ascii[17];
+  FILE *fp;
+
+#if 0
+  if (!match_prefix(TS_ENABLE_HEXDUMP, strlen(TS_ENABLE_HEXDUMP),
+                    conn->remote_ip)) {
+    return;
+  }
+
+  snprintf(path, sizeof(path), "%s.%hu.txt",
+           conn->mg_conn.remote_ip, conn->mg_conn.remote_port);
+#endif
+  snprintf(path, sizeof(path), "%p.txt", conn);
+
+  if ((fp = fopen(path, "a")) != NULL) {
+    time_t cur_time = time(NULL);
+    int i, idx;
+
+    strftime(date, sizeof(date), "%d/%b/%Y %H:%M:%S", localtime(&cur_time));
+    fprintf(fp, "%s %s %d bytes\n", marker, date, len);
+
+    for (i = 0; i < len; i++) {
+      idx = i % 16;
+      if (idx == 0) {
+        if (i > 0) fprintf(fp, "  %s\n", ascii);
+        fprintf(fp, "%04x ", i);
+      }
+      fprintf(fp, " %02x", p[i]);
+      ascii[idx] = p[i] < 0x20 || p[i] > 0x7e ? '.' : p[i];
+      ascii[idx + 1] = '\0';
+    }
+
+    while (i++ % 16) fprintf(fp, "%s", "   ");
+    fprintf(fp, "  %s\n\n", ascii);
+
+    fclose(fp);
+  }
+}
+#endif
+
+static void read_from_socket(struct ts_connection *conn) {
   char buf[2048];
   int n = 0;
 
-#if 0
-  if (conn->endpoint_type == EP_CLIENT && conn->flags & CONN_CONNECTING) {
-    callback_http_client_on_connect(conn);
+  if (conn->flags & TSF_CONNECTING) {
+    int ok = 1, ret;
+    socklen_t len = sizeof(ok);
+
+    conn->flags &= ~TSF_CONNECTING;
+    ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
+#ifdef TS_ENABLE_SSL
+    if (ret == 0 && ok == 0 && conn->ssl != NULL) {
+      int res = SSL_connect(conn->ssl), ssl_err = SSL_get_error(conn->ssl, res);
+      //DBG(("%p res %d %d", conn, res, ssl_err));
+      if (res == 1) {
+        conn->flags = TSF_SSL_HANDSHAKE_DONE;
+      } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
+        conn->flags |= TSF_CONNECTING;
+        return; // Call us again
+      } else {
+        ok = 1;
+      }
+    }
+#endif
+    if (call_user(conn, TS_CONNECT, &ok) == 0 || ok != 0) {
+      conn->flags |= TSF_CLOSE_IMMEDIATELY;
+    }
     return;
   }
+#if 0
 #endif
 
 #ifdef TS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    if (conn->flags & TSF_SSL_HANDS_SHAKEN) {
+    if (conn->flags & TSF_SSL_HANDSHAKE_DONE) {
       n = SSL_read((SSL *) conn->ssl, buf, sizeof(buf));
     } else {
       if (SSL_accept((SSL *) conn->ssl) == 1) {
-        conn->flags |= TSF_SSL_HANDS_SHAKEN;
+        conn->flags |= TSF_SSL_HANDSHAKE_DONE;
       }
       return;
     }
@@ -304,7 +400,7 @@ static void read_from_socket(struct ts_connection *conn, ts_callback_t cb) {
 
   DBG(("%p %d %d (1)", conn, n, conn->flags));
 
-#ifdef TS_HEXDUMP
+#ifdef TS_ENABLE_HEXDUMP
   hexdump(conn, buf, n, "<-");
 #endif
 
@@ -314,10 +410,10 @@ static void read_from_socket(struct ts_connection *conn, ts_callback_t cb) {
       call_http_client_handler(conn, MG_DOWNLOAD_SUCCESS);
     }
 #endif
-    conn->flags |= TSF_CLOSE;
+    conn->flags |= TSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_append(&conn->recv_iobuf, buf, n);
-    if (cb != NULL) cb(conn, TS_RECV, NULL);
+    call_user(conn, TS_RECV, NULL);
   }
   DBG(("%p %d %d (2)", conn, n, conn->flags));
 }
@@ -329,7 +425,7 @@ static void add_to_set(int sock, fd_set *set, int *max_fd) {
   }
 }
 
-int ts_server_poll(struct ts_server *server, int milli, ts_callback_t cb) {
+int ts_server_poll(struct ts_server *server, int milli) {
   struct ts_connection *conn, *tmp_conn;
   struct timeval tv;
   fd_set read_set, write_set;
@@ -342,7 +438,8 @@ int ts_server_poll(struct ts_server *server, int milli, ts_callback_t cb) {
   FD_ZERO(&write_set);
   add_to_set(server->listening_sock, &read_set, &max_fd);
 
-  for (conn = server->active_connections; conn != NULL; conn = conn->next) {
+  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+    tmp_conn = conn->next;
     add_to_set(conn->sock, &read_set, &max_fd);
 #if 0
     if (conn->endpoint_type == EP_CLIENT && (conn->flags & CONN_CONNECTING)) {
@@ -354,10 +451,10 @@ int ts_server_poll(struct ts_server *server, int milli, ts_callback_t cb) {
       add_to_set(conn->endpoint.cgi_sock, &read_set, &max_fd);
     }
 #endif
-    if (conn->send_iobuf.len > 0 && !(conn->flags & TSF_HOLD)) {
+    if (conn->send_iobuf.len > 0 && !(conn->flags & TSF_BUFFER_BUT_DONT_SEND)) {
       add_to_set(conn->sock, &write_set, &max_fd);
-    } else if (conn->flags & TSF_CLOSE) {
-      close_conn(conn, cb);
+    } else if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
+      close_conn(conn);
     }
   }
 
@@ -370,19 +467,18 @@ int ts_server_poll(struct ts_server *server, int milli, ts_callback_t cb) {
       // We're not looping here, and accepting just one connection at
       // a time. The reason is that eCos does not respect non-blocking
       // flag on a listening socket and hangs in a loop.
-      if ((conn = accept_new_connection(server)) != NULL) {
+      if ((conn = accept_conn(server)) != NULL) {
         conn->last_io_time = current_time;
       }
     }
 
     for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
       tmp_conn = conn->next;
-      if (cb) cb(conn, TS_POLL, NULL);
       if (FD_ISSET(conn->sock, &read_set)) {
         conn->last_io_time = current_time;
-        read_from_socket(conn, cb);
+        read_from_socket(conn);
       }
-      num_active_connections++;
+    }
 #if 0
 #ifndef MONGOOSE_NO_CGI
       if (conn->endpoint_type == EP_CGI &&
@@ -403,53 +499,112 @@ int ts_server_poll(struct ts_server *server, int milli, ts_callback_t cb) {
 #endif
   }
 
-#if 0
-  // Close expired connections and those that need to be closed
-  LINKED_LIST_FOREACH(&server->active_connections, lp, tmp) {
-    conn = LINKED_LIST_ENTRY(lp, struct connection, link);
-    if (conn->mg_conn.is_websocket) {
-      ping_idle_websocket_connection(conn, current_time);
-    }
-    if (conn->flags & CONN_LONG_RUNNING) {
-      conn->mg_conn.wsbits = conn->flags & CONN_CLOSE ? 1 : 0;
-      if (call_request_handler(conn) == MG_REQUEST_PROCESSED) {
-        conn->flags |= conn->remote_iobuf.len == 0 ? CONN_CLOSE : CONN_SPOOL_DONE;
-      }
-    }
-    if (conn->flags & CONN_CLOSE || conn->last_activity_time < expire_time) {
+  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+    tmp_conn = conn->next;
+    call_user(conn, TS_POLL, NULL);
+
+    if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
       close_conn(conn);
     }
-#endif
+
+    num_active_connections++;
   }
 
   return num_active_connections;
 }
 
-void ts_server_init(struct ts_server *server, void *server_data) {
-  memset(server, 0, sizeof(*server));
-  server->listening_sock = INVALID_SOCKET;
-  server->server_data = server_data;
+int ts_connect(struct ts_server *server, const char *host, int port,
+               int use_ssl, void *param) {
+  int sock = INVALID_SOCKET;
+  struct sockaddr_in sin;
+  struct hostent *he = NULL;
+  struct ts_connection *conn = NULL;
+  int connect_ret_val;
+
+  if (host == NULL || (he = gethostbyname(host)) == NULL ||
+      (sock = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
+    DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
+    return 0;
+  }
+#ifndef MONGOOSE_USE_SSL
+  if (use_ssl) return 0;
+#endif
+
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons((uint16_t) port);
+  sin.sin_addr = * (struct in_addr *) he->h_addr_list[0];
+  set_non_blocking_mode(sock);
+
+  connect_ret_val = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
+  if (is_error(connect_ret_val)) {
+    return 0;
+  } else if ((conn = (struct ts_connection *)
+              TS_MALLOC(sizeof(*conn))) == NULL) {
+    closesocket(sock);
+    return 0;
+  }
+
+  memset(conn, 0, sizeof(*conn));
+  conn->server = server;
+  conn->sock = sock;
+  conn->connection_data = param;
+  conn->flags = TSF_CONNECTING;
+
+#ifdef TS_ENABLE_SSL
+  if (use_ssl && (conn->ssl = SSL_new(server->client_ssl_ctx)) != NULL) {
+    SSL_set_fd(conn->ssl, sock);
+  }
+#endif
+
+  ADD_CONNECTION(server, conn);
+  DBG(("%p %s:%d", conn, host, port));
+
+  return 1;
+}
+
+void ts_server_init(struct ts_server *s, void *server_data, ts_callback_t cb) {
+  memset(s, 0, sizeof(*s));
+  s->listening_sock = INVALID_SOCKET;
+  s->server_data = server_data;
+  s->callback = cb;
+
+#ifdef _WIN32
+  { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
+#else
+  // Ignore SIGPIPE signal, so if client cancels the request, it
+  // won't kill the whole process.
+  signal(SIGPIPE, SIG_IGN);
+#endif
+
+#ifdef MONGOOSE_USE_SSL
+  SSL_library_init();
+  server->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
+#endif
 }
 
 void ts_server_free(struct ts_server *s) {
   struct ts_connection *conn, *tmp_conn;
 
+  DBG(("%p", s));
   if (s == NULL) return;
-
-#if 0
   ts_server_poll(s, 0);
-  closesocket(s->listening_sock);
-#ifndef TS_DISABLE_SOCKETPAIR
-  closesocket(s->ctl[0]);
-  closesocket(s->ctl[1]);
-#endif
-  for(conn = s->active_connections; conn != NULL; conn = tmp_conn) {
+
+  if (s->listening_sock != INVALID_SOCKET) {
+    closesocket(s->listening_sock);
+  }
+
+  for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     close_conn(conn);
   }
-#ifdef TS_ENABLE_SSL
-  if (s->ssl_ctx != NULL) SSL_CTX_free((*server)->ssl_ctx);
-  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
+
+#ifndef TS_DISABLE_SOCKETPAIR
+  //closesocket(s->ctl[0]);
+  //closesocket(s->ctl[1]);
 #endif
+
+#ifdef TS_ENABLE_SSL
+  if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);
+  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
 #endif
 }

@@ -37,6 +37,19 @@ int iobuf_append(struct iobuf *, const void *data, int data_size);
 int iobuf_appendf(struct iobuf *, const char *fmt, ...);
 void iobuf_remove(struct iobuf *, int data_size);
 
+struct ts_connection;
+enum ts_event {TS_POLL, TS_ACCEPT, TS_CONNECT, TS_RECV, TS_SEND, TS_CLOSE};
+typedef int (*ts_callback_t)(struct ts_connection *, enum ts_event, void *);
+
+struct ts_server {
+  void *server_data;
+  int listening_sock;
+  struct ts_connection *active_connections;
+  ts_callback_t callback;
+  void *ssl_ctx;
+  void *client_ssl_ctx;
+};
+
 struct ts_connection {
   struct ts_connection *prev, *next;
   struct ts_server *server;
@@ -47,26 +60,20 @@ struct ts_connection {
   struct iobuf send_iobuf;
   void *ssl;
   unsigned int flags;
-#define TSF_CLOSE             1
-#define TSF_HOLD              2
-#define TSF_SSL_HANDS_SHAKEN  4
+#define TSF_FINISHED_SENDING_DATA   1
+#define TSF_BUFFER_BUT_DONT_SEND    2
+#define TSF_SSL_HANDSHAKE_DONE      4
+#define TSF_CONNECTING              8
+#define TSF_CLOSE_IMMEDIATELY       16
+#define TSF_ACCEPTED                32
 };
 
-struct ts_server {
-  void *server_data;
-  int listening_sock;
-  struct ts_connection *active_connections;
-  void *ssl_ctx;
-};
-
-enum ts_event {TS_POLL, TS_ACCEPT, TS_CONNECT, TS_RECV, TS_SEND, TS_CLOSE};
-typedef int (*ts_callback_t)(struct ts_connection *, enum ts_event, void *);
-
-void ts_server_init(struct ts_server *, void *server_data);
+void ts_server_init(struct ts_server *, void *server_data, ts_callback_t);
 void ts_server_free(struct ts_server *);
-int ts_server_poll(struct ts_server *, int milli, ts_callback_t);
-int ts_open_listening_sock(const char *bind_addr);
-int ts_connect(struct ts_server *server, const char *host, int port, int ssl);
+int ts_server_poll(struct ts_server *, int milli);
+
+int ts_bind_to(struct ts_server *, const char *bind_addr);
+int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);
 
 int ts_send(struct ts_connection *, const void *buf, int len);
 int ts_printf(struct ts_connection *, const void *buf, int len);

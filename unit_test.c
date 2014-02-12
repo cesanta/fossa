@@ -7,6 +7,9 @@
 #define TS_ENABLE_SSL
 #endif
 
+#define TS_ENABLE_HEXDUMP "**"
+#define TS_ENABLE_DEBUG
+
 #include "tcp_skeleton.c"
 
 #define FAIL(str, line) do {                    \
@@ -15,7 +18,7 @@
 } while (0)
 
 #define ASSERT(expr) do {             \
-  static_num_tests++;               \
+  static_num_tests++;                 \
   if (!(expr)) FAIL(#expr, __LINE__); \
 } while (0)
 
@@ -23,7 +26,8 @@
   if (msg) return msg; } while (0)
 
 #define HTTP_PORT "45772"
-#define LISTENING_ADDR "127.0.0.1:" HTTP_PORT
+#define LOOPBACK_IP  "127.0.0.1"
+#define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
 static int static_num_tests = 0;
 
@@ -43,9 +47,24 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
+static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
+  if (ev == TS_POLL) return 0;
+  printf("ev_handler: conn %p, ev %d, data %p\n", conn, (int) ev, p);
+  return 0;
+}
+
 static const char *test_server(void) {
+  char buf[100];
   struct ts_server server;
-  ts_server_init(&server, (void *) "foo");
+  int port;
+  ts_server_init(&server, (void *) "foo", ev_handler);
+
+  port = ts_bind_to(&server,  LOOPBACK_IP ":0");
+  ASSERT(port > 0);
+
+  ASSERT(ts_connect(&server, LOOPBACK_IP, port, 0, buf) > 0);
+  { int i; for (i = 0; i < 50; i++) ts_server_poll(&server, 0); }
+
   ts_server_free(&server);
   return NULL;
 }

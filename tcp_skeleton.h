@@ -53,6 +53,7 @@ struct ts_connection {
   struct ts_connection *prev, *next;
   struct ts_server *server;
   void *connection_data;
+  void *callback_param;
   time_t last_io_time;
   int sock;
   struct iobuf recv_iobuf;
@@ -73,6 +74,7 @@ void ts_server_init(struct ts_server *, void *server_data, ts_callback_t);
 void ts_server_free(struct ts_server *);
 int ts_server_poll(struct ts_server *, int milli);
 void ts_server_wakeup(struct ts_server *, void *conn_param);
+void ts_iterate(struct ts_server *server, ts_callback_t cb, void *param);
 
 int ts_bind_to(struct ts_server *, const char *port, const char *ssl_cert);
 int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);

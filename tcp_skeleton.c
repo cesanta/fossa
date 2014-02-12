@@ -758,6 +758,16 @@ int ts_connect(struct ts_server *server, const char *host, int port,
   return 1;
 }
 
+void ts_iterate(struct ts_server *server, ts_callback_t cb, void *param) {
+  struct ts_connection *conn, *tmp_conn;
+
+  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+    tmp_conn = conn->next;
+    conn->callback_param = param;
+    cb(conn, TS_POLL);
+  }
+}
+
 void ts_server_init(struct ts_server *s, void *server_data, ts_callback_t cb) {
   memset(s, 0, sizeof(*s));
   s->listening_sock = INVALID_SOCKET;

@@ -7,6 +7,9 @@ all:
 echo: echo.c ../tcp_skeleton.c
 	cc echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
+echo: pubsub.c ../tcp_skeleton.c
+	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test
 	g++ unit_test.c -o unit_test $(CFLAGS) && ./unit_test

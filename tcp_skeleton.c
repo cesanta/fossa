@@ -57,6 +57,7 @@ typedef __int64   int64_t;
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <arpa/inet.h>  // For inet_pton() when TS_ENABLE_IPV6 is defined
 #include <netinet/in.h>
@@ -175,6 +176,29 @@ void iobuf_remove(struct iobuf *io, int n) {
   }
 }
 
+#ifdef TS_ENABLE_THREADS
+void *ts_start_thread(void *(*f)(void *), void *p) {
+#ifdef _WIN32
+  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
+#else
+  pthread_t thread_id = (pthread_t) 0;
+  pthread_attr_t attr;
+
+  (void) pthread_attr_init(&attr);
+  (void) pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+#if TS_STACK_SIZE > 1
+  (void) pthread_attr_setstacksize(&attr, TS_STACK_SIZE);
+#endif
+
+  pthread_create(&thread_id, &attr, f, p);
+  pthread_attr_destroy(&attr);
+
+  return (void *) thread_id;
+#endif
+}
+#endif  // TS_ENABLE_THREADS
+
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
 // and return allocated buffer.
@@ -280,6 +304,40 @@ static void set_non_blocking_mode(int sock) {
   fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 #endif
 }
+
+#ifndef TS_DISABLE_SOCKETPAIR
+int ts_socketpair(int sp[2]) {
+  struct sockaddr_in sa;
+  int sock, ret = -1;
+  socklen_t len = sizeof(sa);
+
+  sp[0] = sp[1] = INVALID_SOCKET;
+
+  (void) memset(&sa, 0, sizeof(sa));
+  sa.sin_family = AF_INET;
+  sa.sin_port = htons(0);
+  sa.sin_addr.s_addr = htonl(0x7f000001);
+
+  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) != INVALID_SOCKET &&
+      !bind(sock, (struct sockaddr *) &sa, len) &&
+      !listen(sock, 1) &&
+      !getsockname(sock, (struct sockaddr *) &sa, &len) &&
+      (sp[0] = socket(AF_INET, SOCK_STREAM, 6)) != -1 &&
+      !connect(sp[0], (struct sockaddr *) &sa, len) &&
+      (sp[1] = accept(sock,(struct sockaddr *) &sa, &len)) != INVALID_SOCKET) {
+    set_close_on_exec(sp[0]);
+    set_close_on_exec(sp[1]);
+    ret = 0;
+  } else {
+    if (sp[0] != INVALID_SOCKET) closesocket(sp[0]);
+    if (sp[1] != INVALID_SOCKET) closesocket(sp[1]);
+    sp[0] = sp[1] = INVALID_SOCKET;
+  }
+  closesocket(sock);
+
+  return ret;
+}
+#endif  // TS_DISABLE_SOCKETPAIR
 
 // Valid listening port spec is: [ip_address:]port, e.g. "80", "127.0.0.1:3128"
 static int parse_port_string(const char *str, union socket_address *sa) {

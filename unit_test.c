@@ -94,7 +94,7 @@ static const char *test_server(void) {
 
 #ifdef TS_ENABLE_SSL
 static const char *test_ssl(void) {
-  return test_server_with_ssl("ssl_cert.pem");
+  return test_server_with_ssl("examples/ssl_cert.pem");
 }
 #endif
 

@@ -80,6 +80,10 @@ int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);
 int ts_send(struct ts_connection *, const void *buf, int len);
 int ts_printf(struct ts_connection *, const char *fmt, ...);
 
+// Utility functions
+void *ts_start_thread(void *(*f)(void *), void *p);
+int ts_socketpair(int [2]);
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus

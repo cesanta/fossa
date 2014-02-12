@@ -85,8 +85,12 @@ typedef __int64   int64_t;
 #endif
 
 #ifdef TS_ENABLE_DEBUG
-#define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \
-  fflush(stdout); } while(0)
+#define DBG(x) do {           \
+  printf("%-20s ", __func__); \
+  printf x;                   \
+  putchar('\n');              \
+  fflush(stdout);             \
+} while(0)
 #else
 #define DBG(x)
 #endif
@@ -99,14 +103,14 @@ typedef __int64   int64_t;
 
 #define ADD_CONNECTION(server, conn) do {                 \
   (conn)->next = (server)->active_connections;            \
-  if ((conn)->next != NULL) (conn)->next->prev = (conn);  \
   (server)->active_connections = (conn);                  \
-  (conn)->prev = (server)->active_connections;            \
+  if ((conn)->next != NULL) (conn)->next->prev = (conn);  \
 } while (0)
 
-#define REMOVE_CONNECTION(conn) do {                      \
-  (conn)->prev->next = (conn)->next;                      \
-  if ((conn)->next) (conn)->next->prev = (conn)->prev;    \
+#define REMOVE_CONNECTION(conn) do {                                      \
+  if ((conn)->prev) (conn)->prev->next = (conn)->next;                    \
+  if ((conn)->next) (conn)->next->prev = (conn)->prev;                    \
+  if (!(conn)->prev) (conn)->server->active_connections = (conn)->next;   \
 } while (0)
 
 union socket_address {
@@ -374,7 +378,8 @@ static void read_from_socket(struct ts_connection *conn) {
       }
     }
 #endif
-    if (call_user(conn, TS_CONNECT, &ok) == 0 || ok != 0) {
+    call_user(conn, TS_CONNECT, &ok);
+    if (ok != 0) {
       conn->flags |= TSF_CLOSE_IMMEDIATELY;
     }
     return;
@@ -398,8 +403,6 @@ static void read_from_socket(struct ts_connection *conn) {
     n = recv(conn->sock, buf, sizeof(buf), 0);
   }
 
-  DBG(("%p %d %d (1)", conn, n, conn->flags));
-
 #ifdef TS_ENABLE_HEXDUMP
   hexdump(conn, buf, n, "<-");
 #endif
@@ -415,7 +418,45 @@ static void read_from_socket(struct ts_connection *conn) {
     iobuf_append(&conn->recv_iobuf, buf, n);
     call_user(conn, TS_RECV, NULL);
   }
-  DBG(("%p %d %d (2)", conn, n, conn->flags));
+
+  DBG(("%p %d %d", conn, n, conn->flags));
+  call_user(conn, TS_RECV, NULL);
+}
+
+static void write_to_socket(struct ts_connection *conn) {
+  struct iobuf *io = &conn->send_iobuf;
+  int n = 0;
+
+#ifdef TS_ENABLE_SSL
+  if (conn->ssl != NULL) {
+    n = SSL_write(conn->ssl, io->buf, io->len);
+  } else
+#endif
+  { n = send(conn->sock, io->buf, io->len, 0); }
+
+
+#ifdef TS_ENABLE_HEXDUMP
+  hexdump(conn, io->buf, n, "->");
+#endif
+
+  if (is_error(n)) {
+    conn->flags |= TSF_CLOSE_IMMEDIATELY;
+  } else if (n > 0) {
+    iobuf_remove(io, n);
+    //conn->num_bytes_sent += n;
+  }
+
+  if (io->len == 0 && conn->flags & TSF_FINISHED_SENDING_DATA) {
+    conn->flags |= TSF_CLOSE_IMMEDIATELY;
+  }
+
+  DBG(("%p Written %d of %d(%d): [%.*s ...]",
+       conn, n, io->len, io->size, io->len < 40 ? io->len : 40, io->buf));
+  call_user(conn, TS_SEND, NULL);
+}
+
+int ts_send(struct ts_connection *conn, const void *buf, int len) {
+  return iobuf_append(&conn->send_iobuf, buf, len);
 }
 
 static void add_to_set(int sock, fd_set *set, int *max_fd) {
@@ -440,11 +481,12 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
+    call_user(conn, TS_POLL, NULL);
     add_to_set(conn->sock, &read_set, &max_fd);
-#if 0
-    if (conn->endpoint_type == EP_CLIENT && (conn->flags & CONN_CONNECTING)) {
-      add_to_set(conn->client_sock, &write_set, &max_fd);
+    if (conn->flags & TSF_CONNECTING) {
+      add_to_set(conn->sock, &write_set, &max_fd);
     }
+#if 0
     if (conn->endpoint_type == EP_FILE) {
       transfer_file_data(conn);
     } else if (conn->endpoint_type == EP_CGI) {
@@ -478,7 +520,6 @@ int ts_server_poll(struct ts_server *server, int milli) {
         conn->last_io_time = current_time;
         read_from_socket(conn);
       }
-    }
 #if 0
 #ifndef MONGOOSE_NO_CGI
       if (conn->endpoint_type == EP_CGI &&
@@ -486,22 +527,20 @@ int ts_server_poll(struct ts_server *server, int milli) {
         read_from_cgi(conn);
       }
 #endif
-      if (FD_ISSET(conn->client_sock, &write_set)) {
-        if (conn->endpoint_type == EP_CLIENT &&
-            (conn->flags & CONN_CONNECTING)) {
+#endif
+      if (FD_ISSET(conn->sock, &write_set)) {
+        if (conn->flags & TSF_CONNECTING) {
           read_from_socket(conn);
-        } else if (!(conn->flags & CONN_BUFFER)) {
-          conn->last_activity_time = current_time;
+        } else if (!(conn->flags & TSF_BUFFER_BUT_DONT_SEND)) {
+          conn->last_io_time = current_time;
           write_to_socket(conn);
         }
       }
     }
-#endif
   }
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    call_user(conn, TS_POLL, NULL);
 
     if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
       close_conn(conn);

@@ -49,7 +49,27 @@ static const char *test_iobuf(void) {
 
 static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
   if (ev == TS_POLL) return 0;
-  printf("ev_handler: conn %p, ev %d, data %p\n", conn, (int) ev, p);
+  printf("ev_handler           %p, ev %d, data %p\n", conn, (int) ev, p);
+  switch (ev) {
+    case TS_CONNECT:
+      ts_send(conn, "foo", 3);
+      break;
+    case TS_RECV:
+      if (conn->flags & TSF_ACCEPTED) {
+        struct iobuf *io = &conn->recv_iobuf;
+        ts_send(conn, io->buf, io->len); // Echo message back
+        iobuf_remove(io, io->len);
+      } else {
+        struct iobuf *io = &conn->recv_iobuf;
+        if (io->len == 3 && memcmp(io->buf, "foo", 3) == 0) {
+          sprintf((char *) conn->connection_data, "%s", "ok!");
+          conn->flags |= TSF_CLOSE_IMMEDIATELY;
+        }
+      }
+      break;
+    default:
+      break;
+  }
   return 0;
 }
 

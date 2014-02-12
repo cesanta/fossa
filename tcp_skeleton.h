@@ -34,7 +34,6 @@ struct iobuf {
 void iobuf_init(struct iobuf *, int initial_size);
 void iobuf_free(struct iobuf *);
 int iobuf_append(struct iobuf *, const void *data, int data_size);
-int iobuf_appendf(struct iobuf *, const char *fmt, ...);
 void iobuf_remove(struct iobuf *, int data_size);
 
 struct ts_connection;
@@ -76,7 +75,7 @@ int ts_bind_to(struct ts_server *, const char *bind_addr);
 int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);
 
 int ts_send(struct ts_connection *, const void *buf, int len);
-int ts_printf(struct ts_connection *, const void *buf, int len);
+int ts_printf(struct ts_connection *, const char *fmt, ...);
 
 #ifdef __cplusplus
 }

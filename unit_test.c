@@ -48,11 +48,9 @@ static const char *test_iobuf(void) {
 }
 
 static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
-  if (ev == TS_POLL) return 0;
-  printf("ev_handler           %p, ev %d, data %p\n", conn, (int) ev, p);
   switch (ev) {
     case TS_CONNECT:
-      ts_send(conn, "foo", 3);
+      ts_printf(conn, "%d %s there", 17, "hi");
       break;
     case TS_RECV:
       if (conn->flags & TSF_ACCEPTED) {
@@ -61,7 +59,7 @@ static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
         iobuf_remove(io, io->len);
       } else {
         struct iobuf *io = &conn->recv_iobuf;
-        if (io->len == 3 && memcmp(io->buf, "foo", 3) == 0) {
+        if (io->len == 11 && memcmp(io->buf, "17 hi there", 11) == 0) {
           sprintf((char *) conn->connection_data, "%s", "ok!");
           conn->flags |= TSF_CLOSE_IMMEDIATELY;
         }
@@ -74,7 +72,7 @@ static int ev_handler(struct ts_connection *conn, enum ts_event ev, void *p) {
 }
 
 static const char *test_server(void) {
-  char buf[100];
+  char buf[100] = "";
   struct ts_server server;
   int port;
   ts_server_init(&server, (void *) "foo", ev_handler);
@@ -84,6 +82,8 @@ static const char *test_server(void) {
 
   ASSERT(ts_connect(&server, LOOPBACK_IP, port, 0, buf) > 0);
   { int i; for (i = 0; i < 50; i++) ts_server_poll(&server, 0); }
+
+  ASSERT(strcmp(buf, "ok!") == 0);
 
   ts_server_free(&server);
   return NULL;

@@ -42,7 +42,11 @@
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
+#ifndef va_copy
+#define va_copy(x,y) x = y
+#endif // MINGW #defines va_copy
 #define snprintf _snprintf
+#define vsnprintf _vsnprintf
 typedef int socklen_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -169,6 +173,80 @@ void iobuf_remove(struct iobuf *io, int n) {
     memmove(io->buf, io->buf + n, io->len - n);
     io->len -= n;
   }
+}
+
+// Print message to buffer. If buffer is large enough to hold the message,
+// return buffer. If buffer is to small, allocate large enough buffer on heap,
+// and return allocated buffer.
+static int alloc_vprintf(char **buf, size_t size, const char *fmt, va_list ap) {
+  va_list ap_copy;
+  int len;
+
+  va_copy(ap_copy, ap);
+  len = vsnprintf(*buf, size, fmt, ap_copy);
+  va_end(ap_copy);
+
+  if (len < 0) {
+    // eCos and Windows are not standard-compliant and return -1 when
+    // the buffer is too small. Keep allocating larger buffers until we
+    // succeed or out of memory.
+    *buf = NULL;
+    while (len < 0) {
+      if (*buf) free(*buf);
+      size *= 2;
+      if ((*buf = (char *) TS_MALLOC(size)) == NULL) break;
+      va_copy(ap_copy, ap);
+      len = vsnprintf(*buf, size, fmt, ap_copy);
+      va_end(ap_copy);
+    }
+  } else if (len > (int) size) {
+    // Standard-compliant code path. Allocate a buffer that is large enough.
+    if ((*buf = (char *) TS_MALLOC(len + 1)) == NULL) {
+      len = -1;
+    } else {
+      va_copy(ap_copy, ap);
+      len = vsnprintf(*buf, len + 1, fmt, ap_copy);
+      va_end(ap_copy);
+    }
+  }
+
+  return len;
+}
+
+static void write_chunk(struct ts_connection *conn, const char *buf, int len) {
+  char chunk_size[50];
+  int n = snprintf(chunk_size, sizeof(chunk_size), "%X\r\n", len);
+  iobuf_append(&conn->send_iobuf, chunk_size, n);
+  iobuf_append(&conn->send_iobuf, buf, len);
+  iobuf_append(&conn->send_iobuf, "\r\n", 2);
+}
+
+int ts_vprintf(struct ts_connection *conn, const char *fmt, va_list ap,
+               int chunked) {
+  char mem[2000], *buf = mem;
+  int len;
+
+  if ((len = alloc_vprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
+    if (chunked) {
+      write_chunk(conn, buf, len);
+    } else {
+      iobuf_append(&conn->send_iobuf, buf, len);
+    }
+  }
+  if (buf != mem && buf != NULL) {
+    free(buf);
+  }
+
+  return len;
+}
+
+int ts_printf(struct ts_connection *conn, const char *fmt, ...) {
+  int len;
+  va_list ap;
+  va_start(ap, fmt);
+  len = ts_vprintf(conn, fmt, ap, 0);
+  va_end(ap);
+  return len;
 }
 
 static int call_user(struct ts_connection *conn, enum ts_event ev, void *p) {
@@ -419,7 +497,9 @@ static void read_from_socket(struct ts_connection *conn) {
     call_user(conn, TS_RECV, NULL);
   }
 
-  DBG(("%p %d %d", conn, n, conn->flags));
+  DBG(("%p <- %d bytes [%.*s%s]",
+       conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
+
   call_user(conn, TS_RECV, NULL);
 }
 
@@ -439,6 +519,9 @@ static void write_to_socket(struct ts_connection *conn) {
   hexdump(conn, io->buf, n, "->");
 #endif
 
+  DBG(("%p -> %d bytes [%.*s%s]", conn, n, io->len < 40 ? io->len : 40,
+       io->buf, io->len < 40 ? "" : "..."));
+
   if (is_error(n)) {
     conn->flags |= TSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
@@ -450,8 +533,6 @@ static void write_to_socket(struct ts_connection *conn) {
     conn->flags |= TSF_CLOSE_IMMEDIATELY;
   }
 
-  DBG(("%p Written %d of %d(%d): [%.*s ...]",
-       conn, n, io->len, io->size, io->len < 40 ? io->len : 40, io->buf));
   call_user(conn, TS_SEND, NULL);
 }
 

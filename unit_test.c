@@ -70,16 +70,16 @@ static void ev_handler(struct ts_connection *conn, enum ts_event ev) {
   }
 }
 
-static const char *test_server(void) {
+static const char *test_server_with_ssl(const char *cert) {
   char buf[100] = "";
   struct ts_server server;
   int port;
   ts_server_init(&server, (void *) "foo", ev_handler);
 
-  port = ts_bind_to(&server,  LOOPBACK_IP ":0");
+  port = ts_bind_to(&server,  LOOPBACK_IP ":0", cert);
   ASSERT(port > 0);
 
-  ASSERT(ts_connect(&server, LOOPBACK_IP, port, 0, buf) > 0);
+  ASSERT(ts_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) > 0);
   { int i; for (i = 0; i < 50; i++) ts_server_poll(&server, 0); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
@@ -88,11 +88,21 @@ static const char *test_server(void) {
   return NULL;
 }
 
+static const char *test_server(void) {
+  return test_server_with_ssl(NULL);
+}
+
+#ifdef TS_ENABLE_SSL
+static const char *test_ssl(void) {
+  return test_server_with_ssl("ssl_cert.pem");
+}
+#endif
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_server);
 #ifdef TS_ENABLE_SSL
-  //RUN_TEST(test_ssl);
+  RUN_TEST(test_ssl);
 #endif
   return NULL;
 }

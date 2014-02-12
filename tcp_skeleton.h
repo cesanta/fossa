@@ -74,7 +74,7 @@ void ts_server_free(struct ts_server *);
 int ts_server_poll(struct ts_server *, int milli);
 void ts_server_wakeup(struct ts_server *, void *conn_param);
 
-int ts_bind_to(struct ts_server *, const char *bind_addr);
+int ts_bind_to(struct ts_server *, const char *port, const char *ssl_cert);
 int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);
 
 int ts_send(struct ts_connection *, const void *buf, int len);

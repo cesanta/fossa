@@ -337,12 +337,23 @@ static int open_listening_socket(union socket_address *sa) {
   return sock;
 }
 
-int ts_bind_to(struct ts_server *server, const char *str) {
+int ts_bind_to(struct ts_server *server, const char *str, const char *cert) {
   union socket_address sa;
   parse_port_string(str, &sa);
   server->listening_sock = open_listening_socket(&sa);
+
+#ifdef TS_ENABLE_SSL
+  if (cert != NULL &&
+      (server->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) != NULL) {
+    SSL_CTX_use_certificate_file((SSL_CTX *) server->ssl_ctx, cert, 1);
+    SSL_CTX_use_PrivateKey_file((SSL_CTX *) server->ssl_ctx, cert, 1);
+    SSL_CTX_use_certificate_chain_file((SSL_CTX *) server->ssl_ctx, cert);
+  }
+#endif
+
   return (int) ntohs(sa.sin.sin_port);
 }
+
 
 static struct ts_connection *accept_conn(struct ts_server *server) {
   struct ts_connection *c = NULL;
@@ -353,26 +364,28 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
     closesocket(sock);
-  } else if ((c = (struct ts_connection *) TS_MALLOC(sizeof(*c))) == NULL) {
+  } else if ((c = (struct ts_connection *) TS_MALLOC(sizeof(*c))) == NULL ||
+             memset(c, 0, sizeof(*c)) == NULL) {
     closesocket(sock);
+#ifdef TS_ENABLE_SSL
+  } else if (server->ssl_ctx != NULL &&
+             ((c->ssl = SSL_new((SSL_CTX *) server->ssl_ctx)) == NULL ||
+              SSL_set_fd((SSL *) c->ssl, sock) != 1)) {
+    DBG(("SSL error"));
+    closesocket(sock);
+    free(c);
+    c = NULL;
+#endif
   } else {
     set_close_on_exec(sock);
     set_non_blocking_mode(sock);
-    memset(c, 0, sizeof(*c));
     c->server = server;
     c->sock = sock;
     c->flags |= TSF_ACCEPTED;
-#if 0
-    sockaddr_to_string(c->mg_conn.remote_ip,
-                       sizeof(conn->mg_conn.remote_ip), &sa);
-    c->mg_conn.remote_port = ntohs(sa.sin.sin_port);
-    c->mg_conn.server_param = server->server_data;
-    c->mg_conn.local_ip = server->local_ip;
-    conn->mg_conn.local_port = ntohs(server->lsa.sin.sin_port);
-#endif
+
     ADD_CONNECTION(server, c);
     call_user(c, TS_ACCEPT);
-    DBG(("%p", c));
+    DBG(("%p %d %p %p", c, c->sock, c->ssl, server->ssl_ctx));
   }
 
   return c;
@@ -444,8 +457,9 @@ static void read_from_socket(struct ts_connection *conn) {
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
 #ifdef TS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
-      int res = SSL_connect(conn->ssl), ssl_err = SSL_get_error(conn->ssl, res);
-      //DBG(("%p res %d %d", conn, res, ssl_err));
+      int res = SSL_connect((SSL *) conn->ssl);
+      int ssl_err = SSL_get_error((SSL *) conn->ssl, res);
+      DBG(("%p res %d %d", conn, res, ssl_err));
       if (res == 1) {
         conn->flags = TSF_SSL_HANDSHAKE_DONE;
       } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
@@ -464,8 +478,6 @@ static void read_from_socket(struct ts_connection *conn) {
     call_user(conn, TS_CONNECT);
     return;
   }
-#if 0
-#endif
 
 #ifdef TS_ENABLE_SSL
   if (conn->ssl != NULL) {
@@ -511,7 +523,7 @@ static void write_to_socket(struct ts_connection *conn) {
 
 #ifdef TS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    n = SSL_write(conn->ssl, io->buf, io->len);
+    n = SSL_write((SSL *) conn->ssl, io->buf, io->len);
   } else
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }
@@ -648,9 +660,6 @@ int ts_connect(struct ts_server *server, const char *host, int port,
     DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
     return 0;
   }
-#ifndef MONGOOSE_USE_SSL
-  if (use_ssl) return 0;
-#endif
 
   sin.sin_family = AF_INET;
   sin.sin_port = htons((uint16_t) port);
@@ -673,13 +682,14 @@ int ts_connect(struct ts_server *server, const char *host, int port,
   conn->flags = TSF_CONNECTING;
 
 #ifdef TS_ENABLE_SSL
-  if (use_ssl && (conn->ssl = SSL_new(server->client_ssl_ctx)) != NULL) {
-    SSL_set_fd(conn->ssl, sock);
+  if (use_ssl &&
+      (conn->ssl = SSL_new((SSL_CTX *)server->client_ssl_ctx)) != NULL) {
+    SSL_set_fd((SSL *) conn->ssl, sock);
   }
 #endif
 
   ADD_CONNECTION(server, conn);
-  DBG(("%p %s:%d", conn, host, port));
+  DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return 1;
 }
@@ -698,9 +708,9 @@ void ts_server_init(struct ts_server *s, void *server_data, ts_callback_t cb) {
   signal(SIGPIPE, SIG_IGN);
 #endif
 
-#ifdef MONGOOSE_USE_SSL
+#ifdef TS_ENABLE_SSL
   SSL_library_init();
-  server->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
+  s->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
 #endif
 }
 
@@ -726,7 +736,7 @@ void ts_server_free(struct ts_server *s) {
 #endif
 
 #ifdef TS_ENABLE_SSL
-  if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);
-  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
+  if (s->ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->ssl_ctx);
+  if (s->client_ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->client_ssl_ctx);
 #endif
 }

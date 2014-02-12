@@ -58,6 +58,7 @@ typedef __int64   int64_t;
 #include <fcntl.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <arpa/inet.h>  // For inet_pton() when TS_ENABLE_IPV6 is defined
 #include <netinet/in.h>
@@ -399,6 +400,7 @@ int ts_bind_to(struct ts_server *server, const char *str, const char *cert) {
   union socket_address sa;
   parse_port_string(str, &sa);
   server->listening_sock = open_listening_socket(&sa);
+  (void) cert;
 
 #ifdef TS_ENABLE_SSL
   if (cert != NULL &&
@@ -712,6 +714,10 @@ int ts_connect(struct ts_server *server, const char *host, int port,
   struct hostent *he = NULL;
   struct ts_connection *conn = NULL;
   int connect_ret_val;
+
+#ifndef TS_ENABLE_SSL
+  if (use_ssl) return 0;
+#endif
 
   if (host == NULL || (he = gethostbyname(host)) == NULL ||
       (sock = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {

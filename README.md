@@ -3,4 +3,5 @@ tcp_skeleton
 
 TCP client/server library for C/C++
 
-This project is in design phase.
+Documentation is available at
+[http://cesanta.com](http://cesanta.com/docs.html?Skeleton.md)

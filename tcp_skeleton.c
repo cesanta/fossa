@@ -550,7 +550,7 @@ int ts_send(struct ts_connection *conn, const void *buf, int len) {
   return iobuf_append(&conn->send_iobuf, buf, len);
 }
 
-static void add_to_set(sock_t sock, fd_set *set, int *max_fd) {
+static void add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   if (sock >= 0) FD_SET(sock, set);
   if (sock > *max_fd) {
     *max_fd = sock;
@@ -632,7 +632,7 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
 struct ts_connection *ts_connect(struct ts_server *server, const char *host,
                                  int port, int use_ssl, void *param) {
-  int sock = INVALID_SOCKET;
+  sock_t sock = INVALID_SOCKET;
   struct sockaddr_in sin;
   struct hostent *he = NULL;
   struct ts_connection *conn = NULL;

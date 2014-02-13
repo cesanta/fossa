@@ -119,8 +119,8 @@ struct ts_server {
   int listening_sock;
   struct ts_connection *active_connections;
   ts_callback_t callback;
-  void *ssl_ctx;
-  void *client_ssl_ctx;
+  SSL_CTX *ssl_ctx;
+  SSL_CTX *client_ssl_ctx;
 };
 
 struct ts_connection {
@@ -132,7 +132,7 @@ struct ts_connection {
   int sock;
   struct iobuf recv_iobuf;
   struct iobuf send_iobuf;
-  void *ssl;
+  SSL *ssl;
   unsigned int flags;
 #define TSF_FINISHED_SENDING_DATA   1
 #define TSF_BUFFER_BUT_DONT_SEND    2

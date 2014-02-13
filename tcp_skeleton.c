@@ -342,9 +342,9 @@ int ts_bind_to(struct ts_server *server, const char *str, const char *cert) {
 #ifdef TS_ENABLE_SSL
   if (cert != NULL &&
       (server->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) != NULL) {
-    SSL_CTX_use_certificate_file((SSL_CTX *) server->ssl_ctx, cert, 1);
-    SSL_CTX_use_PrivateKey_file((SSL_CTX *) server->ssl_ctx, cert, 1);
-    SSL_CTX_use_certificate_chain_file((SSL_CTX *) server->ssl_ctx, cert);
+    SSL_CTX_use_certificate_file(server->ssl_ctx, cert, 1);
+    SSL_CTX_use_PrivateKey_file(server->ssl_ctx, cert, 1);
+    SSL_CTX_use_certificate_chain_file(server->ssl_ctx, cert);
   }
 #endif
 
@@ -366,8 +366,8 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
     closesocket(sock);
 #ifdef TS_ENABLE_SSL
   } else if (server->ssl_ctx != NULL &&
-             ((c->ssl = SSL_new((SSL_CTX *) server->ssl_ctx)) == NULL ||
-              SSL_set_fd((SSL *) c->ssl, sock) != 1)) {
+             ((c->ssl = SSL_new(server->ssl_ctx)) == NULL ||
+              SSL_set_fd(c->ssl, sock) != 1)) {
     DBG(("SSL error"));
     closesocket(sock);
     free(c);
@@ -454,8 +454,8 @@ static void read_from_socket(struct ts_connection *conn) {
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
 #ifdef TS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
-      int res = SSL_connect((SSL *) conn->ssl);
-      int ssl_err = SSL_get_error((SSL *) conn->ssl, res);
+      int res = SSL_connect(conn->ssl);
+      int ssl_err = SSL_get_error(conn->ssl, res);
       DBG(("%p res %d %d", conn, res, ssl_err));
       if (res == 1) {
         conn->flags = TSF_SSL_HANDSHAKE_DONE;
@@ -478,9 +478,9 @@ static void read_from_socket(struct ts_connection *conn) {
 #ifdef TS_ENABLE_SSL
   if (conn->ssl != NULL) {
     if (conn->flags & TSF_SSL_HANDSHAKE_DONE) {
-      n = SSL_read((SSL *) conn->ssl, buf, sizeof(buf));
+      n = SSL_read(conn->ssl, buf, sizeof(buf));
     } else {
-      if (SSL_accept((SSL *) conn->ssl) == 1) {
+      if (SSL_accept(conn->ssl) == 1) {
         conn->flags |= TSF_SSL_HANDSHAKE_DONE;
       }
       return;
@@ -519,7 +519,7 @@ static void write_to_socket(struct ts_connection *conn) {
 
 #ifdef TS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    n = SSL_write((SSL *) conn->ssl, io->buf, io->len);
+    n = SSL_write(conn->ssl, io->buf, io->len);
   } else
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }
@@ -670,8 +670,8 @@ struct ts_connection *ts_connect(struct ts_server *server, const char *host,
 
 #ifdef TS_ENABLE_SSL
   if (use_ssl &&
-      (conn->ssl = SSL_new((SSL_CTX *)server->client_ssl_ctx)) != NULL) {
-    SSL_set_fd((SSL *) conn->ssl, sock);
+      (conn->ssl = SSL_new(server->client_ssl_ctx)) != NULL) {
+    SSL_set_fd(conn->ssl, sock);
   }
 #endif
 
@@ -747,7 +747,7 @@ void ts_server_free(struct ts_server *s) {
 #endif
 
 #ifdef TS_ENABLE_SSL
-  if (s->ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->ssl_ctx);
-  if (s->client_ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->client_ssl_ctx);
+  if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);
+  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
 #endif
 }

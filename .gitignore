@@ -1,0 +1,7 @@
+/examples/msvc/Debug
+/examples/msvc/ipch
+
+/examples/msvc/*.opensdf
+/examples/msvc/*.sdf
+/examples/msvc/*.suo
+/examples/msvc/*.vcxproj.user

@@ -74,10 +74,12 @@ void ts_server_init(struct ts_server *, void *server_data, ts_callback_t);
 void ts_server_free(struct ts_server *);
 int ts_server_poll(struct ts_server *, int milli);
 void ts_server_wakeup(struct ts_server *, void *conn_param);
-void ts_iterate(struct ts_server *server, ts_callback_t cb, void *param);
+void ts_iterate(struct ts_server *, ts_callback_t cb, void *param);
+struct ts_connection *ts_add_sock(struct ts_server *, int sock, void *p);
 
 int ts_bind_to(struct ts_server *, const char *port, const char *ssl_cert);
-int ts_connect(struct ts_server *, const char *host, int port, int ssl, void *);
+struct ts_connection *ts_connect(struct ts_server *, const char *host,
+                                 int port, int ssl, void *connection_param);
 
 int ts_send(struct ts_connection *, const void *buf, int len);
 int ts_printf(struct ts_connection *, const char *fmt, ...);

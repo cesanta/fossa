@@ -1,5 +1,5 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
-CFLAGS = -W -Wall -pedantic -O3 -lssl -I.. $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -pedantic -O0 -g -lssl -I.. $(CFLAGS_EXTRA)
 
 all:
 	@echo "Usage: make [echo|pubsub]"
@@ -7,8 +7,8 @@ all:
 echo: echo.c ../tcp_skeleton.c
 	cc echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
-echo: pubsub.c ../tcp_skeleton.c
-	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+pubsub: pubsub.c ../tcp_skeleton.c
+	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS) -DTS_ENABLE_DEBUG
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test
@@ -20,4 +20,4 @@ w:
 	wine cl unit_test.c ws2_32.lib && wine unit_test.exe
 
 clean:
-	rm -rf *.gc* *.dSYM unit_test *.txt *.exe a.out echo
+	rm -rf *.gc* *.dSYM unit_test *.txt *.exe a.out echo pubsub

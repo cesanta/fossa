@@ -151,7 +151,6 @@ int iobuf_append(struct iobuf *io, const void *buf, int len) {
   assert(io->len >= 0);
   assert(io->len <= io->size);
 
-  //DBG(("1. %d %d %d", len, io->len, io->size));
   if (len <= 0) {
   } else if ((new_len = io->len + len) < io->size) {
     memcpy(io->buf + io->len, buf, len);
@@ -165,7 +164,6 @@ int iobuf_append(struct iobuf *io, const void *buf, int len) {
   } else {
     len = 0;
   }
-  //DBG(("%d %d %d", len, io->len, io->size));
 
   return len;
 }
@@ -177,7 +175,7 @@ void iobuf_remove(struct iobuf *io, int n) {
   }
 }
 
-#ifdef TS_ENABLE_THREADS
+#ifndef TS_DISABLE_THREADS
 void *ts_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
   return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
@@ -198,7 +196,7 @@ void *ts_start_thread(void *(*f)(void *), void *p) {
   return (void *) thread_id;
 #endif
 }
-#endif  // TS_ENABLE_THREADS
+#endif  // TS_DISABLE_THREADS
 
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
@@ -641,13 +639,6 @@ int ts_server_poll(struct ts_server *server, int milli) {
     if (conn->flags & TSF_CONNECTING) {
       add_to_set(conn->sock, &write_set, &max_fd);
     }
-#if 0
-    if (conn->endpoint_type == EP_FILE) {
-      transfer_file_data(conn);
-    } else if (conn->endpoint_type == EP_CGI) {
-      add_to_set(conn->endpoint.cgi_sock, &read_set, &max_fd);
-    }
-#endif
     if (conn->send_iobuf.len > 0 && !(conn->flags & TSF_BUFFER_BUT_DONT_SEND)) {
       add_to_set(conn->sock, &write_set, &max_fd);
     } else if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
@@ -675,14 +666,6 @@ int ts_server_poll(struct ts_server *server, int milli) {
         conn->last_io_time = current_time;
         read_from_socket(conn);
       }
-#if 0
-#ifndef MONGOOSE_NO_CGI
-      if (conn->endpoint_type == EP_CGI &&
-          FD_ISSET(conn->endpoint.cgi_sock, &read_set)) {
-        read_from_cgi(conn);
-      }
-#endif
-#endif
       if (FD_ISSET(conn->sock, &write_set)) {
         if (conn->flags & TSF_CONNECTING) {
           read_from_socket(conn);
@@ -707,8 +690,8 @@ int ts_server_poll(struct ts_server *server, int milli) {
   return num_active_connections;
 }
 
-int ts_connect(struct ts_server *server, const char *host, int port,
-               int use_ssl, void *param) {
+struct ts_connection *ts_connect(struct ts_server *server, const char *host,
+                                 int port, int use_ssl, void *param) {
   int sock = INVALID_SOCKET;
   struct sockaddr_in sin;
   struct hostent *he = NULL;
@@ -722,7 +705,7 @@ int ts_connect(struct ts_server *server, const char *host, int port,
   if (host == NULL || (he = gethostbyname(host)) == NULL ||
       (sock = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
     DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
-    return 0;
+    return NULL;
   }
 
   sin.sin_family = AF_INET;
@@ -732,11 +715,11 @@ int ts_connect(struct ts_server *server, const char *host, int port,
 
   connect_ret_val = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
   if (is_error(connect_ret_val)) {
-    return 0;
+    return NULL;
   } else if ((conn = (struct ts_connection *)
               TS_MALLOC(sizeof(*conn))) == NULL) {
     closesocket(sock);
-    return 0;
+    return NULL;
   }
 
   memset(conn, 0, sizeof(*conn));
@@ -755,7 +738,20 @@ int ts_connect(struct ts_server *server, const char *host, int port,
   ADD_CONNECTION(server, conn);
   DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
-  return 1;
+  return conn;
+}
+
+struct ts_connection *ts_add_sock(struct ts_server *server, int sock, void *p) {
+  struct ts_connection *conn;
+  if ((conn = (struct ts_connection *) TS_MALLOC(sizeof(*conn))) != NULL) {
+    memset(conn, 0, sizeof(*conn));
+    set_non_blocking_mode(sock);
+    conn->sock = sock;
+    conn->connection_data = p;
+    conn->server = server;
+    ADD_CONNECTION(server, conn);
+  }
+  return conn;
 }
 
 void ts_iterate(struct ts_server *server, ts_callback_t cb, void *param) {

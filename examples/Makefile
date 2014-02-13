@@ -5,10 +5,10 @@ all:
 	@echo "Usage: make [echo|pubsub]"
 
 echo: echo.c ../tcp_skeleton.c
-	cc echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+	$(CC) echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
 pubsub: pubsub.c ../tcp_skeleton.c
-	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+	$(CC) pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test
@@ -17,7 +17,7 @@ u:
 	gcov -a unit_test.c
 
 w:
-	wine cl unit_test.c ws2_32.lib && wine unit_test.exe
+	wine cl unit_test.c /MD && wine unit_test.exe
 
 clean:
 	rm -rf *.gc* *.dSYM unit_test *.txt *.exe a.out echo pubsub

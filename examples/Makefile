@@ -8,7 +8,7 @@ echo: echo.c ../tcp_skeleton.c
 	cc echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
 pubsub: pubsub.c ../tcp_skeleton.c
-	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS) -DTS_ENABLE_DEBUG
+	cc pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test

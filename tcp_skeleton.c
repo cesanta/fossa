@@ -14,68 +14,6 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/>.
 
-#define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005+
-#undef WIN32_LEAN_AND_MEAN      // Let windows.h always include winsock2.h
-
-#ifdef _MSC_VER
-#pragma warning (disable : 4127)  // FD_SET() emits warning, disable it
-#pragma warning (disable : 4204)  // missing c99 support
-#endif
-
-#include <assert.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#ifndef EINPROGRESS
-#define EINPROGRESS WSAEINPROGRESS
-#endif
-#ifndef EWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#endif
-#ifndef __func__
-#define STRX(x) #x
-#define STR(x) STRX(x)
-#define __func__ __FILE__ ":" STR(__LINE__)
-#endif
-#ifndef va_copy
-#define va_copy(x,y) x = y
-#endif // MINGW #defines va_copy
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-typedef int socklen_t;
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
-typedef unsigned short uint16_t;
-typedef unsigned __int64 uint64_t;
-typedef __int64   int64_t;
-#else
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <arpa/inet.h>  // For inet_pton() when TS_ENABLE_IPV6 is defined
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#define INVALID_SOCKET (-1)
-#define closesocket(x) close(x)
-#define __cdecl
-#endif
-
-#ifdef TS_ENABLE_SSL
-#ifdef __APPLE__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-#include <openssl/ssl.h>
-#endif
-
 #include "tcp_skeleton.h"
 
 #ifndef TS_MALLOC
@@ -106,18 +44,6 @@ typedef __int64   int64_t;
 #endif
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
-
-#define ADD_CONNECTION(server, conn) do {                 \
-  (conn)->next = (server)->active_connections;            \
-  (server)->active_connections = (conn);                  \
-  if ((conn)->next != NULL) (conn)->next->prev = (conn);  \
-} while (0)
-
-#define REMOVE_CONNECTION(conn) do {                                      \
-  if ((conn)->prev) (conn)->prev->next = (conn)->next;                    \
-  if ((conn)->next) (conn)->next->prev = (conn)->prev;                    \
-  if (!(conn)->prev) (conn)->server->active_connections = (conn)->next;   \
-} while (0)
 
 union socket_address {
   struct sockaddr sa;
@@ -197,6 +123,19 @@ void *ts_start_thread(void *(*f)(void *), void *p) {
 #endif
 }
 #endif  // TS_DISABLE_THREADS
+
+static void add_connection(struct ts_server *server, struct ts_connection *c) {
+  c->next = server->active_connections;
+  server->active_connections = c;
+  c->prev = NULL;
+  if (c->next != NULL) c->next->prev = c;
+}
+
+static void remove_connection(struct ts_connection *conn) {
+  if (conn->prev == NULL) conn->server->active_connections = conn->next;
+  if (conn->prev) conn->prev->next = conn->next;
+  if (conn->next) conn->next->prev = conn->prev;
+}
 
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
@@ -279,7 +218,7 @@ static void call_user(struct ts_connection *conn, enum ts_event ev) {
 static void close_conn(struct ts_connection *conn) {
   DBG(("%p %d", conn, conn->flags));
   call_user(conn, TS_CLOSE);
-  REMOVE_CONNECTION(conn);
+  remove_connection(conn);
   closesocket(conn->sock);
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
@@ -441,7 +380,7 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
     c->sock = sock;
     c->flags |= TSF_ACCEPTED;
 
-    ADD_CONNECTION(server, c);
+    add_connection(server, c);
     call_user(c, TS_ACCEPT);
     DBG(("%p %d %p %p", c, c->sock, c->ssl, server->ssl_ctx));
   }
@@ -528,10 +467,9 @@ static void read_from_socket(struct ts_connection *conn) {
       }
     }
 #endif
+    DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= TSF_CLOSE_IMMEDIATELY;
-      closesocket(conn->sock);
-      conn->sock = INVALID_SOCKET;
     }
     call_user(conn, TS_CONNECT);
     return;
@@ -613,7 +551,7 @@ int ts_send(struct ts_connection *conn, const void *buf, int len) {
 }
 
 static void add_to_set(int sock, fd_set *set, int *max_fd) {
-  FD_SET(sock, set);
+  if (sock >= 0) FD_SET(sock, set);
   if (sock > *max_fd) {
     *max_fd = sock;
   }
@@ -626,7 +564,8 @@ int ts_server_poll(struct ts_server *server, int milli) {
   int num_active_connections = 0, max_fd = -1;
   time_t current_time = time(NULL);
 
-  if (server->listening_sock == INVALID_SOCKET) return 0;
+  if (server->listening_sock == INVALID_SOCKET &&
+      server->active_connections == NULL) return 0;
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
@@ -651,7 +590,8 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
   if (select(max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
     // Accept new connections
-    if (FD_ISSET(server->listening_sock, &read_set)) {
+    if (server->listening_sock >= 0 &&
+        FD_ISSET(server->listening_sock, &read_set)) {
       // We're not looping here, and accepting just one connection at
       // a time. The reason is that eCos does not respect non-blocking
       // flag on a listening socket and hangs in a loop.
@@ -735,7 +675,7 @@ struct ts_connection *ts_connect(struct ts_server *server, const char *host,
   }
 #endif
 
-  ADD_CONNECTION(server, conn);
+  add_connection(server, conn);
   DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return conn;
@@ -749,7 +689,8 @@ struct ts_connection *ts_add_sock(struct ts_server *server, int sock, void *p) {
     conn->sock = sock;
     conn->connection_data = p;
     conn->server = server;
-    ADD_CONNECTION(server, conn);
+    add_connection(server, conn);
+    DBG(("%p %d", conn, sock));
   }
   return conn;
 }

@@ -46,6 +46,7 @@
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")    // Linking with winsock library
 #include <windows.h>
+#include <process.h>
 #ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
 #endif

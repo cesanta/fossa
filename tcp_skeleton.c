@@ -225,15 +225,15 @@ static void close_conn(struct ts_connection *conn) {
   TS_FREE(conn);
 }
 
-static void set_close_on_exec(int fd) {
+static void set_close_on_exec(sock_t sock) {
 #ifdef _WIN32
-  (void) SetHandleInformation((HANDLE) fd, HANDLE_FLAG_INHERIT, 0);
+  (void) SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0);
 #else
-  fcntl(fd, F_SETFD, FD_CLOEXEC);
+  fcntl(sock, F_SETFD, FD_CLOEXEC);
 #endif
 }
 
-static void set_non_blocking_mode(int sock) {
+static void set_non_blocking_mode(sock_t sock) {
 #ifdef _WIN32
   unsigned long on = 1;
   ioctlsocket(sock, FIONBIO, &on);
@@ -244,9 +244,9 @@ static void set_non_blocking_mode(int sock) {
 }
 
 #ifndef TS_DISABLE_SOCKETPAIR
-int ts_socketpair(int sp[2]) {
+int ts_socketpair(sock_t sp[2]) {
   struct sockaddr_in sa;
-  int sock, ret = -1;
+  sock_t sock, ret = -1;
   socklen_t len = sizeof(sa);
 
   sp[0] = sp[1] = INVALID_SOCKET;
@@ -313,9 +313,9 @@ static int parse_port_string(const char *str, union socket_address *sa) {
 }
 
 // 'sa' must be an initialized address to bind to
-static int open_listening_socket(union socket_address *sa) {
+static sock_t open_listening_socket(union socket_address *sa) {
   socklen_t len = sizeof(*sa);
-  int on = 1, sock = INVALID_SOCKET;
+  sock_t on = 1, sock = INVALID_SOCKET;
 
   if ((sock = socket(sa->sa.sa_family, SOCK_STREAM, 6)) != INVALID_SOCKET &&
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
@@ -356,7 +356,7 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
   struct ts_connection *c = NULL;
   union socket_address sa;
   socklen_t len = sizeof(sa);
-  int sock = INVALID_SOCKET;
+  sock_t sock = INVALID_SOCKET;
 
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
@@ -550,7 +550,7 @@ int ts_send(struct ts_connection *conn, const void *buf, int len) {
   return iobuf_append(&conn->send_iobuf, buf, len);
 }
 
-static void add_to_set(int sock, fd_set *set, int *max_fd) {
+static void add_to_set(sock_t sock, fd_set *set, int *max_fd) {
   if (sock >= 0) FD_SET(sock, set);
   if (sock > *max_fd) {
     *max_fd = sock;
@@ -681,15 +681,15 @@ struct ts_connection *ts_connect(struct ts_server *server, const char *host,
   return conn;
 }
 
-struct ts_connection *ts_add_sock(struct ts_server *server, int sock, void *p) {
+struct ts_connection *ts_add_sock(struct ts_server *s, sock_t sock, void *p) {
   struct ts_connection *conn;
   if ((conn = (struct ts_connection *) TS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
     set_non_blocking_mode(sock);
     conn->sock = sock;
     conn->connection_data = p;
-    conn->server = server;
-    add_connection(server, conn);
+    conn->server = s;
+    add_connection(s, conn);
     DBG(("%p %d", conn, sock));
   }
   return conn;

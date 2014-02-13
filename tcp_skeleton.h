@@ -21,6 +21,11 @@
 
 #include <time.h>      // required for time_t
 
+#ifdef _WIN32
+#include <winsock.h>
+typedef SOCKET sock_t;
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -42,7 +47,7 @@ typedef void (*ts_callback_t)(struct ts_connection *, enum ts_event);
 
 struct ts_server {
   void *server_data;
-  int listening_sock;
+  sock_t listening_sock;
   struct ts_connection *active_connections;
   ts_callback_t callback;
   void *ssl_ctx;
@@ -55,7 +60,7 @@ struct ts_connection {
   void *connection_data;
   void *callback_param;
   time_t last_io_time;
-  int sock;
+  sock_t sock;
   struct iobuf recv_iobuf;
   struct iobuf send_iobuf;
   void *ssl;
@@ -75,7 +80,7 @@ void ts_server_free(struct ts_server *);
 int ts_server_poll(struct ts_server *, int milli);
 void ts_server_wakeup(struct ts_server *, void *conn_param);
 void ts_iterate(struct ts_server *, ts_callback_t cb, void *param);
-struct ts_connection *ts_add_sock(struct ts_server *, int sock, void *p);
+struct ts_connection *ts_add_sock(struct ts_server *, sock_t sock, void *p);
 
 int ts_bind_to(struct ts_server *, const char *port, const char *ssl_cert);
 struct ts_connection *ts_connect(struct ts_server *, const char *host,
@@ -86,7 +91,7 @@ int ts_printf(struct ts_connection *, const char *fmt, ...);
 
 // Utility functions
 void *ts_start_thread(void *(*f)(void *), void *p);
-int ts_socketpair(int [2]);
+int ts_socketpair(sock_t [2]);
 
 #ifdef __cplusplus
 }

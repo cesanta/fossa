@@ -14,10 +14,10 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/>.
 
-#ifndef TS_SKELETON_HEADER_INCLUDED
-#define TS_SKELETON_HEADER_INCLUDED
+#ifndef NS_SKELETON_HEADER_INCLUDED
+#define NS_SKELETON_HEADER_INCLUDED
 
-#define TS_SKELETON_VERSION "1.0"
+#define NS_SKELETON_VERSION "1.0"
 
 #undef UNICODE                  // Use ANSI WinAPI functions
 #undef _UNICODE                 // Use multibyte encoding on Windows
@@ -77,7 +77,7 @@ typedef SOCKET sock_t;
 #include <pthread.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <arpa/inet.h>  // For inet_pton() when TS_ENABLE_IPV6 is defined
+#include <arpa/inet.h>  // For inet_pton() when NS_ENABLE_IPV6 is defined
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -87,7 +87,16 @@ typedef SOCKET sock_t;
 typedef int sock_t;
 #endif
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_DEBUG
+#define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \
+  fflush(stdout); } while(0)
+#else
+#define DBG(x)
+#endif
+
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+
+#ifdef NS_ENABLE_SSL
 #ifdef __APPLE__
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -101,6 +110,14 @@ typedef void *SSL_CTX;
 extern "C" {
 #endif // __cplusplus
 
+union socket_address {
+  struct sockaddr sa;
+  struct sockaddr_in sin;
+#ifdef NS_ENABLE_IPV6
+  struct sockaddr_in6 sin6;
+#endif
+};
+
 struct iobuf {
   char *buf;
   int len;
@@ -112,22 +129,22 @@ void iobuf_free(struct iobuf *);
 int iobuf_append(struct iobuf *, const void *data, int data_size);
 void iobuf_remove(struct iobuf *, int data_size);
 
-struct ts_connection;
-enum ts_event {TS_POLL, TS_ACCEPT, TS_CONNECT, TS_RECV, TS_SEND, TS_CLOSE};
-typedef void (*ts_callback_t)(struct ts_connection *, enum ts_event);
+struct ns_connection;
+enum ns_event {NS_POLL, NS_ACCEPT, NS_CONNECT, NS_RECV, NS_SEND, NS_CLOSE};
+typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event);
 
-struct ts_server {
+struct ns_server {
   void *server_data;
   sock_t listening_sock;
-  struct ts_connection *active_connections;
-  ts_callback_t callback;
+  struct ns_connection *active_connections;
+  ns_callback_t callback;
   SSL_CTX *ssl_ctx;
   SSL_CTX *client_ssl_ctx;
 };
 
-struct ts_connection {
-  struct ts_connection *prev, *next;
-  struct ts_server *server;
+struct ns_connection {
+  struct ns_connection *prev, *next;
+  struct ns_server *server;
   void *connection_data;
   void *callback_param;
   time_t last_io_time;
@@ -136,36 +153,36 @@ struct ts_connection {
   struct iobuf send_iobuf;
   SSL *ssl;
   unsigned int flags;
-#define TSF_FINISHED_SENDING_DATA   1
-#define TSF_BUFFER_BUT_DONT_SEND    2
-#define TSF_SSL_HANDSHAKE_DONE      4
-#define TSF_CONNECTING              8
-#define TSF_CLOSE_IMMEDIATELY       16
-#define TSF_ACCEPTED                32
-#define TSF_USER_1                  64
-#define TSF_USER_2                  128
+#define NSF_FINISHED_SENDING_DATA   1
+#define NSF_BUFFER_BUT_DONT_SEND    2
+#define NSF_SSL_HANDSHAKE_DONE      4
+#define NSF_CONNECTING              8
+#define NSF_CLOSE_IMMEDIATELY       16
+#define NSF_ACCEPTED                32
+#define NSF_USER_1                  64
+#define NSF_USER_2                  128
 };
 
-void ts_server_init(struct ts_server *, void *server_data, ts_callback_t);
-void ts_server_free(struct ts_server *);
-int ts_server_poll(struct ts_server *, int milli);
-void ts_server_wakeup(struct ts_server *, void *conn_param);
-void ts_iterate(struct ts_server *, ts_callback_t cb, void *param);
-struct ts_connection *ts_add_sock(struct ts_server *, sock_t sock, void *p);
+void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
+void ns_server_free(struct ns_server *);
+int ns_server_poll(struct ns_server *, int milli);
+void ns_server_wakeup(struct ns_server *, void *conn_param);
+void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);
+struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
 
-int ts_bind_to(struct ts_server *, const char *port, const char *ssl_cert);
-struct ts_connection *ts_connect(struct ts_server *, const char *host,
+int ns_bind_to(struct ns_server *, const char *port, const char *ssl_cert);
+struct ns_connection *ns_connect(struct ns_server *, const char *host,
                                  int port, int ssl, void *connection_param);
 
-int ts_send(struct ts_connection *, const void *buf, int len);
-int ts_printf(struct ts_connection *, const char *fmt, ...);
+int ns_send(struct ns_connection *, const void *buf, int len);
+int ns_printf(struct ns_connection *, const char *fmt, ...);
 
 // Utility functions
-void *ts_start_thread(void *(*f)(void *), void *p);
-int ts_socketpair(sock_t [2]);
+void *ns_start_thread(void *(*f)(void *), void *p);
+int ns_socketpair(sock_t [2]);
 
 #ifdef __cplusplus
 }
 #endif // __cplusplus
 
-#endif // TS_SKELETON_HEADER_INCLUDED
+#endif // NS_SKELETON_HEADER_INCLUDED

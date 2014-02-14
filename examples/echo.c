@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include "tcp_skeleton.h"
+#include "net_skeleton.h"
 
 static void event_handler(struct ts_connection *conn, enum ts_event ev) {
   struct iobuf *io = &conn->recv_iobuf;

@@ -14,7 +14,7 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/>.
 
-#include "tcp_skeleton.h"
+#include "net_skeleton.h"
 
 #ifndef TS_MALLOC
 #define TS_MALLOC malloc

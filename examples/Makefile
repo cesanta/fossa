@@ -4,11 +4,11 @@ CFLAGS = -W -Wall -pedantic -O0 -g -lssl -I.. $(CFLAGS_EXTRA)
 all:
 	@echo "Usage: make [echo|pubsub]"
 
-echo: echo.c ../tcp_skeleton.c
-	$(CC) echo.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+echo: echo.c ../net_skeleton.c
+	$(CC) echo.c ../net_skeleton.c -o $@ $(CFLAGS)
 
-pubsub: pubsub.c ../tcp_skeleton.c
-	$(CC) pubsub.c ../tcp_skeleton.c -o $@ $(CFLAGS)
+pubsub: pubsub.c ../net_skeleton.c
+	$(CC) pubsub.c ../net_skeleton.c -o $@ $(CFLAGS)
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test

@@ -1,4 +1,4 @@
-#include "tcp_skeleton.h"
+#include "net_skeleton.h"
 
 static void *stdin_thread(void *param) {
   int ch, sock = * (int *) param;

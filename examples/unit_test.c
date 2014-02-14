@@ -10,7 +10,7 @@
 #define TS_ENABLE_HEXDUMP "**"
 #define TS_ENABLE_DEBUG
 
-#include "../tcp_skeleton.c"
+#include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \
   printf("Fail on line %d: [%s]\n", line, str); \
@@ -79,7 +79,7 @@ static const char *test_server_with_ssl(const char *cert) {
   port = ts_bind_to(&server,  LOOPBACK_IP ":0", cert);
   ASSERT(port > 0);
 
-  ASSERT(ts_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) > 0);
+  ASSERT(ts_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
   { int i; for (i = 0; i < 50; i++) ts_server_poll(&server, 0); }
 
   ASSERT(strcmp(buf, "ok!") == 0);

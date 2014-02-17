@@ -47,7 +47,8 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static void ev_handler(struct ns_connection *conn, enum ns_event ev) {
+static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
+  (void) p;
   switch (ev) {
     case NS_CONNECT:
       ns_printf(conn, "%d %s there", 17, "hi");

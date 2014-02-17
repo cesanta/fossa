@@ -319,14 +319,13 @@ int ns_set_ssl_cert(struct ns_server *server, const char *cert) {
 }
 
 int ns_bind(struct ns_server *server, const char *str) {
-  union socket_address sa;
-  parse_port_string(str, &sa);
+  parse_port_string(str, &server->listening_sa);
   if (server->listening_sock != INVALID_SOCKET) {
     closesocket(server->listening_sock);
   }
-  server->listening_sock = open_listening_socket(&sa);
+  server->listening_sock = open_listening_socket(&server->listening_sa);
   return server->listening_sock == INVALID_SOCKET ? -1 :
-    (int) ntohs(sa.sin.sin_port);
+    (int) ntohs(server->listening_sa.sin.sin_port);
 }
 
 

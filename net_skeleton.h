@@ -137,11 +137,12 @@ int iobuf_append(struct iobuf *, const void *data, int data_size);
 void iobuf_remove(struct iobuf *, int data_size);
 
 struct ns_connection;
-enum ns_event {NS_POLL, NS_ACCEPT, NS_CONNECT, NS_RECV, NS_SEND, NS_CLOSE};
+enum ns_event { NS_POLL, NS_ACCEPT, NS_CONNECT, NS_RECV, NS_SEND, NS_CLOSE };
 typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *);
 
 struct ns_server {
   void *server_data;
+  union socket_address listening_sa;
   sock_t listening_sock;
   struct ns_connection *active_connections;
   ns_callback_t callback;

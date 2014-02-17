@@ -1,7 +1,8 @@
 #include "net_skeleton.h"
 
-static void event_handler(struct ns_connection *conn, enum ns_event ev) {
+static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
   struct iobuf *io = &conn->recv_iobuf;
+  (void) p;
 
   switch (ev) {
     case NS_RECV:
@@ -16,7 +17,7 @@ int main(void) {
   struct ns_server server;
   const char *port = "1234";
 
-  ns_server_init(&server, NULL, event_handler);
+  ns_server_init(&server, NULL, ev_handler);
   ns_bind(&server, port);
 
   printf("Starting echo server on port %s\n", port);

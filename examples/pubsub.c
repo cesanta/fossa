@@ -9,14 +9,16 @@ static void *stdin_thread(void *param) {
   return NULL;
 }
 
-static void broadcast(struct ns_connection *conn, enum ns_event ev) {
+static void broadcast(struct ns_connection *conn, enum ns_event ev, void *p) {
   if (ev == NS_POLL) {
-    struct iobuf *io = (struct iobuf *) conn->callback_param;
+    struct iobuf *io = (struct iobuf *) p;
     ns_send(conn, io->buf, io->len);
   }
 }
 
-static void server_handler(struct ns_connection *conn, enum ns_event ev) {
+static void server_handler(struct ns_connection *conn, enum ns_event ev,
+                           void *p) {
+  (void) p;
   if (ev == NS_RECV) {
     // Broadcast received message to all connections
     struct iobuf *io = &conn->recv_iobuf;
@@ -25,8 +27,11 @@ static void server_handler(struct ns_connection *conn, enum ns_event ev) {
   }
 }
 
-static void client_handler(struct ns_connection *conn, enum ns_event ev) {
+static void client_handler(struct ns_connection *conn, enum ns_event ev,
+                           void *p) {
   struct iobuf *io = &conn->recv_iobuf;
+  (void) p;
+
   if (ev == NS_CONNECT) {
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       printf("%s\n", "Error connecting to server!");

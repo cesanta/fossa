@@ -5,3 +5,9 @@
 /examples/msvc/*.sdf
 /examples/msvc/*.suo
 /examples/msvc/*.vcxproj.user
+
+/examples/msvc/Release
+
+/examples/msvc/x64/Debug
+
+/examples/msvc/x64/Release

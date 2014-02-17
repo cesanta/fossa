@@ -18,12 +18,12 @@
     <ClCompile Include="..\echo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\tcp_skeleton.c">
+    <ClCompile Include="..\..\net_skeleton.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\tcp_skeleton.h">
+    <ClInclude Include="..\..\net_skeleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -179,7 +179,7 @@ int ns_printf(struct ns_connection *, const char *fmt, ...);
 
 // Utility functions
 void *ns_start_thread(void *(*f)(void *), void *p);
-int ns_socketpair(sock_t [2]);
+sock_t ns_socketpair(sock_t [2]);
 
 #ifdef __cplusplus
 }

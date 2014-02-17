@@ -223,7 +223,7 @@ static void set_non_blocking_mode(sock_t sock) {
 }
 
 #ifndef NS_DISABLE_SOCKETPAIR
-int ns_socketpair(sock_t sp[2]) {
+sock_t ns_socketpair(sock_t sp[2]) {
   struct sockaddr_in sa;
   sock_t sock, ret = -1;
   socklen_t len = sizeof(sa);
@@ -540,7 +540,8 @@ int ns_server_poll(struct ns_server *server, int milli) {
   struct ns_connection *conn, *tmp_conn;
   struct timeval tv;
   fd_set read_set, write_set;
-  int num_active_connections = 0, max_fd = -1;
+  int num_active_connections = 0;
+  sock_t max_fd = INVALID_SOCKET;
   time_t current_time = time(NULL);
 
   if (server->listening_sock == INVALID_SOCKET &&
@@ -567,7 +568,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
   tv.tv_sec = milli / 1000;
   tv.tv_usec = (milli % 1000) * 1000;
 
-  if (select(max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
+  if (select((int)max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
     // Accept new connections
     if (server->listening_sock >= 0 &&
         FD_ISSET(server->listening_sock, &read_set)) {

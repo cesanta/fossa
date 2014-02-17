@@ -17,7 +17,7 @@ int main(void) {
   const char *port = "1234";
 
   ns_server_init(&server, NULL, event_handler);
-  ns_bind_to(&server, port, NULL);
+  ns_bind(&server, port);
 
   printf("Starting echo server on port %s\n", port);
   for (;;) {

@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   } else {
     // Server code path
     ns_server_init(&server, NULL, server_handler);
-    ns_bind_to(&server, argv[1], NULL);
+    ns_bind(&server, argv[1]);
     printf("Starting pubsub server on port %s\n", argv[1]);
   }
 

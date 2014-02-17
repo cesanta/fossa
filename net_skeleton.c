@@ -14,135 +14,36 @@
 // Alternatively, you can license this library under a commercial
 // license, as set out in <http://cesanta.com/>.
 
-#define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005+
-#undef WIN32_LEAN_AND_MEAN      // Let windows.h always include winsock2.h
+#include "net_skeleton.h"
 
-#ifdef _MSC_VER
-#pragma warning (disable : 4127)  // FD_SET() emits warning, disable it
-#pragma warning (disable : 4204)  // missing c99 support
+#ifndef NS_MALLOC
+#define NS_MALLOC malloc
 #endif
 
-#include <assert.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#ifndef EINPROGRESS
-#define EINPROGRESS WSAEINPROGRESS
-#endif
-#ifndef EWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#endif
-#ifndef __func__
-#define STRX(x) #x
-#define STR(x) STRX(x)
-#define __func__ __FILE__ ":" STR(__LINE__)
-#endif
-#ifndef va_copy
-#define va_copy(x,y) x = y
-#endif // MINGW #defines va_copy
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-typedef int socklen_t;
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
-typedef unsigned short uint16_t;
-typedef unsigned __int64 uint64_t;
-typedef __int64   int64_t;
-#else
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <arpa/inet.h>  // For inet_pton() when TS_ENABLE_IPV6 is defined
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#define INVALID_SOCKET (-1)
-#define closesocket(x) close(x)
-#define __cdecl
+#ifndef NS_REALLOC
+#define NS_REALLOC realloc
 #endif
 
-#ifdef TS_ENABLE_SSL
-#ifdef __APPLE__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-#include <openssl/ssl.h>
-#endif
-
-#include "tcp_skeleton.h"
-
-#ifndef TS_MALLOC
-#define TS_MALLOC malloc
-#endif
-
-#ifndef TS_REALLOC
-#define TS_REALLOC realloc
-#endif
-
-#ifndef TS_FREE
-#define TS_FREE free
-#endif
-
-#ifdef TS_ENABLE_DEBUG
-#define DBG(x) do {           \
-  printf("%-20s ", __func__); \
-  printf x;                   \
-  putchar('\n');              \
-  fflush(stdout);             \
-} while(0)
-#else
-#define DBG(x)
+#ifndef NS_FREE
+#define NS_FREE free
 #endif
 
 #ifndef IOBUF_RESIZE_MULTIPLIER
 #define IOBUF_RESIZE_MULTIPLIER 2.0
 #endif
 
-#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
-
-#define ADD_CONNECTION(server, conn) do {                 \
-  (conn)->next = (server)->active_connections;            \
-  (server)->active_connections = (conn);                  \
-  if ((conn)->next != NULL) (conn)->next->prev = (conn);  \
-} while (0)
-
-#define REMOVE_CONNECTION(conn) do {                                      \
-  if ((conn)->prev) (conn)->prev->next = (conn)->next;                    \
-  if ((conn)->next) (conn)->next->prev = (conn)->prev;                    \
-  if (!(conn)->prev) (conn)->server->active_connections = (conn)->next;   \
-} while (0)
-
-union socket_address {
-  struct sockaddr sa;
-  struct sockaddr_in sin;
-#ifdef TS_ENABLE_IPV6
-  struct sockaddr_in6 sin6;
-#endif
-};
-
-#ifdef _WIN32
-#pragma comment(lib, "ws2_32.lib")
-#endif
-
 void iobuf_init(struct iobuf *iobuf, int size) {
   iobuf->len = iobuf->size = 0;
   iobuf->buf = NULL;
 
-  if (size > 0 && (iobuf->buf = (char *) TS_MALLOC(size)) != NULL) {
+  if (size > 0 && (iobuf->buf = (char *) NS_MALLOC(size)) != NULL) {
     iobuf->size = size;
   }
 }
 
 void iobuf_free(struct iobuf *iobuf) {
   if (iobuf != NULL) {
-    if (iobuf->buf != NULL) TS_FREE(iobuf->buf);
+    if (iobuf->buf != NULL) NS_FREE(iobuf->buf);
     iobuf_init(iobuf, 0);
   }
 }
@@ -160,7 +61,7 @@ int iobuf_append(struct iobuf *io, const void *buf, int len) {
     memcpy(io->buf + io->len, buf, len);
     io->len = new_len;
   } else if ((p = (char *)
-              TS_REALLOC(io->buf, (int) (new_len * mult))) != NULL) {
+              NS_REALLOC(io->buf, (int) (new_len * mult))) != NULL) {
     io->buf = p;
     memcpy(io->buf + io->len, buf, len);
     io->len = new_len;
@@ -179,10 +80,10 @@ void iobuf_remove(struct iobuf *io, int n) {
   }
 }
 
-#ifndef TS_DISABLE_THREADS
-void *ts_start_thread(void *(*f)(void *), void *p) {
+#ifndef NS_DISABLE_THREADS
+void *ns_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
-  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p); // TODO WIN32 tcp_skeleton.c(185): warning C4013: '_beginthread' undefined; assuming extern returning int
+  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
 #else
   pthread_t thread_id = (pthread_t) 0;
   pthread_attr_t attr;
@@ -190,8 +91,8 @@ void *ts_start_thread(void *(*f)(void *), void *p) {
   (void) pthread_attr_init(&attr);
   (void) pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-#if TS_STACK_SIZE > 1
-  (void) pthread_attr_setstacksize(&attr, TS_STACK_SIZE);
+#if NS_STACK_SIZE > 1
+  (void) pthread_attr_setstacksize(&attr, NS_STACK_SIZE);
 #endif
 
   pthread_create(&thread_id, &attr, f, p);
@@ -200,7 +101,20 @@ void *ts_start_thread(void *(*f)(void *), void *p) {
   return (void *) thread_id;
 #endif
 }
-#endif  // TS_DISABLE_THREADS
+#endif  // NS_DISABLE_THREADS
+
+static void add_connection(struct ns_server *server, struct ns_connection *c) {
+  c->next = server->active_connections;
+  server->active_connections = c;
+  c->prev = NULL;
+  if (c->next != NULL) c->next->prev = c;
+}
+
+static void remove_connection(struct ns_connection *conn) {
+  if (conn->prev == NULL) conn->server->active_connections = conn->next;
+  if (conn->prev) conn->prev->next = conn->next;
+  if (conn->next) conn->next->prev = conn->prev;
+}
 
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
@@ -221,14 +135,14 @@ static int alloc_vprintf(char **buf, size_t size, const char *fmt, va_list ap) {
     while (len < 0) {
       if (*buf) free(*buf);
       size *= 2;
-      if ((*buf = (char *) TS_MALLOC(size)) == NULL) break;
+      if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
       va_copy(ap_copy, ap);
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
   } else if (len > (int) size) {
     // Standard-compliant code path. Allocate a buffer that is large enough.
-    if ((*buf = (char *) TS_MALLOC(len + 1)) == NULL) {
+    if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
       len = -1;
     } else {
       va_copy(ap_copy, ap);
@@ -240,7 +154,7 @@ static int alloc_vprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
-static void write_chunk(struct ts_connection *conn, const char *buf, int len) {
+static void write_chunk(struct ns_connection *conn, const char *buf, int len) {
   char chunk_size[50];
   int n = snprintf(chunk_size, sizeof(chunk_size), "%X\r\n", len);
   iobuf_append(&conn->send_iobuf, chunk_size, n);
@@ -248,7 +162,7 @@ static void write_chunk(struct ts_connection *conn, const char *buf, int len) {
   iobuf_append(&conn->send_iobuf, "\r\n", 2);
 }
 
-int ts_vprintf(struct ts_connection *conn, const char *fmt, va_list ap,
+int ns_vprintf(struct ns_connection *conn, const char *fmt, va_list ap,
                int chunked) {
   char mem[2000], *buf = mem;
   int len;
@@ -267,34 +181,34 @@ int ts_vprintf(struct ts_connection *conn, const char *fmt, va_list ap,
   return len;
 }
 
-int ts_printf(struct ts_connection *conn, const char *fmt, ...) {
+int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   int len;
   va_list ap;
   va_start(ap, fmt);
-  len = ts_vprintf(conn, fmt, ap, 0);
+  len = ns_vprintf(conn, fmt, ap, 0);
   va_end(ap);
   return len;
 }
 
-static void call_user(struct ts_connection *conn, enum ts_event ev) {
+static void call_user(struct ns_connection *conn, enum ns_event ev) {
   if (conn->server->callback) conn->server->callback(conn, ev);
 }
 
-static void close_conn(struct ts_connection *conn) {
+static void close_conn(struct ns_connection *conn) {
   DBG(("%p %d", conn, conn->flags));
-  call_user(conn, TS_CLOSE);
-  REMOVE_CONNECTION(conn);
+  call_user(conn, NS_CLOSE);
+  remove_connection(conn);
   closesocket(conn->sock);
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
-  TS_FREE(conn);
+  NS_FREE(conn);
 }
 
-static void set_close_on_exec(sock_t fd) {
+static void set_close_on_exec(sock_t sock) {
 #ifdef _WIN32
-  (void) SetHandleInformation((HANDLE) fd, HANDLE_FLAG_INHERIT, 0);
+  (void) SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0);
 #else
-  fcntl(fd, F_SETFD, FD_CLOEXEC);
+  fcntl(sock, F_SETFD, FD_CLOEXEC);
 #endif
 }
 
@@ -308,11 +222,10 @@ static void set_non_blocking_mode(sock_t sock) {
 #endif
 }
 
-#ifndef TS_DISABLE_SOCKETPAIR
-int ts_socketpair(sock_t sp[2]) {
+#ifndef NS_DISABLE_SOCKETPAIR
+int ns_socketpair(sock_t sp[2]) {
   struct sockaddr_in sa;
-  sock_t sock;
-  int ret = -1;
+  sock_t sock, ret = -1;
   socklen_t len = sizeof(sa);
 
   sp[0] = sp[1] = INVALID_SOCKET;
@@ -341,13 +254,13 @@ int ts_socketpair(sock_t sp[2]) {
 
   return ret;
 }
-#endif  // TS_DISABLE_SOCKETPAIR
+#endif  // NS_DISABLE_SOCKETPAIR
 
 // Valid listening port spec is: [ip_address:]port, e.g. "80", "127.0.0.1:3128"
 static int parse_port_string(const char *str, union socket_address *sa) {
   unsigned int a, b, c, d, port;
   int len = 0;
-#ifdef TS_ENABLE_IPV6
+#ifdef NS_ENABLE_IPV6
   char buf[100];
 #endif
 
@@ -361,7 +274,7 @@ static int parse_port_string(const char *str, union socket_address *sa) {
     // Bind to a specific IPv4 address, e.g. 192.168.1.5:8080
     sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
     sa->sin.sin_port = htons((uint16_t) port);
-#ifdef TS_ENABLE_IPV6
+#ifdef NS_ENABLE_IPV6
   } else if (sscanf(str, "[%49[^]]]:%u%n", buf, &port, &len) == 2 &&
              inet_pton(AF_INET6, buf, &sa->sin6.sin6_addr)) {
     // IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080
@@ -379,10 +292,9 @@ static int parse_port_string(const char *str, union socket_address *sa) {
 }
 
 // 'sa' must be an initialized address to bind to
-static int open_listening_socket(union socket_address *sa) {
+static sock_t open_listening_socket(union socket_address *sa) {
   socklen_t len = sizeof(*sa);
-  int on = 1;
-  sock_t sock = INVALID_SOCKET;
+  sock_t on = 1, sock = INVALID_SOCKET;
 
   if ((sock = socket(sa->sa.sa_family, SOCK_STREAM, 6)) != INVALID_SOCKET &&
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
@@ -400,18 +312,18 @@ static int open_listening_socket(union socket_address *sa) {
   return sock;
 }
 
-int ts_bind_to(struct ts_server *server, const char *str, const char *cert) {
+int ns_bind_to(struct ns_server *server, const char *str, const char *cert) {
   union socket_address sa;
   parse_port_string(str, &sa);
   server->listening_sock = open_listening_socket(&sa);
   (void) cert;
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   if (cert != NULL &&
       (server->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) != NULL) {
-    SSL_CTX_use_certificate_file((SSL_CTX *) server->ssl_ctx, cert, 1);
-    SSL_CTX_use_PrivateKey_file((SSL_CTX *) server->ssl_ctx, cert, 1);
-    SSL_CTX_use_certificate_chain_file((SSL_CTX *) server->ssl_ctx, cert);
+    SSL_CTX_use_certificate_file(server->ssl_ctx, cert, 1);
+    SSL_CTX_use_PrivateKey_file(server->ssl_ctx, cert, 1);
+    SSL_CTX_use_certificate_chain_file(server->ssl_ctx, cert);
   }
 #endif
 
@@ -419,8 +331,8 @@ int ts_bind_to(struct ts_server *server, const char *str, const char *cert) {
 }
 
 
-static struct ts_connection *accept_conn(struct ts_server *server) {
-  struct ts_connection *c = NULL;
+static struct ns_connection *accept_conn(struct ns_server *server) {
+  struct ns_connection *c = NULL;
   union socket_address sa;
   socklen_t len = sizeof(sa);
   sock_t sock = INVALID_SOCKET;
@@ -428,13 +340,13 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
     closesocket(sock);
-  } else if ((c = (struct ts_connection *) TS_MALLOC(sizeof(*c))) == NULL ||
+  } else if ((c = (struct ns_connection *) NS_MALLOC(sizeof(*c))) == NULL ||
              memset(c, 0, sizeof(*c)) == NULL) {
     closesocket(sock);
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   } else if (server->ssl_ctx != NULL &&
-             ((c->ssl = SSL_new((SSL_CTX *) server->ssl_ctx)) == NULL ||
-              SSL_set_fd((SSL *) c->ssl, sock) != 1)) {
+             ((c->ssl = SSL_new(server->ssl_ctx)) == NULL ||
+              SSL_set_fd(c->ssl, sock) != 1)) {
     DBG(("SSL error"));
     closesocket(sock);
     free(c);
@@ -445,10 +357,10 @@ static struct ts_connection *accept_conn(struct ts_server *server) {
     set_non_blocking_mode(sock);
     c->server = server;
     c->sock = sock;
-    c->flags |= TSF_ACCEPTED;
+    c->flags |= NSF_ACCEPTED;
 
-    ADD_CONNECTION(server, c);
-    call_user(c, TS_ACCEPT);
+    add_connection(server, c);
+    call_user(c, NS_ACCEPT);
     DBG(("%p %d %p %p", c, c->sock, c->ssl, server->ssl_ctx));
   }
 
@@ -465,15 +377,15 @@ static int is_error(int n) {
     );
 }
 
-#ifdef TS_ENABLE_HEXDUMP
-static void hexdump(const struct ts_connection *conn, const void *buf,
+#ifdef NS_ENABLE_HEXDUMP
+static void hexdump(const struct ns_connection *conn, const void *buf,
                     int len, const char *marker) {
   const unsigned char *p = (const unsigned char *) buf;
   char path[500], date[100], ascii[17];
   FILE *fp;
 
 #if 0
-  if (!match_prefix(TS_ENABLE_HEXDUMP, strlen(TS_ENABLE_HEXDUMP),
+  if (!match_prefix(NS_ENABLE_HEXDUMP, strlen(NS_ENABLE_HEXDUMP),
                     conn->remote_ip)) {
     return;
   }
@@ -509,47 +421,46 @@ static void hexdump(const struct ts_connection *conn, const void *buf,
 }
 #endif
 
-static void read_from_socket(struct ts_connection *conn) {
+static void read_from_socket(struct ns_connection *conn) {
   char buf[2048];
   int n = 0;
 
-  if (conn->flags & TSF_CONNECTING) {
+  if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
     socklen_t len = sizeof(ok);
 
-    conn->flags &= ~TSF_CONNECTING;
+    conn->flags &= ~NSF_CONNECTING;
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
-      int res = SSL_connect((SSL *) conn->ssl);
-      int ssl_err = SSL_get_error((SSL *) conn->ssl, res);
+      int res = SSL_connect(conn->ssl);
+      int ssl_err = SSL_get_error(conn->ssl, res);
       DBG(("%p res %d %d", conn, res, ssl_err));
       if (res == 1) {
-        conn->flags = TSF_SSL_HANDSHAKE_DONE;
+        conn->flags = NSF_SSL_HANDSHAKE_DONE;
       } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
-        conn->flags |= TSF_CONNECTING;
+        conn->flags |= NSF_CONNECTING;
         return; // Call us again
       } else {
         ok = 1;
       }
     }
 #endif
+    DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {
-      conn->flags |= TSF_CLOSE_IMMEDIATELY;
-      closesocket(conn->sock);
-      conn->sock = INVALID_SOCKET;
+      conn->flags |= NSF_CLOSE_IMMEDIATELY;
     }
-    call_user(conn, TS_CONNECT);
+    call_user(conn, NS_CONNECT);
     return;
   }
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    if (conn->flags & TSF_SSL_HANDSHAKE_DONE) {
-      n = SSL_read((SSL *) conn->ssl, buf, sizeof(buf));
+    if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
+      n = SSL_read(conn->ssl, buf, sizeof(buf));
     } else {
-      if (SSL_accept((SSL *) conn->ssl) == 1) {
-        conn->flags |= TSF_SSL_HANDSHAKE_DONE;
+      if (SSL_accept(conn->ssl) == 1) {
+        conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       }
       return;
     }
@@ -559,7 +470,7 @@ static void read_from_socket(struct ts_connection *conn) {
     n = recv(conn->sock, buf, sizeof(buf), 0);
   }
 
-#ifdef TS_ENABLE_HEXDUMP
+#ifdef NS_ENABLE_HEXDUMP
   hexdump(conn, buf, n, "<-");
 #endif
 
@@ -569,31 +480,31 @@ static void read_from_socket(struct ts_connection *conn) {
       call_http_client_handler(conn, MG_DOWNLOAD_SUCCESS);
     }
 #endif
-    conn->flags |= TSF_CLOSE_IMMEDIATELY;
+    conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_append(&conn->recv_iobuf, buf, n);
-    call_user(conn, TS_RECV);
+    call_user(conn, NS_RECV);
   }
 
   DBG(("%p <- %d bytes [%.*s%s]",
        conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
 
-  call_user(conn, TS_RECV);
+  call_user(conn, NS_RECV);
 }
 
-static void write_to_socket(struct ts_connection *conn) {
+static void write_to_socket(struct ns_connection *conn) {
   struct iobuf *io = &conn->send_iobuf;
   int n = 0;
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    n = SSL_write((SSL *) conn->ssl, io->buf, io->len);
+    n = SSL_write(conn->ssl, io->buf, io->len);
   } else
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }
 
 
-#ifdef TS_ENABLE_HEXDUMP
+#ifdef NS_ENABLE_HEXDUMP
   hexdump(conn, io->buf, n, "->");
 #endif
 
@@ -601,39 +512,39 @@ static void write_to_socket(struct ts_connection *conn) {
        io->buf, io->len < 40 ? "" : "..."));
 
   if (is_error(n)) {
-    conn->flags |= TSF_CLOSE_IMMEDIATELY;
+    conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_remove(io, n);
     //conn->num_bytes_sent += n;
   }
 
-  if (io->len == 0 && conn->flags & TSF_FINISHED_SENDING_DATA) {
-    conn->flags |= TSF_CLOSE_IMMEDIATELY;
+  if (io->len == 0 && conn->flags & NSF_FINISHED_SENDING_DATA) {
+    conn->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 
-  call_user(conn, TS_SEND);
+  call_user(conn, NS_SEND);
 }
 
-int ts_send(struct ts_connection *conn, const void *buf, int len) {
+int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return iobuf_append(&conn->send_iobuf, buf, len);
 }
 
 static void add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
-  FD_SET(sock, set);
+  if (sock >= 0) FD_SET(sock, set);
   if (sock > *max_fd) {
     *max_fd = sock;
   }
 }
 
-int ts_server_poll(struct ts_server *server, int milli) {
-  struct ts_connection *conn, *tmp_conn;
+int ns_server_poll(struct ns_server *server, int milli) {
+  struct ns_connection *conn, *tmp_conn;
   struct timeval tv;
   fd_set read_set, write_set;
-  int num_active_connections = 0; 
-  sock_t max_fd = -1;
+  int num_active_connections = 0, max_fd = -1;
   time_t current_time = time(NULL);
 
-  if (server->listening_sock == INVALID_SOCKET) return 0;
+  if (server->listening_sock == INVALID_SOCKET &&
+      server->active_connections == NULL) return 0;
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
@@ -641,14 +552,14 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    call_user(conn, TS_POLL);
+    call_user(conn, NS_POLL);
     add_to_set(conn->sock, &read_set, &max_fd);
-    if (conn->flags & TSF_CONNECTING) {
+    if (conn->flags & NSF_CONNECTING) {
       add_to_set(conn->sock, &write_set, &max_fd);
     }
-    if (conn->send_iobuf.len > 0 && !(conn->flags & TSF_BUFFER_BUT_DONT_SEND)) {
+    if (conn->send_iobuf.len > 0 && !(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
       add_to_set(conn->sock, &write_set, &max_fd);
-    } else if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
+    } else if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       close_conn(conn);
     }
   }
@@ -658,7 +569,8 @@ int ts_server_poll(struct ts_server *server, int milli) {
 
   if (select(max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
     // Accept new connections
-    if (FD_ISSET(server->listening_sock, &read_set)) {
+    if (server->listening_sock >= 0 &&
+        FD_ISSET(server->listening_sock, &read_set)) {
       // We're not looping here, and accepting just one connection at
       // a time. The reason is that eCos does not respect non-blocking
       // flag on a listening socket and hangs in a loop.
@@ -674,9 +586,9 @@ int ts_server_poll(struct ts_server *server, int milli) {
         read_from_socket(conn);
       }
       if (FD_ISSET(conn->sock, &write_set)) {
-        if (conn->flags & TSF_CONNECTING) {
+        if (conn->flags & NSF_CONNECTING) {
           read_from_socket(conn);
-        } else if (!(conn->flags & TSF_BUFFER_BUT_DONT_SEND)) {
+        } else if (!(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
           conn->last_io_time = current_time;
           write_to_socket(conn);
         }
@@ -687,7 +599,7 @@ int ts_server_poll(struct ts_server *server, int milli) {
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
 
-    if (conn->flags & TSF_CLOSE_IMMEDIATELY) {
+    if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       close_conn(conn);
     }
 
@@ -697,15 +609,15 @@ int ts_server_poll(struct ts_server *server, int milli) {
   return num_active_connections;
 }
 
-struct ts_connection *ts_connect(struct ts_server *server, const char *host,
+struct ns_connection *ns_connect(struct ns_server *server, const char *host,
                                  int port, int use_ssl, void *param) {
   sock_t sock = INVALID_SOCKET;
   struct sockaddr_in sin;
   struct hostent *he = NULL;
-  struct ts_connection *conn = NULL;
+  struct ns_connection *conn = NULL;
   int connect_ret_val;
 
-#ifndef TS_ENABLE_SSL
+#ifndef NS_ENABLE_SSL
   if (use_ssl) return 0;
 #endif
 
@@ -723,8 +635,8 @@ struct ts_connection *ts_connect(struct ts_server *server, const char *host,
   connect_ret_val = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
   if (is_error(connect_ret_val)) {
     return NULL;
-  } else if ((conn = (struct ts_connection *)
-              TS_MALLOC(sizeof(*conn))) == NULL) {
+  } else if ((conn = (struct ns_connection *)
+              NS_MALLOC(sizeof(*conn))) == NULL) {
     closesocket(sock);
     return NULL;
   }
@@ -733,45 +645,46 @@ struct ts_connection *ts_connect(struct ts_server *server, const char *host,
   conn->server = server;
   conn->sock = sock;
   conn->connection_data = param;
-  conn->flags = TSF_CONNECTING;
+  conn->flags = NSF_CONNECTING;
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   if (use_ssl &&
-      (conn->ssl = SSL_new((SSL_CTX *)server->client_ssl_ctx)) != NULL) {
-    SSL_set_fd((SSL *) conn->ssl, sock);
+      (conn->ssl = SSL_new(server->client_ssl_ctx)) != NULL) {
+    SSL_set_fd(conn->ssl, sock);
   }
 #endif
 
-  ADD_CONNECTION(server, conn);
+  add_connection(server, conn);
   DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return conn;
 }
 
-struct ts_connection *ts_add_sock(struct ts_server *server, sock_t sock, void *p) {
-  struct ts_connection *conn;
-  if ((conn = (struct ts_connection *) TS_MALLOC(sizeof(*conn))) != NULL) {
+struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
+  struct ns_connection *conn;
+  if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
     set_non_blocking_mode(sock);
     conn->sock = sock;
     conn->connection_data = p;
-    conn->server = server;
-    ADD_CONNECTION(server, conn);
+    conn->server = s;
+    add_connection(s, conn);
+    DBG(("%p %d", conn, sock));
   }
   return conn;
 }
 
-void ts_iterate(struct ts_server *server, ts_callback_t cb, void *param) {
-  struct ts_connection *conn, *tmp_conn;
+void ns_iterate(struct ns_server *server, ns_callback_t cb, void *param) {
+  struct ns_connection *conn, *tmp_conn;
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     conn->callback_param = param;
-    cb(conn, TS_POLL);
+    cb(conn, NS_POLL);
   }
 }
 
-void ts_server_init(struct ts_server *s, void *server_data, ts_callback_t cb) {
+void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
   memset(s, 0, sizeof(*s));
   s->listening_sock = INVALID_SOCKET;
   s->server_data = server_data;
@@ -785,18 +698,18 @@ void ts_server_init(struct ts_server *s, void *server_data, ts_callback_t cb) {
   signal(SIGPIPE, SIG_IGN);
 #endif
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   SSL_library_init();
   s->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
 #endif
 }
 
-void ts_server_free(struct ts_server *s) {
-  struct ts_connection *conn, *tmp_conn;
+void ns_server_free(struct ns_server *s) {
+  struct ns_connection *conn, *tmp_conn;
 
   DBG(("%p", s));
   if (s == NULL) return;
-  ts_server_poll(s, 0);
+  ns_server_poll(s, 0);
 
   if (s->listening_sock != INVALID_SOCKET) {
     closesocket(s->listening_sock);
@@ -807,13 +720,13 @@ void ts_server_free(struct ts_server *s) {
     close_conn(conn);
   }
 
-#ifndef TS_DISABLE_SOCKETPAIR
+#ifndef NS_DISABLE_SOCKETPAIR
   //closesocket(s->ctl[0]);
   //closesocket(s->ctl[1]);
 #endif
 
-#ifdef TS_ENABLE_SSL
-  if (s->ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->ssl_ctx);
-  if (s->client_ssl_ctx != NULL) SSL_CTX_free((SSL_CTX *) s->client_ssl_ctx);
+#ifdef NS_ENABLE_SSL
+  if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);
+  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
 #endif
 }

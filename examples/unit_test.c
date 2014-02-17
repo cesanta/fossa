@@ -3,14 +3,14 @@
 // cl unit_test.c /MD
 
 #ifndef _WIN32
-#define TS_ENABLE_IPV6
-#define TS_ENABLE_SSL
+#define NS_ENABLE_IPV6
+#define NS_ENABLE_SSL
 #endif
 
-#define TS_ENABLE_HEXDUMP "**"
-#define TS_ENABLE_DEBUG
+#define NS_ENABLE_HEXDUMP "**"
+#define NS_ENABLE_DEBUG
 
-#include "../tcp_skeleton.c"
+#include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \
   printf("Fail on line %d: [%s]\n", line, str); \
@@ -47,21 +47,21 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static void ev_handler(struct ts_connection *conn, enum ts_event ev) {
+static void ev_handler(struct ns_connection *conn, enum ns_event ev) {
   switch (ev) {
-    case TS_CONNECT:
-      ts_printf(conn, "%d %s there", 17, "hi");
+    case NS_CONNECT:
+      ns_printf(conn, "%d %s there", 17, "hi");
       break;
-    case TS_RECV:
-      if (conn->flags & TSF_ACCEPTED) {
+    case NS_RECV:
+      if (conn->flags & NSF_ACCEPTED) {
         struct iobuf *io = &conn->recv_iobuf;
-        ts_send(conn, io->buf, io->len); // Echo message back
+        ns_send(conn, io->buf, io->len); // Echo message back
         iobuf_remove(io, io->len);
       } else {
         struct iobuf *io = &conn->recv_iobuf;
         if (io->len == 11 && memcmp(io->buf, "17 hi there", 11) == 0) {
           sprintf((char *) conn->connection_data, "%s", "ok!");
-          conn->flags |= TSF_CLOSE_IMMEDIATELY;
+          conn->flags |= NSF_CLOSE_IMMEDIATELY;
         }
       }
       break;
@@ -72,19 +72,19 @@ static void ev_handler(struct ts_connection *conn, enum ts_event ev) {
 
 static const char *test_server_with_ssl(const char *cert) {
   char buf[100] = "";
-  struct ts_server server;
+  struct ns_server server;
   int port;
-  ts_server_init(&server, (void *) "foo", ev_handler);
+  ns_server_init(&server, (void *) "foo", ev_handler);
 
-  port = ts_bind_to(&server,  LOOPBACK_IP ":0", cert);
+  port = ns_bind_to(&server,  LOOPBACK_IP ":0", cert);
   ASSERT(port > 0);
 
-  ASSERT(ts_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) > 0);
-  { int i; for (i = 0; i < 50; i++) ts_server_poll(&server, 0); }
+  ASSERT(ns_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
+  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 0); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
 
-  ts_server_free(&server);
+  ns_server_free(&server);
   return NULL;
 }
 
@@ -92,7 +92,7 @@ static const char *test_server(void) {
   return test_server_with_ssl(NULL);
 }
 
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
 static const char *test_ssl(void) {
   return test_server_with_ssl("ssl_cert.pem");
 }
@@ -101,7 +101,7 @@ static const char *test_ssl(void) {
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_server);
-#ifdef TS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif
   return NULL;

@@ -476,11 +476,6 @@ static void read_from_socket(struct ns_connection *conn) {
        conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
 
   if (ns_is_error(n)) {
-#if 0
-    if (conn->endpoint_type == EP_CLIENT && conn->local_iobuf.len > 0) {
-      call_http_client_handler(conn, MG_DOWNLOAD_SUCCESS);
-    }
-#endif
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_append(&conn->recv_iobuf, buf, n);
@@ -595,13 +590,12 @@ int ns_server_poll(struct ns_server *server, int milli) {
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-
+    num_active_connections++;
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       close_conn(conn);
     }
-
-    num_active_connections++;
   }
+  //DBG(("%d active connections", num_active_connections));
 
   return num_active_connections;
 }
@@ -619,7 +613,7 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
 #endif
 
   if (host == NULL || (he = gethostbyname(host)) == NULL ||
-      (sock = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
+      (sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
     DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
     return NULL;
   }

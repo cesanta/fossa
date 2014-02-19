@@ -1,4 +1,4 @@
-tcp_skeleton
+net_skeleton
 ============
 
 TCP client/server library for C/C++

@@ -637,6 +637,7 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   conn->sock = sock;
   conn->connection_data = param;
   conn->flags = NSF_CONNECTING;
+  conn->last_io_time = time(NULL);
 
 #ifdef NS_ENABLE_SSL
   if (use_ssl &&
@@ -659,6 +660,7 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
     conn->sock = sock;
     conn->connection_data = p;
     conn->server = s;
+    conn->last_io_time = time(NULL);
     add_connection(s, conn);
     DBG(("%p %d", conn, sock));
   }

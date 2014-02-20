@@ -429,6 +429,7 @@ static void read_from_socket(struct ns_connection *conn) {
 
     conn->flags &= ~NSF_CONNECTING;
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
+    (void) ret;
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
       int res = SSL_connect(conn->ssl);

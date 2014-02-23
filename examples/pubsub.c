@@ -49,6 +49,9 @@ static void client_handler(struct ns_connection *conn, enum ns_event ev,
       fwrite(io->buf, io->len, 1, stdout);
       iobuf_remove(io, io->len);
     }
+  } else if (ev == NS_CLOSE) {
+    // Connection has closed, most probably cause server has stopped
+    exit(EXIT_SUCCESS);
   }
 }
 

@@ -564,7 +564,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
 
   if (select((int) max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
     // Accept new connections
-    if (server->listening_sock >= 0 &&
+    if (server->listening_sock != INVALID_SOCKET &&
         FD_ISSET(server->listening_sock, &read_set)) {
       // We're not looping here, and accepting just one connection at
       // a time. The reason is that eCos does not respect non-blocking

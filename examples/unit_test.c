@@ -47,7 +47,8 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static void ev_handler(struct ns_connection *conn, enum ns_event ev) {
+static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
+  (void) p;
   switch (ev) {
     case NS_CONNECT:
       ns_printf(conn, "%d %s there", 17, "hi");
@@ -76,7 +77,8 @@ static const char *test_server_with_ssl(const char *cert) {
   int port;
   ns_server_init(&server, (void *) "foo", ev_handler);
 
-  port = ns_bind_to(&server,  LOOPBACK_IP ":0", cert);
+  port = ns_bind(&server,  LOOPBACK_IP ":0");
+  if (cert != NULL) ns_set_ssl_cert(&server, cert);
   ASSERT(port > 0);
 
   ASSERT(ns_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
@@ -98,9 +100,71 @@ static const char *test_ssl(void) {
 }
 #endif
 
+static const char *test_to64(void) {
+  ASSERT(to64("0") == 0);
+  ASSERT(to64("") == 0);
+  ASSERT(to64("123") == 123);
+  ASSERT(to64("-34") == -34);
+  ASSERT(to64("3566626116") == 3566626116);
+  return NULL;
+}
+
+static const char *test_parse_port_string(void) {
+  static const char *valid[] = {
+    "1", "1.2.3.4:1",
+#if defined(USE_IPV6)
+    "[::1]:123", "[3ffe:2a00:100:7031::1]:900",
+#endif
+    NULL
+  };
+  static const char *invalid[] = {
+    "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", NULL
+  };
+  union socket_address sa;
+  int i;
+
+  for (i = 0; valid[i] != NULL; i++) {
+    ASSERT(parse_port_string(valid[i], &sa) != 0);
+  }
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    ASSERT(parse_port_string(invalid[i], &sa) == 0);
+  }
+  ASSERT(parse_port_string("0", &sa) != 0);
+
+  return NULL;
+}
+
+static int avt(char **buf, size_t buf_size, const char *fmt, ...) {
+  int result;
+  va_list ap;
+  va_start(ap, fmt);
+  result = alloc_vprintf(buf, buf_size, fmt, ap);
+  va_end(ap);
+  return result;
+}
+
+static const char *test_alloc_vprintf(void) {
+  char buf[5], *p = buf;
+
+  ASSERT(avt(&p, sizeof(buf), "%d", 123) == 3);
+  ASSERT(p == buf);
+  ASSERT(strcmp(p, "123") == 0);
+
+  ASSERT(avt(&p, sizeof(buf), "%d", 123456789) == 9);
+  ASSERT(p != buf);
+  ASSERT(strcmp(p, "123456789") == 0);
+  free(p);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_server);
+  RUN_TEST(test_to64);
+  RUN_TEST(test_parse_port_string);
+  RUN_TEST(test_alloc_vprintf);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

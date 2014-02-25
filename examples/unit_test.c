@@ -124,13 +124,13 @@ static const char *test_parse_port_string(void) {
   int i;
 
   for (i = 0; valid[i] != NULL; i++) {
-    ASSERT(parse_port_string(valid[i], &sa) != 0);
+    ASSERT(ns_parse_port_string(valid[i], &sa) != 0);
   }
 
   for (i = 0; invalid[i] != NULL; i++) {
-    ASSERT(parse_port_string(invalid[i], &sa) == 0);
+    ASSERT(ns_parse_port_string(invalid[i], &sa) == 0);
   }
-  ASSERT(parse_port_string("0", &sa) != 0);
+  ASSERT(ns_parse_port_string("0", &sa) != 0);
 
   return NULL;
 }
@@ -139,7 +139,7 @@ static int avt(char **buf, size_t buf_size, const char *fmt, ...) {
   int result;
   va_list ap;
   va_start(ap, fmt);
-  result = alloc_vprintf(buf, buf_size, fmt, ap);
+  result = ns_avprintf(buf, buf_size, fmt, ap);
   va_end(ap);
   return result;
 }

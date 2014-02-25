@@ -103,14 +103,14 @@ void *ns_start_thread(void *(*f)(void *), void *p) {
 }
 #endif  // NS_DISABLE_THREADS
 
-static void add_connection(struct ns_server *server, struct ns_connection *c) {
+static void ns_add_conn(struct ns_server *server, struct ns_connection *c) {
   c->next = server->active_connections;
   server->active_connections = c;
   c->prev = NULL;
   if (c->next != NULL) c->next->prev = c;
 }
 
-static void remove_connection(struct ns_connection *conn) {
+static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->prev == NULL) conn->server->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
@@ -119,7 +119,7 @@ static void remove_connection(struct ns_connection *conn) {
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
 // and return allocated buffer.
-static int alloc_vprintf(char **buf, size_t size, const char *fmt, va_list ap) {
+static int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
 
@@ -158,7 +158,7 @@ int ns_vprintf(struct ns_connection *conn, const char *fmt, va_list ap) {
   char mem[2000], *buf = mem;
   int len;
 
-  if ((len = alloc_vprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
+  if ((len = ns_avprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
     iobuf_append(&conn->send_iobuf, buf, len);
   }
   if (buf != mem && buf != NULL) {
@@ -177,14 +177,14 @@ int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   return len;
 }
 
-static void call_user(struct ns_connection *conn, enum ns_event ev, void *p) {
+static void ns_call(struct ns_connection *conn, enum ns_event ev, void *p) {
   if (conn->server->callback) conn->server->callback(conn, ev, p);
 }
 
-static void close_conn(struct ns_connection *conn) {
+static void ns_close_conn(struct ns_connection *conn) {
   DBG(("%p %d", conn, conn->flags));
-  call_user(conn, NS_CLOSE, NULL);
-  remove_connection(conn);
+  ns_call(conn, NS_CLOSE, NULL);
+  ns_remove_conn(conn);
   closesocket(conn->sock);
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
@@ -199,7 +199,7 @@ void ns_set_close_on_exec(sock_t sock) {
 #endif
 }
 
-static void set_non_blocking_mode(sock_t sock) {
+static void ns_set_non_blocking_mode(sock_t sock) {
 #ifdef _WIN32
   unsigned long on = 1;
   ioctlsocket(sock, FIONBIO, &on);
@@ -245,7 +245,7 @@ int ns_socketpair(sock_t sp[2]) {
 #endif  // NS_DISABLE_SOCKETPAIR
 
 // Valid listening port spec is: [ip_address:]port, e.g. "80", "127.0.0.1:3128"
-static int parse_port_string(const char *str, union socket_address *sa) {
+static int ns_parse_port_string(const char *str, union socket_address *sa) {
   unsigned int a, b, c, d, port;
   int len = 0;
 #ifdef NS_ENABLE_IPV6
@@ -280,7 +280,7 @@ static int parse_port_string(const char *str, union socket_address *sa) {
 }
 
 // 'sa' must be an initialized address to bind to
-static sock_t open_listening_socket(union socket_address *sa) {
+static sock_t ns_open_listening_socket(union socket_address *sa) {
   socklen_t len = sizeof(*sa);
   sock_t on = 1, sock = INVALID_SOCKET;
 
@@ -289,7 +289,7 @@ static sock_t open_listening_socket(union socket_address *sa) {
       !bind(sock, &sa->sa, sa->sa.sa_family == AF_INET ?
             sizeof(sa->sin) : sizeof(sa->sa)) &&
       !listen(sock, SOMAXCONN)) {
-    set_non_blocking_mode(sock);
+    ns_set_non_blocking_mode(sock);
     // In case port was set to 0, get the real port number
     (void) getsockname(sock, &sa->sa, &len);
   } else if (sock != INVALID_SOCKET) {
@@ -319,11 +319,11 @@ int ns_set_ssl_cert(struct ns_server *server, const char *cert) {
 }
 
 int ns_bind(struct ns_server *server, const char *str) {
-  parse_port_string(str, &server->listening_sa);
+  ns_parse_port_string(str, &server->listening_sa);
   if (server->listening_sock != INVALID_SOCKET) {
     closesocket(server->listening_sock);
   }
-  server->listening_sock = open_listening_socket(&server->listening_sa);
+  server->listening_sock = ns_open_listening_socket(&server->listening_sa);
   return server->listening_sock == INVALID_SOCKET ? -1 :
     (int) ntohs(server->listening_sa.sin.sin_port);
 }
@@ -352,13 +352,13 @@ static struct ns_connection *accept_conn(struct ns_server *server) {
 #endif
   } else {
     ns_set_close_on_exec(sock);
-    set_non_blocking_mode(sock);
+    ns_set_non_blocking_mode(sock);
     c->server = server;
     c->sock = sock;
     c->flags |= NSF_ACCEPTED;
 
-    add_connection(server, c);
-    call_user(c, NS_ACCEPT, &sa);
+    ns_add_conn(server, c);
+    ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl, server->ssl_ctx));
   }
 
@@ -376,8 +376,8 @@ static int ns_is_error(int n) {
 }
 
 #ifdef NS_ENABLE_HEXDUMP
-static void hexdump(const struct ns_connection *conn, const void *buf,
-                    int len, const char *marker) {
+static void ns_hexdump(const struct ns_connection *conn, const void *buf,
+                       int len, const char *marker) {
   const unsigned char *p = (const unsigned char *) buf;
   char path[500], date[100], ascii[17];
   FILE *fp;
@@ -419,7 +419,7 @@ static void hexdump(const struct ns_connection *conn, const void *buf,
 }
 #endif
 
-static void read_from_socket(struct ns_connection *conn) {
+static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[2048];
   int n = 0;
 
@@ -449,7 +449,7 @@ static void read_from_socket(struct ns_connection *conn) {
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
     }
-    call_user(conn, NS_CONNECT, &ok);
+    ns_call(conn, NS_CONNECT, &ok);
     return;
   }
 
@@ -470,7 +470,7 @@ static void read_from_socket(struct ns_connection *conn) {
   }
 
 #ifdef NS_ENABLE_HEXDUMP
-  hexdump(conn, buf, n, "<-");
+  ns_hexdump(conn, buf, n, "<-");
 #endif
 
   DBG(("%p <- %d bytes [%.*s%s]",
@@ -480,11 +480,11 @@ static void read_from_socket(struct ns_connection *conn) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_append(&conn->recv_iobuf, buf, n);
-    call_user(conn, NS_RECV, &n);
+    ns_call(conn, NS_RECV, &n);
   }
 }
 
-static void write_to_socket(struct ns_connection *conn) {
+static void ns_write_to_socket(struct ns_connection *conn) {
   struct iobuf *io = &conn->send_iobuf;
   int n = 0;
 
@@ -497,7 +497,7 @@ static void write_to_socket(struct ns_connection *conn) {
 
 
 #ifdef NS_ENABLE_HEXDUMP
-  hexdump(conn, io->buf, n, "->");
+  ns_hexdump(conn, io->buf, n, "->");
 #endif
 
   DBG(("%p -> %d bytes [%.*s%s]", conn, n, io->len < 40 ? io->len : 40,
@@ -514,14 +514,14 @@ static void write_to_socket(struct ns_connection *conn) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 
-  call_user(conn, NS_SEND, NULL);
+  ns_call(conn, NS_SEND, NULL);
 }
 
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return iobuf_append(&conn->send_iobuf, buf, len);
 }
 
-static void add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
+static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   if (sock != INVALID_SOCKET) {
     FD_SET(sock, set);
     if (*max_fd == INVALID_SOCKET || sock > *max_fd) {
@@ -543,19 +543,19 @@ int ns_server_poll(struct ns_server *server, int milli) {
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
-  add_to_set(server->listening_sock, &read_set, &max_fd);
+  ns_add_to_set(server->listening_sock, &read_set, &max_fd);
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    call_user(conn, NS_POLL, &current_time);
-    add_to_set(conn->sock, &read_set, &max_fd);
+    ns_call(conn, NS_POLL, &current_time);
+    ns_add_to_set(conn->sock, &read_set, &max_fd);
     if (conn->flags & NSF_CONNECTING) {
-      add_to_set(conn->sock, &write_set, &max_fd);
+      ns_add_to_set(conn->sock, &write_set, &max_fd);
     }
     if (conn->send_iobuf.len > 0 && !(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
-      add_to_set(conn->sock, &write_set, &max_fd);
+      ns_add_to_set(conn->sock, &write_set, &max_fd);
     } else if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
-      close_conn(conn);
+      ns_close_conn(conn);
     }
   }
 
@@ -578,14 +578,14 @@ int ns_server_poll(struct ns_server *server, int milli) {
       tmp_conn = conn->next;
       if (FD_ISSET(conn->sock, &read_set)) {
         conn->last_io_time = current_time;
-        read_from_socket(conn);
+        ns_read_from_socket(conn);
       }
       if (FD_ISSET(conn->sock, &write_set)) {
         if (conn->flags & NSF_CONNECTING) {
-          read_from_socket(conn);
+          ns_read_from_socket(conn);
         } else if (!(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
           conn->last_io_time = current_time;
-          write_to_socket(conn);
+          ns_write_to_socket(conn);
         }
       }
     }
@@ -595,7 +595,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
     tmp_conn = conn->next;
     num_active_connections++;
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
-      close_conn(conn);
+      ns_close_conn(conn);
     }
   }
   //DBG(("%d active connections", num_active_connections));
@@ -624,7 +624,7 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   sin.sin_family = AF_INET;
   sin.sin_port = htons((uint16_t) port);
   sin.sin_addr = * (struct in_addr *) he->h_addr_list[0];
-  set_non_blocking_mode(sock);
+  ns_set_non_blocking_mode(sock);
 
   connect_ret_val = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
   if (ns_is_error(connect_ret_val)) {
@@ -649,7 +649,7 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   }
 #endif
 
-  add_connection(server, conn);
+  ns_add_conn(server, conn);
   DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return conn;
@@ -659,12 +659,12 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
-    set_non_blocking_mode(sock);
+    ns_set_non_blocking_mode(sock);
     conn->sock = sock;
     conn->connection_data = p;
     conn->server = s;
     conn->last_io_time = time(NULL);
-    add_connection(s, conn);
+    ns_add_conn(s, conn);
     DBG(("%p %d", conn, sock));
   }
   return conn;
@@ -713,7 +713,7 @@ void ns_server_free(struct ns_server *s) {
 
   for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    close_conn(conn);
+    ns_close_conn(conn);
   }
 
 #ifndef NS_DISABLE_SOCKETPAIR

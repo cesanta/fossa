@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
 
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")    // Linking with winsock library
@@ -81,7 +82,6 @@ typedef SOCKET sock_t;
 #include <fcntl.h>
 #include <netdb.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <arpa/inet.h>  // For inet_pton() when NS_ENABLE_IPV6 is defined

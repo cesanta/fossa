@@ -149,6 +149,7 @@ struct ns_server {
   ns_callback_t callback;
   SSL_CTX *ssl_ctx;
   SSL_CTX *client_ssl_ctx;
+  sock_t ctl[2];
 };
 
 struct ns_connection {
@@ -176,7 +177,7 @@ struct ns_connection {
 void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
 void ns_server_free(struct ns_server *);
 int ns_server_poll(struct ns_server *, int milli);
-void ns_server_wakeup(struct ns_server *, void *conn_param);
+void ns_server_wakeup(struct ns_server *);
 void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);
 struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
 

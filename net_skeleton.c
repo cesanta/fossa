@@ -679,9 +679,17 @@ void ns_iterate(struct ns_server *server, ns_callback_t cb, void *param) {
   }
 }
 
+void ns_server_wakeup(struct ns_server *server) {
+  unsigned char ch = 0;
+  if (server->ctl[0] != INVALID_SOCKET) {
+    send(server->ctl[0], &ch, 1, 0);
+    recv(server->ctl[0], &ch, 1, 0);
+  }
+}
+
 void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
   memset(s, 0, sizeof(*s));
-  s->listening_sock = INVALID_SOCKET;
+  s->listening_sock = s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
   s->server_data = server_data;
   s->callback = cb;
 
@@ -691,6 +699,12 @@ void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
   // Ignore SIGPIPE signal, so if client cancels the request, it
   // won't kill the whole process.
   signal(SIGPIPE, SIG_IGN);
+#endif
+
+#ifndef NS_DISABLE_SOCKETPAIR
+  do {
+    ns_socketpair(s->ctl);
+  } while (s->ctl[0] == INVALID_SOCKET);
 #endif
 
 #ifdef NS_ENABLE_SSL
@@ -707,19 +721,15 @@ void ns_server_free(struct ns_server *s) {
   // Do one last poll, see https://github.com/cesanta/mongoose/issues/286
   ns_server_poll(s, 0);
 
-  if (s->listening_sock != INVALID_SOCKET) {
-    closesocket(s->listening_sock);
-  }
+  if (s->listening_sock != INVALID_SOCKET) closesocket(s->listening_sock);
+  if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
+  if (s->ctl[1] != INVALID_SOCKET) closesocket(s->ctl[1]);
+  s->listening_sock = s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
 
   for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     ns_close_conn(conn);
   }
-
-#ifndef NS_DISABLE_SOCKETPAIR
-  //closesocket(s->ctl[0]);
-  //closesocket(s->ctl[1]);
-#endif
 
 #ifdef NS_ENABLE_SSL
   if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);

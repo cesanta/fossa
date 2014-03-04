@@ -427,7 +427,6 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     int ok = 1, ret;
     socklen_t len = sizeof(ok);
 
-    conn->flags &= ~NSF_CONNECTING;
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
     (void) ret;
 #ifdef NS_ENABLE_SSL
@@ -438,13 +437,13 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       if (res == 1) {
         conn->flags = NSF_SSL_HANDSHAKE_DONE;
       } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
-        conn->flags |= NSF_CONNECTING;
         return; // Call us again
       } else {
         ok = 1;
       }
     }
 #endif
+    conn->flags &= ~NSF_CONNECTING;
     DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
@@ -458,8 +457,15 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
       n = SSL_read(conn->ssl, buf, sizeof(buf));
     } else {
-      if (SSL_accept(conn->ssl) == 1) {
+      int res = SSL_accept(conn->ssl);
+      int ssl_err = SSL_get_error(conn->ssl, res);
+      DBG(("%p res %d %d", conn, res, ssl_err));
+      if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
+      } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
+        return; // Call us again
+      } else {
+        conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
       return;
     }
@@ -620,10 +626,6 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   struct ns_connection *conn = NULL;
   int connect_ret_val;
 
-#ifndef NS_ENABLE_SSL
-  if (use_ssl) return 0;
-#endif
-
   if (host == NULL || (he = gethostbyname(host)) == NULL ||
       (sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
     DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
@@ -637,6 +639,7 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
 
   connect_ret_val = connect(sock, (struct sockaddr *) &sin, sizeof(sin));
   if (ns_is_error(connect_ret_val)) {
+    closesocket(sock);
     return NULL;
   } else if ((conn = (struct ns_connection *)
               NS_MALLOC(sizeof(*conn))) == NULL) {

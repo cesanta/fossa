@@ -1,9 +1,11 @@
 TCP client/server library for C/C++
 ===================================
 
-Tcp_skeleton is a TCP communication library written in C.
-It provides easy to use event-driven interface that allows to
-implement any TCP-based protocol with little effort.
+Net Skeleton is a networking library written in C.
+It provides easy to use event-driven interface that allows to implement
+network protocols or scalable network applications  with little effort.
+Net Skeleton releives developers from the burden of network programming
+complexity and let them concentrate on the logic, saving time and money.
 
 # Features
 
@@ -11,9 +13,45 @@ implement any TCP-based protocol with little effort.
    * Cross-platform: works on Windows, Linux/UNIX, QNX, Android, iPhone, etc
    * Single-threaded, asynchronous, non-blocking core
    * SSL/TLS support
-   * Tiny compiled and run-time footprint
+   * Tiny static and run-time footprint
 
-# Usage
+# Concept
+
+Net Skeleton has three core structures:
+
+   * `struct iobuf` - holds sent or received data
+   * `struct ns_connection` - describes client or server connection
+   * `struct ns_server` - holds listening socket (if any) and list of
+      connections
+
+To use Net Skeleton, one must:
+
+   * Define an event handler function
+   * Initialize the server by calling `ns_server_init()`
+   * Optionally, create a listening socket by `ns_bind()`
+   * Call `ns_server_poll()` in a loop infinitely
+
+Net Skeleton will accept incoming connections, read and write data, and
+call specified event handler for each connection when appropriate. An
+event handler should examine received data, set connection flags if needed,
+and send data back to the client by `ns_send()` or `ns_printf()`. Here is a
+typical event flow for the accepted connection:
+`NS_ACCEPT` -> `NS_RECV` -> .... -> `NS_CLOSE`
+
+Each connection has send and receive buffer, `struct ns_connection::send_iobuf`
+and `struct ns_connection::recv_iobuf` respectively. When data is received
+for the connection, Net Skeleton appends received data to the `recv_iobuf` and
+sends `NS_RECV` event. Net Skeleton will append data indefinitely, until
+RAM is exhausted, so to prevent out-of-memory situation, event handler must
+discard data from `recv_iobuf` when it is not needed anymore by calling
+`iobuf_remove()`.
+
+Event handler may send data back (`ns_send()` or
+`ns_printf()`), which appends data to the `send_iobuf`. When Net Skeleton
+successfully writes data to the socket, it discards it from `send_iobuf` and
+sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
+
+# Example
 
 Below is a minimalistic example that implements TCP echo server. To compile
 and run on UNIX system, start terminal, copy `echo.c`, `tcp_skeleton.c` and

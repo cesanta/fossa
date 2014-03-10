@@ -24,7 +24,7 @@ Net Skeleton has three core structures:
    * `struct ns_server` - holds listening socket (if any) and list of
       connections
 
-To use Net Skeleton, one must:
+Net Skeleton application is done as follows:
 
    * Define an event handler function
    * Initialize the server by calling `ns_server_init()`
@@ -50,6 +50,9 @@ Event handler may send data back (`ns_send()` or
 `ns_printf()`), which appends data to the `send_iobuf`. When Net Skeleton
 successfully writes data to the socket, it discards it from `send_iobuf` and
 sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
+
+![Diagram](http://cesanta.com/images/net_skeleton/iobuf.png)
+
 
 # Example
 

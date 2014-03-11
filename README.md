@@ -24,15 +24,15 @@ Net Skeleton has three core structures:
    * `struct ns_server` - holds listening socket (if any) and list of
       connections
 
-Net Skeleton application is done as follows:
+To use Net Skeleton, a developer should:
 
    * Define an event handler function
    * Initialize the server by calling `ns_server_init()`
    * Optionally, create a listening socket by `ns_bind()`
    * Call `ns_server_poll()` in a loop infinitely
 
-Net Skeleton will accept incoming connections, read and write data, and
-call specified event handler for each connection when appropriate. An
+Net Skeleton accepts incoming connections, reads and writes data, and
+calls specified event handler for each connection when appropriate. An
 event handler should examine received data, set connection flags if needed,
 and send data back to the client by `ns_send()` or `ns_printf()`. Here is a
 typical event flow for the accepted connection:
@@ -53,7 +53,24 @@ sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
 
 ![Diagram](http://cesanta.com/images/net_skeleton/iobuf.png)
 
+An event handler can set `struct ns_connection::flags` attribute to control
+the behavior of the connection.  Below is a list of connection flags:
 
+    * `NSF_FINISHED_SENDING_DATA` tells Net Skeleton that all data has been
+      appended to the `send_iobuf`. As soon as Net Skeleton sends it to the
+      socket, the connection will be closed.
+    * `NSF_BUFFER_BUT_DONT_SEND` tells Net Skeleton to append data to the
+      `send_iobuf` but hold on sending it, because the data will be modified
+      later and then will be sent by clearing `NSF_BUFFER_BUT_DONT_SEND` flag.
+    * `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
+    * `NSF_CONNECTING` set when connection is in connecting state after
+      `ns_connect()` call
+    * `NSF_CLOSE_IMMEDIATELY` tells Net Skeleton to close the connection
+      immediately, usually after some error
+    * `NSF_ACCEPTED` set for all accepted connection
+    * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
+      used by a developer to store application-specific state
+      
 # Example
 
 Below is a minimalistic example that implements TCP echo server. To compile

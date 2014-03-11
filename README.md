@@ -56,19 +56,19 @@ sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
 An event handler can set `struct ns_connection::flags` attribute to control
 the behavior of the connection.  Below is a list of connection flags:
 
-    * `NSF_FINISHED_SENDING_DATA` tells Net Skeleton that all data has been
+   * `NSF_FINISHED_SENDING_DATA` tells Net Skeleton that all data has been
       appended to the `send_iobuf`. As soon as Net Skeleton sends it to the
       socket, the connection will be closed.
-    * `NSF_BUFFER_BUT_DONT_SEND` tells Net Skeleton to append data to the
+   * `NSF_BUFFER_BUT_DONT_SEND` tells Net Skeleton to append data to the
       `send_iobuf` but hold on sending it, because the data will be modified
       later and then will be sent by clearing `NSF_BUFFER_BUT_DONT_SEND` flag.
-    * `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
-    * `NSF_CONNECTING` set when connection is in connecting state after
+   * `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
+   * `NSF_CONNECTING` set when connection is in connecting state after
       `ns_connect()` call
-    * `NSF_CLOSE_IMMEDIATELY` tells Net Skeleton to close the connection
+   * `NSF_CLOSE_IMMEDIATELY` tells Net Skeleton to close the connection
       immediately, usually after some error
-    * `NSF_ACCEPTED` set for all accepted connection
-    * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
+   * `NSF_ACCEPTED` set for all accepted connection
+   * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
       used by a developer to store application-specific state
       
 # Example

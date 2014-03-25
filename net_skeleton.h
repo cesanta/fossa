@@ -78,6 +78,7 @@ typedef unsigned __int64 uint64_t;
 typedef __int64   int64_t;
 typedef SOCKET sock_t;
 #else
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -126,6 +127,7 @@ union socket_address {
 #endif
 };
 
+// IO buffers interface
 struct iobuf {
   char *buf;
   int len;
@@ -137,13 +139,23 @@ void iobuf_free(struct iobuf *);
 int iobuf_append(struct iobuf *, const void *data, int data_size);
 void iobuf_remove(struct iobuf *, int data_size);
 
+// Net skeleton interface
+enum ns_event {
+  NS_POLL,     // Sent to each connection on each call to ns_server_poll()
+  NS_ACCEPT,   // Listening socket accept()-ed new connection
+  NS_CONNECT,  // Connection made by ns_connect() succeeded or failed
+  NS_RECV,     // Data has benn received
+  NS_SEND,     // Data has been written to a socket
+  NS_CLOSE     // Connection is closed
+};
+
+// Callback function (event handler) prototype, must be defined by user.
+// Net skeleton will call event handler, passing events defined above.
 struct ns_connection;
-enum ns_event { NS_POLL, NS_ACCEPT, NS_CONNECT, NS_RECV, NS_SEND, NS_CLOSE };
 typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *);
 
 struct ns_server {
   void *server_data;
-  union socket_address listening_sa;
   sock_t listening_sock;
   struct ns_connection *active_connections;
   ns_callback_t callback;
@@ -155,12 +167,13 @@ struct ns_server {
 struct ns_connection {
   struct ns_connection *prev, *next;
   struct ns_server *server;
-  void *connection_data;
-  time_t last_io_time;
   sock_t sock;
+  union socket_address sa;
   struct iobuf recv_iobuf;
   struct iobuf send_iobuf;
   SSL *ssl;
+  void *connection_data;
+  time_t last_io_time;
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
 #define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)
@@ -194,6 +207,8 @@ int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 void *ns_start_thread(void *(*f)(void *), void *p);
 int ns_socketpair(sock_t [2]);
 void ns_set_close_on_exec(sock_t);
+void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port);
+int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
 
 #ifdef __cplusplus
 }

@@ -319,13 +319,14 @@ int ns_set_ssl_cert(struct ns_server *server, const char *cert) {
 }
 
 int ns_bind(struct ns_server *server, const char *str) {
-  ns_parse_port_string(str, &server->listening_sa);
+  union socket_address sa;
+  ns_parse_port_string(str, &sa);
   if (server->listening_sock != INVALID_SOCKET) {
     closesocket(server->listening_sock);
   }
-  server->listening_sock = ns_open_listening_socket(&server->listening_sa);
+  server->listening_sock = ns_open_listening_socket(&sa);
   return server->listening_sock == INVALID_SOCKET ? -1 :
-    (int) ntohs(server->listening_sa.sin.sin_port);
+  (int) ntohs(sa.sin.sin_port);
 }
 
 
@@ -375,49 +376,52 @@ static int ns_is_error(int n) {
     );
 }
 
-#ifdef NS_ENABLE_HEXDUMP
-static void ns_hexdump(const struct ns_connection *conn, const void *buf,
-                       int len, const char *marker) {
-  const unsigned char *p = (const unsigned char *) buf;
-  char path[500], date[100], ascii[17];
-  FILE *fp;
+void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port) {
+  union socket_address sa;
+  socklen_t slen = sizeof(sa);
 
-#if 0
-  if (!match_prefix(NS_ENABLE_HEXDUMP, strlen(NS_ENABLE_HEXDUMP),
-                    conn->remote_ip)) {
-    return;
-  }
-
-  snprintf(path, sizeof(path), "%s.%hu.txt",
-           conn->mg_conn.remote_ip, conn->mg_conn.remote_port);
+  if (buf != NULL && len > 0) {
+    buf[0] = '\0';
+    memset(&sa, 0, sizeof(sa));
+    getsockname(sock, &sa.sa, &slen);
+#if defined(NS_ENABLE_IPV6)
+    inet_ntop(sa.sa.sa_family, sa.sa.sa_family == AF_INET ?
+              (void *) &sa.sin.sin_addr :
+              (void *) &sa.sin6.sin6_addr, buf, len);
+#elif defined(_WIN32)
+    // Only Windoze Vista (and newer) have inet_ntop()
+    strncpy(buf, inet_ntoa(&sa.sin.sin_addr), len);
+#else
+    inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf, len);
 #endif
-  snprintf(path, sizeof(path), "%p.txt", conn);
-
-  if ((fp = fopen(path, "a")) != NULL) {
-    time_t cur_time = time(NULL);
-    int i, idx;
-
-    strftime(date, sizeof(date), "%d/%b/%Y %H:%M:%S", localtime(&cur_time));
-    fprintf(fp, "%s %s %d bytes\n", marker, date, len);
-
-    for (i = 0; i < len; i++) {
-      idx = i % 16;
-      if (idx == 0) {
-        if (i > 0) fprintf(fp, "  %s\n", ascii);
-        fprintf(fp, "%04x ", i);
-      }
-      fprintf(fp, " %02x", p[i]);
-      ascii[idx] = p[i] < 0x20 || p[i] > 0x7e ? '.' : p[i];
-      ascii[idx + 1] = '\0';
+    if (add_port) {
+      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), ":%d",
+      (int) ntohs(sa.sin.sin_port));
     }
-
-    while (i++ % 16) fprintf(fp, "%s", "   ");
-    fprintf(fp, "  %s\n\n", ascii);
-
-    fclose(fp);
   }
 }
-#endif
+
+int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
+  const unsigned char *p = (const unsigned char *) buf;
+  char ascii[17] = "";
+  int i, idx, n = 0;
+
+  for (i = 0; i < len; i++) {
+    idx = i % 16;
+    if (idx == 0) {
+      if (i > 0) n += snprintf(dst + n, dst_len - n, "  %s\n", ascii);
+      n += snprintf(dst + n, dst_len - n, "%04x ", i);
+    }
+    n += snprintf(dst + n, dst_len - n, " %02x", p[i]);
+    ascii[idx] = p[i] < 0x20 || p[i] > 0x7e ? '.' : p[i];
+    ascii[idx + 1] = '\0';
+  }
+
+  while (i++ % 16) n += snprintf(dst + n, dst_len - n, "%s", "   ");
+  n += snprintf(dst + n, dst_len - n, "  %s\n\n", ascii);
+
+  return n;
+}
 
 static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[2048];
@@ -475,10 +479,6 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     n = recv(conn->sock, buf, sizeof(buf), 0);
   }
 
-#ifdef NS_ENABLE_HEXDUMP
-  ns_hexdump(conn, buf, n, "<-");
-#endif
-
   DBG(("%p <- %d bytes [%.*s%s]",
        conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
 
@@ -501,26 +501,19 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }
 
-
-#ifdef NS_ENABLE_HEXDUMP
-  ns_hexdump(conn, io->buf, n, "->");
-#endif
-
   DBG(("%p -> %d bytes [%.*s%s]", conn, n, io->len < 40 ? io->len : 40,
        io->buf, io->len < 40 ? "" : "..."));
 
+  ns_call(conn, NS_SEND, &n);
   if (ns_is_error(n)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
     iobuf_remove(io, n);
-    //conn->num_bytes_sent += n;
   }
 
   if (io->len == 0 && conn->flags & NSF_FINISHED_SENDING_DATA) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   }
-
-  ns_call(conn, NS_SEND, NULL);
 }
 
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
@@ -625,6 +618,8 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   struct hostent *he = NULL;
   struct ns_connection *conn = NULL;
   int connect_ret_val;
+
+  (void) use_ssl;
 
   if (host == NULL || (he = gethostbyname(host)) == NULL ||
       (sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {

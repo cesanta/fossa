@@ -7,9 +7,7 @@
 #define NS_ENABLE_SSL
 #endif
 
-#define NS_ENABLE_HEXDUMP "**"
 #define NS_ENABLE_DEBUG
-
 #include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \

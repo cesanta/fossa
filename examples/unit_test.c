@@ -4,10 +4,12 @@
 
 #ifndef _WIN32
 #define NS_ENABLE_IPV6
+#ifndef NS_ENABLE_SSL
 #define NS_ENABLE_SSL
 #endif
+#endif
 
-#define NS_ENABLE_DEBUG
+//#define NS_ENABLE_DEBUG
 #include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \
@@ -80,7 +82,7 @@ static const char *test_server_with_ssl(const char *cert) {
   ASSERT(port > 0);
 
   ASSERT(ns_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
-  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 0); }
+  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
 

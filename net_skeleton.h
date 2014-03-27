@@ -140,19 +140,20 @@ int iobuf_append(struct iobuf *, const void *data, int data_size);
 void iobuf_remove(struct iobuf *, int data_size);
 
 // Net skeleton interface
+// Events. Meaning of event parameter (evp) is given in the comment.
 enum ns_event {
   NS_POLL,     // Sent to each connection on each call to ns_server_poll()
-  NS_ACCEPT,   // Listening socket accept()-ed new connection
-  NS_CONNECT,  // Connection made by ns_connect() succeeded or failed
-  NS_RECV,     // Data has benn received
-  NS_SEND,     // Data has been written to a socket
-  NS_CLOSE     // Connection is closed
+  NS_ACCEPT,   // New connection accept()-ed. union socket_address *remote_addr
+  NS_CONNECT,  // connect() succeeded or failed. int *success_status
+  NS_RECV,     // Data has benn received. int *num_bytes
+  NS_SEND,     // Data has been written to a socket. int *num_bytes
+  NS_CLOSE     // Connection is closed. NULL
 };
 
 // Callback function (event handler) prototype, must be defined by user.
 // Net skeleton will call event handler, passing events defined above.
 struct ns_connection;
-typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *);
+typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *evp);
 
 struct ns_server {
   void *server_data;

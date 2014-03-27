@@ -338,7 +338,6 @@ static struct ns_connection *accept_conn(struct ns_server *server) {
 
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
-    closesocket(sock);
   } else if ((c = (struct ns_connection *) NS_MALLOC(sizeof(*c))) == NULL ||
              memset(c, 0, sizeof(*c)) == NULL) {
     closesocket(sock);
@@ -497,6 +496,15 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     n = SSL_write(conn->ssl, io->buf, io->len);
+    if (n < 0) {
+      int ssl_err = SSL_get_error(conn->ssl, n);
+      DBG(("%p %d %d", conn, n, ssl_err));
+      if (ssl_err == 2 || ssl_err == 3) {
+        return; // Call us again
+      } else {
+        conn->flags |= NSF_CLOSE_IMMEDIATELY;
+      }
+    }
   } else
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }

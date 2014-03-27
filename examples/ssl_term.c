@@ -20,8 +20,7 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
       }
       break;
     case NS_CONNECT:
-      if (* (int *) p != 0) {
-        assert(pc != NULL);
+      if (* (int *) p != 0) {  // connect() failed
         pc->flags |= NSF_CLOSE_IMMEDIATELY;
       }
       break;

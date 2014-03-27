@@ -13,6 +13,7 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
 
   switch (ev) {
     case NS_ACCEPT:
+      // New SSL connection. Create a connection to the target, and link them
       nc->connection_data = ns_connect(nc->server, s_target_host,
                                        atoi(s_target_port), 0, nc);
       if (nc->connection_data == NULL) {
@@ -20,18 +21,23 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
       }
       break;
     case NS_CONNECT:
-      if (* (int *) p != 0) {  // connect() failed
+      // Connection to the target finished. If failed, close both
+      if (* (int *) p != 0 && pc != NULL) {
         pc->flags |= NSF_CLOSE_IMMEDIATELY;
       }
       break;
     case NS_CLOSE:
+      // If either connection closes, unlink them and shedule closing
       if (pc != NULL) {
         pc->flags |= NSF_FINISHED_SENDING_DATA;
+        pc->connection_data = NULL;
       }
+      nc->connection_data = NULL;
       break;
     case NS_RECV:
-      ns_send(pc, io->buf, io->len);  // Echo message to the proxy connection
-      iobuf_remove(io, io->len);      // Discard message from recv buffer
+      // Forward arrived data to the other connection, and discard from buffer
+      ns_send(pc, io->buf, io->len);
+      iobuf_remove(io, io->len);
     default:
       break;
   }

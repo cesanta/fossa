@@ -5,7 +5,8 @@ Net Skeleton is a networking library written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.
 Net Skeleton releives developers from the burden of network programming
-complexity and let them concentrate on the logic, saving time and money.
+complexity and let them concentrate on the logic.
+Net Skeleton saves time and money.
 
 # Features
 
@@ -117,20 +118,69 @@ For more examples, please take a look at
 
 # API
 
+Net skeleton server instance is single threaded. All functions should be
+called from the same thread, with exception of `mg_wakeup_server()`.
+
     void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
     void ns_server_free(struct ns_server *);
-    int ns_server_poll(struct ns_server *, int milli);
-    void ns_server_wakeup(struct ns_server *, void *conn_param);
 
-    int ns_bind_to(struct ns_server *, const char *port, const char *ssl_cert);
-    int ns_connect(struct ns_server *, const char *host, int port, int ssl, void *);
+Initializes and de-initializes the server.
+
+    int ns_bind(struct ns_server *, const char *addr);
+
+Start listening on the given port. `addr` could be a port number,
+e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
+In latter case, Net Skeleton binds to a specific interface only. Also,
+a value of `"0"` can be used, in which case a random non-occupied port number
+will be chosen. This function returns a positive port number on success, or
+negative value on error.
+
+    int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
+
+Set SSL certificate to use. Return 0 on success, and negative number on error.
+On success, listening port will expect SSL-encrypted traffic.
+
+    int ns_server_poll(struct ns_server *, int milli);
+
+This function performs the actual IO, and must be called in a loop.
+Return number of active connections.
+
+    void ns_server_wakeup(struct ns_server *);
+
+Interrupt `ns_server_poll()` that currently runs in another thread and is
+blocked on `select()` system call. This is the only function can can be
+used from a different thread. It is used to force Net Skeleton to
+interrupt `select()` and perform the next IO cycle. A common use case is
+a thread that decides that new data is available for IO.
+
+    void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);
+
+Call specified function for all active connections.
+
+    struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
+
+Add a socket to the server.
+
+    struct ns_connection *ns_connect(struct ns_server *, const char *host,
+                                     int port, int ssl, void *connection_param);
+
+Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
+to the new connection.
 
     int ns_send(struct ns_connection *, const void *buf, int len);
     int ns_printf(struct ns_connection *, const char *fmt, ...);
+    int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
+
+These functions are for sending un-formatted and formatted data to the
+connection. Number of written bytes is returned.
 
     // Utility functions
     void *ns_start_thread(void *(*f)(void *), void *p);
-    int ns_socketpair(int [2]);
+    int ns_socketpair(sock_t [2]);
+    void ns_set_close_on_exec(sock_t);
+    void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port);
+    int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
+
 
 # License
 

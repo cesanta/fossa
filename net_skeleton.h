@@ -78,7 +78,6 @@ typedef unsigned __int64 uint64_t;
 typedef __int64   int64_t;
 typedef SOCKET sock_t;
 #else
-#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>

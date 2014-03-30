@@ -13,6 +13,9 @@ pubsub: pubsub.c ../net_skeleton.c
 ssl_term: ssl_term.c ../net_skeleton.c
 	$(CC) ssl_term.c ../net_skeleton.c -o $@ $(CFLAGS)
 
+nslua: nslua.c ../net_skeleton.c
+	$(CC) nslua.c ../net_skeleton.c -o $@ $(CFLAGS) -llua
+
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test
 	g++ unit_test.c -o unit_test $(CFLAGS) && ./unit_test

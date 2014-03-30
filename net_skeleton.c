@@ -375,25 +375,31 @@ static int ns_is_error(int n) {
     );
 }
 
-void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port) {
+void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
 
   if (buf != NULL && len > 0) {
     buf[0] = '\0';
     memset(&sa, 0, sizeof(sa));
-    getsockname(sock, &sa.sa, &slen);
+    if (flags & 4) {
+      getpeername(sock, &sa.sa, &slen);
+    } else {
+      getsockname(sock, &sa.sa, &slen);
+    }
+    if (flags & 1) {
 #if defined(NS_ENABLE_IPV6)
-    inet_ntop(sa.sa.sa_family, sa.sa.sa_family == AF_INET ?
-              (void *) &sa.sin.sin_addr :
-              (void *) &sa.sin6.sin6_addr, buf, len);
+      inet_ntop(sa.sa.sa_family, sa.sa.sa_family == AF_INET ?
+                (void *) &sa.sin.sin_addr :
+                (void *) &sa.sin6.sin6_addr, buf, len);
 #elif defined(_WIN32)
-    // Only Windoze Vista (and newer) have inet_ntop()
-    strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
+      // Only Windoze Vista (and newer) have inet_ntop()
+      strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
-    inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf, len);
+      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf, len);
 #endif
-    if (add_port) {
+    }
+    if (flags & 2) {
       snprintf(buf + strlen(buf), len - (strlen(buf) + 1), ":%d",
       (int) ntohs(sa.sin.sin_port));
     }

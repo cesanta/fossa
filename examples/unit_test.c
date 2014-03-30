@@ -80,7 +80,7 @@ static const char *test_server_with_ssl(const char *cert) {
   port = ns_bind(&server,  LOOPBACK_IP ":0");
   if (cert != NULL) ns_set_ssl_cert(&server, cert);
   ASSERT(port > 0);
-  ns_sock_to_str(server.listening_sock, addr, sizeof(addr), 1);
+  ns_sock_to_str(server.listening_sock, addr, sizeof(addr), 3);
   ASSERT(sscanf(addr, "%[^:]:%d", ip, &port2) == 2);
   ASSERT(strcmp(ip, "127.0.0.1") == 0);
   ASSERT(port == port2);

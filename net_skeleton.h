@@ -129,14 +129,14 @@ union socket_address {
 // IO buffers interface
 struct iobuf {
   char *buf;
-  int len;
-  int size;
+  size_t len;
+  size_t size;
 };
 
-void iobuf_init(struct iobuf *, int initial_size);
+void iobuf_init(struct iobuf *, size_t initial_size);
 void iobuf_free(struct iobuf *);
-int iobuf_append(struct iobuf *, const void *data, int data_size);
-void iobuf_remove(struct iobuf *, int data_size);
+size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
+void iobuf_remove(struct iobuf *, size_t data_size);
 
 // Net skeleton interface
 // Events. Meaning of event parameter (evp) is given in the comment.

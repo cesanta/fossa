@@ -32,7 +32,7 @@
 #define IOBUF_RESIZE_MULTIPLIER 2.0
 #endif
 
-void iobuf_init(struct iobuf *iobuf, int size) {
+void iobuf_init(struct iobuf *iobuf, size_t size) {
   iobuf->len = iobuf->size = 0;
   iobuf->buf = NULL;
 
@@ -48,10 +48,10 @@ void iobuf_free(struct iobuf *iobuf) {
   }
 }
 
-int iobuf_append(struct iobuf *io, const void *buf, int len) {
+size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
   static const double mult = IOBUF_RESIZE_MULTIPLIER;
   char *p = NULL;
-  int new_len = 0;
+  size_t new_len = 0;
 
   assert(io->len >= 0);
   assert(io->len <= io->size);
@@ -73,8 +73,8 @@ int iobuf_append(struct iobuf *io, const void *buf, int len) {
   return len;
 }
 
-void iobuf_remove(struct iobuf *io, int n) {
-  if (n >= 0 && n <= io->len) {
+void iobuf_remove(struct iobuf *io, size_t n) {
+  if (n <= io->len) {
     memmove(io->buf, io->buf + n, io->len - n);
     io->len -= n;
   }

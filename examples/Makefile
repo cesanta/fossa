@@ -1,8 +1,7 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
 CFLAGS = -W -Wall -pedantic -O0 -g -lssl -I.. -DNS_ENABLE_SSL $(CFLAGS_EXTRA)
 
-all:
-	@echo "Usage: make [echo|pubsub]"
+all: echo pubsub ssl_term
 
 echo: echo.c ../net_skeleton.c
 	$(CC) echo.c ../net_skeleton.c -o $@ $(CFLAGS)

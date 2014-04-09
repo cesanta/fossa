@@ -1,10 +1,16 @@
+// Copyright (c) 2014 by Cesanta Software
+// This application implements SSL termination proxy.
+// It listens for SSL connections, accepts them, and forwards all
+// data to the other, non-SSL server, working as an SSL wrapper for any
+// TCP server (Web, Mail, et cetera).
+
 #include "net_skeleton.h"
 
-static const char *s_listening_port = "8043";
+static const char *s_listening_port = "8043";   // Listening SSL port
 //static const char *s_target_host = "127.0.0.1";
 //static const char *s_target_port = "8080";
-static const char *s_target_host = "google.com";  // Should be IP
-static const char *s_target_port = "80";
+static const char *s_target_host = "google.com";  // Target server IP
+static const char *s_target_port = "80";    // Target server port
 static const char *s_ssl_certificate = "ssl_cert.pem";
 
 static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {

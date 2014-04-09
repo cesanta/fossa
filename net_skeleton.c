@@ -49,23 +49,20 @@ void iobuf_free(struct iobuf *iobuf) {
 }
 
 size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
-  static const double mult = IOBUF_RESIZE_MULTIPLIER;
   char *p = NULL;
-  size_t new_len = 0;
+  size_t new_len = io->len + len, new_size = new_len * IOBUF_RESIZE_MULTIPLIER;
 
-  assert(io->len >= 0);
   assert(io->len <= io->size);
 
   if (len <= 0) {
-  } else if ((new_len = io->len + len) < io->size) {
+  } else if (new_len < io->size) {
     memcpy(io->buf + io->len, buf, len);
     io->len = new_len;
-  } else if ((p = (char *)
-              NS_REALLOC(io->buf, (int) (new_len * mult))) != NULL) {
+  } else if ((p = (char *) NS_REALLOC(io->buf, new_size)) != NULL) {
     io->buf = p;
     memcpy(io->buf + io->len, buf, len);
     io->len = new_len;
-    io->size = (int) (new_len * mult);
+    io->size = new_size;
   } else {
     len = 0;
   }

@@ -71,7 +71,7 @@ size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
 }
 
 void iobuf_remove(struct iobuf *io, size_t n) {
-  if (n <= io->len) {
+  if (n > 0 && n <= io->len) {
     memmove(io->buf, io->buf + n, io->len - n);
     io->len -= n;
   }

@@ -207,26 +207,29 @@ static void ns_set_non_blocking_mode(sock_t sock) {
 }
 
 #ifndef NS_DISABLE_SOCKETPAIR
-int ns_socketpair(sock_t sp[2]) {
-  struct sockaddr_in sa;
+int ns_socketpair2(sock_t sp[2], int sock_type) {
+  union socket_address sa;
   sock_t sock;
-  socklen_t len = sizeof(sa);
+  socklen_t len = sizeof(sa.sin);
   int ret = 0;
 
   sp[0] = sp[1] = INVALID_SOCKET;
 
   (void) memset(&sa, 0, sizeof(sa));
-  sa.sin_family = AF_INET;
-  sa.sin_port = htons(0);
-  sa.sin_addr.s_addr = htonl(0x7f000001);
+  sa.sin.sin_family = AF_INET;
+  sa.sin.sin_port = htons(0);
+  sa.sin.sin_addr.s_addr = htonl(0x7f000001);
 
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) != INVALID_SOCKET &&
-      !bind(sock, (struct sockaddr *) &sa, len) &&
-      !listen(sock, 1) &&
-      !getsockname(sock, (struct sockaddr *) &sa, &len) &&
-      (sp[0] = socket(AF_INET, SOCK_STREAM, 6)) != -1 &&
-      !connect(sp[0], (struct sockaddr *) &sa, len) &&
-      (sp[1] = accept(sock,(struct sockaddr *) &sa, &len)) != INVALID_SOCKET) {
+  if ((sock = socket(AF_INET, sock_type, 0)) != INVALID_SOCKET &&
+      !bind(sock, &sa.sa, len) &&
+      (sock_type == SOCK_DGRAM || !listen(sock, 1)) &&
+      !getsockname(sock, &sa.sa, &len) &&
+      (sp[0] = socket(AF_INET, sock_type, 0)) != INVALID_SOCKET &&
+      !connect(sp[0], &sa.sa, len) &&
+      (sock_type == SOCK_STREAM ||
+       (!getsockname(sp[0], &sa.sa, &len) && !connect(sock, &sa.sa, len))) &&
+      (sp[1] = (sock_type == SOCK_DGRAM ? sock :
+                accept(sock, &sa.sa, &len))) != INVALID_SOCKET) {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
     ret = 1;
@@ -235,9 +238,13 @@ int ns_socketpair(sock_t sp[2]) {
     if (sp[1] != INVALID_SOCKET) closesocket(sp[1]);
     sp[0] = sp[1] = INVALID_SOCKET;
   }
-  closesocket(sock);
+  if (sock_type != SOCK_DGRAM) closesocket(sock);
 
   return ret;
+}
+
+int ns_socketpair(sock_t sp[2]) {
+  return ns_socketpair2(sp, SOCK_STREAM);
 }
 #endif  // NS_DISABLE_SOCKETPAIR
 

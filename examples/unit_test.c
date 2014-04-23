@@ -163,12 +163,37 @@ static const char *test_alloc_vprintf(void) {
   return NULL;
 }
 
+static const char *test_socketpair(void) {
+  sock_t sp[2];
+  static const char foo[] = "hi there";
+  char buf[20];
+
+  ASSERT(ns_socketpair2(sp, SOCK_DGRAM) == 1);
+  ASSERT(sizeof(foo) < sizeof(buf));
+
+  // Send string in one direction
+  ASSERT(send(sp[0], foo, sizeof(foo), 0) == sizeof(foo));
+  ASSERT(recv(sp[1], buf, sizeof(buf), 0) == sizeof(foo));
+  ASSERT(strcmp(buf, "hi there") == 0);
+
+  // Now in opposite direction
+  ASSERT(send(sp[1], foo, sizeof(foo), 0) == sizeof(foo));
+  ASSERT(recv(sp[0], buf, sizeof(buf), 0) == sizeof(foo));
+  ASSERT(strcmp(buf, "hi there") == 0);
+
+  closesocket(sp[0]);
+  closesocket(sp[1]);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_server);
   RUN_TEST(test_to64);
   RUN_TEST(test_parse_port_string);
   RUN_TEST(test_alloc_vprintf);
+  RUN_TEST(test_socketpair);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

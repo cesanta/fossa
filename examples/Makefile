@@ -1,5 +1,5 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
-CFLAGS = -W -Wall -pedantic -O0 -g -lssl -I.. -DNS_ENABLE_SSL $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -pedantic -O0 -g -I.. $(CFLAGS_EXTRA)
 
 all: echo pubsub nsv7 ssl_term
 
@@ -8,9 +8,6 @@ echo: echo.c ../net_skeleton.c
 
 pubsub: pubsub.c ../net_skeleton.c
 	$(CC) pubsub.c ../net_skeleton.c -o $@ $(CFLAGS)
-
-ssl_term: ssl_term.c ../net_skeleton.c
-	$(CC) ssl_term.c ../net_skeleton.c -o $@ $(CFLAGS)
 
 nslua: nslua.c ../net_skeleton.c
 	$(CC) nslua.c ../net_skeleton.c -o $@ $(CFLAGS) -llua

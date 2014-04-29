@@ -47,6 +47,7 @@ void iobuf_free(struct iobuf *iobuf) {
 size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
   char *p = NULL;
 
+  assert(io != NULL);
   assert(io->len <= io->size);
 
   if (len <= 0) {

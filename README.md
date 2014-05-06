@@ -88,7 +88,7 @@ server. To connect to it, start another terminal, type
       struct iobuf *io = &conn->recv_iobuf; // IO buffer that holds received message
 
       switch (ev) {
-        case ns_RECV:
+        case NS_RECV:
           ns_send(conn, io->buf, io->len);  // Echo received message back
           iobuf_remove(io, io->len);        // Discard message from recv buffer
         default:

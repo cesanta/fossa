@@ -91,6 +91,7 @@ server. To connect to it, start another terminal, type
         case NS_RECV:
           ns_send(conn, io->buf, io->len);  // Echo received message back
           iobuf_remove(io, io->len);        // Discard message from recv buffer
+          break;
         default:
           break;    // We ignore all other events
       }

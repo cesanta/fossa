@@ -1,17 +1,17 @@
 // Copyright (c) 2014 Cesanta Software Limited
 // All rights reserved
 //
-// This library is dual-licensed: you can redistribute it and/or modify
+// This software is dual-licensed: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 2 as
 // published by the Free Software Foundation. For the terms of this
 // license, see <http://www.gnu.org/licenses/>.
 //
-// You are free to use this library under the terms of the GNU General
+// You are free to use this software under the terms of the GNU General
 // Public License, but WITHOUT ANY WARRANTY; without even the implied
 // warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 // See the GNU General Public License for more details.
 //
-// Alternatively, you can license this library under a commercial
+// Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
@@ -181,10 +181,10 @@ struct ns_connection {
 #define NSF_CONNECTING              (1 << 3)
 #define NSF_CLOSE_IMMEDIATELY       (1 << 4)
 #define NSF_ACCEPTED                (1 << 5)
-#define NSF_USER_1                  (1 << 6)
-#define NSF_USER_2                  (1 << 7)
-#define NSF_USER_3                  (1 << 8)
-#define NSF_USER_4                  (1 << 9)
+#define NSF_USER_1                  (1 << 26)
+#define NSF_USER_2                  (1 << 27)
+#define NSF_USER_3                  (1 << 28)
+#define NSF_USER_4                  (1 << 29)
 };
 
 void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);

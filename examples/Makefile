@@ -1,7 +1,7 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
 CFLAGS = -W -Wall -pedantic -O0 -g -I.. $(CFLAGS_EXTRA)
 
-all: echo pubsub nsv7 ssl_term
+all: echo pubsub nsv7
 
 echo: echo.c ../net_skeleton.c
 	$(CC) echo.c ../net_skeleton.c -o $@ $(CFLAGS)

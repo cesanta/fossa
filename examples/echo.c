@@ -8,6 +8,7 @@ static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
     case NS_RECV:
       ns_send(conn, io->buf, io->len);  // Echo message back
       iobuf_remove(io, io->len);        // Discard message from recv buffer
+      break;
     default:
       break;
   }

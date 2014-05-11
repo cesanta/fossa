@@ -196,6 +196,7 @@ struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
 
 int ns_bind(struct ns_server *, const char *addr);
 int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
+int ns_set_ssl_ca_cert(struct ns_server *, const char *ssl_ca_cert);
 struct ns_connection *ns_connect(struct ns_server *, const char *host,
                                  int port, int ssl, void *connection_param);
 

@@ -323,17 +323,17 @@ static sock_t ns_open_listening_socket(union socket_address *sa) {
 //  openssl x509 -req -in client.req -CA ca.pem -CAkey ca.pem -out client.crt
 //  cat client.key client.crt > client.pem
 int ns_set_ssl_ca_cert(struct ns_server *server, const char *cert) {
-  int result = -1;
+  (void) server; (void) cert;
 #ifdef NS_ENABLE_SSL
   STACK_OF(X509_NAME) *list = SSL_load_client_CA_file(cert);
   if (cert != NULL && server->ssl_ctx != NULL && list != NULL) {
     SSL_CTX_set_client_CA_list(server->ssl_ctx, list);
     SSL_CTX_set_verify(server->ssl_ctx, SSL_VERIFY_PEER |
                        SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
-    result = 0;
+    return 0;
   }
 #endif
-  return result;
+  return -1;
 }
 
 int ns_set_ssl_cert(struct ns_server *server, const char *cert) {

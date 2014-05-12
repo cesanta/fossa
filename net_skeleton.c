@@ -28,6 +28,11 @@
 #define NS_FREE free
 #endif
 
+struct ctl_msg {
+  ns_callback_t callback;
+  char message[1024 * 8];
+};
+
 void iobuf_init(struct iobuf *iobuf, size_t size) {
   iobuf->len = iobuf->size = 0;
   iobuf->buf = NULL;
@@ -628,12 +633,15 @@ int ns_server_poll(struct ns_server *server, int milli) {
       }
     }
 
-    // Read possible wakeup calls
+    // Read wakeup messages
     if (server->ctl[1] != INVALID_SOCKET &&
         FD_ISSET(server->ctl[1], &read_set)) {
-      unsigned char ch;
-      recv(server->ctl[1], &ch, 1, 0);
-      send(server->ctl[1], &ch, 1, 0);
+      struct ctl_msg ctl_msg;
+      int len = recv(server->ctl[1], &ctl_msg, sizeof(ctl_msg), 0);
+      send(server->ctl[1], ctl_msg.message, 1, 0);
+      if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
+        ns_iterate(server, ctl_msg.callback, ctl_msg.message);
+      }
     }
 
     for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
@@ -740,12 +748,20 @@ void ns_iterate(struct ns_server *server, ns_callback_t cb, void *param) {
   }
 }
 
-void ns_server_wakeup(struct ns_server *server) {
-  unsigned char ch = 0;
-  if (server->ctl[0] != INVALID_SOCKET) {
-    send(server->ctl[0], &ch, 1, 0);
-    recv(server->ctl[0], &ch, 1, 0);
+void ns_server_wakeup_ex(struct ns_server *server, ns_callback_t cb,
+                         void *data, size_t len) {
+  struct ctl_msg ctl_msg;
+  if (server->ctl[0] != INVALID_SOCKET && data != NULL &&
+      len < sizeof(ctl_msg.message)) {
+    ctl_msg.callback = cb;
+    memcpy(ctl_msg.message, data, len);
+    send(server->ctl[0], &ctl_msg, offsetof(struct ctl_msg, message) + len, 0);
+    recv(server->ctl[0], &len, 1, 0);
   }
+}
+
+void ns_server_wakeup(struct ns_server *server) {
+  ns_server_wakeup_ex(server, NULL, (void *) "", 0);
 }
 
 void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
@@ -764,7 +780,7 @@ void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
 
 #ifndef NS_DISABLE_SOCKETPAIR
   do {
-    ns_socketpair(s->ctl);
+    ns_socketpair2(s->ctl, SOCK_DGRAM);
   } while (s->ctl[0] == INVALID_SOCKET);
 #endif
 

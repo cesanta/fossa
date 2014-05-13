@@ -27,10 +27,10 @@
 static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
   struct v7 *v7 = (struct v7 *) nc->server->server_data;
 
-  // Push event handler on stack, and then parameters
-  v7_exec(v7, "ns.ev_handler");
+  // Push parameters then event handler on stack
   v7_push(v7, V7_NUM)->v.num = ev;
   v7_push(v7, V7_NUM)->v.num = (unsigned long) p;
+  v7_exec(v7, "ns.ev_handler");
 
   // Call event handler
   v7_call(v7, v7_top(v7) - 3);

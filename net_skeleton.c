@@ -315,23 +315,8 @@ static sock_t ns_open_listening_socket(union socket_address *sa) {
   return sock;
 }
 
-// Generating signed CA certificate:
-//  openssl genrsa -out ca.key 2048
-//  openssl req -new -x509 -key ca.key -out ca.crt -days 9999
-//  cat ca.key ca.crt > ca.pem
-//  echo 77 > ca.srl
-
-// Generating server certificate:
-//  openssl genrsa -out server.key 2048
-//  openssl req -key server.key -new -out server.req -days 9999
-//  openssl x509 -req -in server.req -CA ca.pem -CAkey ca.pem -out server.crt
-//  cat server.key server.crt > server.pem
-
-// Generating client certificate:
-//  openssl genrsa -out client.key 2048
-//  openssl req -new -key client.key -out client.req -days 9999
-//  openssl x509 -req -in client.req -CA ca.pem -CAkey ca.pem -out client.crt
-//  cat client.key client.crt > client.pem
+// Certificate generation script is at
+// https://github.com/cesanta/net_skeleton/blob/master/examples/gen_certs.sh
 int ns_set_ssl_ca_cert(struct ns_server *server, const char *cert) {
 #ifdef NS_ENABLE_SSL
   STACK_OF(X509_NAME) *list = SSL_load_client_CA_file(cert);

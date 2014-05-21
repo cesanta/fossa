@@ -181,6 +181,8 @@ struct ns_connection {
 #define NSF_CONNECTING              (1 << 3)
 #define NSF_CLOSE_IMMEDIATELY       (1 << 4)
 #define NSF_ACCEPTED                (1 << 5)
+#define NSF_WANT_READ               (1 << 6)
+#define NSF_WANT_WRITE              (1 << 7)
 
 #define NSF_USER_1                  (1 << 26)
 #define NSF_USER_2                  (1 << 27)

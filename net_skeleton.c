@@ -471,9 +471,12 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       int res = SSL_connect(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
       DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
+      if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
+      if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-      } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
+      } else if (res == 0 || ssl_err == SSL_ERROR_WANT_READ ||
+                 ssl_err == SSL_ERROR_WANT_WRITE) {
         return; // Call us again
       } else {
         ok = 1;
@@ -497,9 +500,12 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       int res = SSL_accept(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
       DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
+      if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
+      if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-      } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
+      } else if (res == 0 || ssl_err == SSL_ERROR_WANT_READ ||
+                 ssl_err == SSL_ERROR_WANT_WRITE) {
         return; // Call us again
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
@@ -588,13 +594,17 @@ int ns_server_poll(struct ns_server *server, int milli) {
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     ns_call(conn, NS_POLL, &current_time);
-    ns_add_to_set(conn->sock, &read_set, &max_fd);
-    if (conn->flags & NSF_CONNECTING) {
+    if (!(conn->flags & NSF_WANT_WRITE)) {
+      //DBG(("%p read_set", conn));
+      ns_add_to_set(conn->sock, &read_set, &max_fd);
+    }
+    if (((conn->flags & NSF_CONNECTING) && !(conn->flags & NSF_WANT_READ)) ||
+        (conn->send_iobuf.len > 0 && !(conn->flags & NSF_CONNECTING) &&
+         !(conn->flags & NSF_BUFFER_BUT_DONT_SEND))) {
+      //DBG(("%p write_set", conn));
       ns_add_to_set(conn->sock, &write_set, &max_fd);
     }
-    if (conn->send_iobuf.len > 0 && !(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
-      ns_add_to_set(conn->sock, &write_set, &max_fd);
-    } else if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
+    if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       ns_close_conn(conn);
     }
   }

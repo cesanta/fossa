@@ -181,10 +181,13 @@ struct ns_connection {
 #define NSF_CONNECTING              (1 << 3)
 #define NSF_CLOSE_IMMEDIATELY       (1 << 4)
 #define NSF_ACCEPTED                (1 << 5)
+
 #define NSF_USER_1                  (1 << 26)
 #define NSF_USER_2                  (1 << 27)
 #define NSF_USER_3                  (1 << 28)
 #define NSF_USER_4                  (1 << 29)
+#define NSF_USER_5                  (1 << 30)
+#define NSF_USER_6                  (1 << 31)
 };
 
 void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);

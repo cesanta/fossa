@@ -470,9 +470,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
       int res = SSL_connect(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
-      DBG(("%p res %d %d", conn, res, ssl_err));
+      DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
       if (res == 1) {
-        conn->flags = NSF_SSL_HANDSHAKE_DONE;
+        conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
         return; // Call us again
       } else {
@@ -496,7 +496,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     } else {
       int res = SSL_accept(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
-      DBG(("%p res %d %d", conn, res, ssl_err));
+      DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (res == 0 || ssl_err == 2 || ssl_err == 3) {
@@ -512,8 +512,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     n = recv(conn->sock, buf, sizeof(buf), 0);
   }
 
-  DBG(("%p <- %d bytes [%.*s%s]",
-       conn, n, n < 40 ? n : 40, buf, n < 40 ? "" : "..."));
+  DBG(("%p %d <- %d bytes", conn, conn->flags, n));
 
   if (ns_is_error(n)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
@@ -543,8 +542,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 #endif
   { n = send(conn->sock, io->buf, io->len, 0); }
 
-  DBG(("%p -> %d bytes [%.*s%s]", conn, n, io->len < 40 ? io->len : 40,
-       io->buf, io->len < 40 ? "" : "..."));
+  DBG(("%p %d -> %d bytes", conn, conn->flags, n));
 
   ns_call(conn, NS_SEND, &n);
   if (ns_is_error(n)) {

@@ -470,12 +470,12 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
       int res = SSL_connect(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
-      DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
+      DBG(("%p %d wres %d %d", conn, conn->flags, res, ssl_err));
       if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
       if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-      } else if (res == 0 || ssl_err == SSL_ERROR_WANT_READ ||
+      } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
         return; // Call us again
       } else {
@@ -499,12 +499,12 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     } else {
       int res = SSL_accept(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);
-      DBG(("%p %d res %d %d", conn, conn->flags, res, ssl_err));
+      DBG(("%p %d rres %d %d", conn, conn->flags, res, ssl_err));
       if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
       if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-      } else if (res == 0 || ssl_err == SSL_ERROR_WANT_READ ||
+      } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
         return; // Call us again
       } else {

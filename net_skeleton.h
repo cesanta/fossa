@@ -17,7 +17,7 @@
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
 
-#define NS_SKELETON_VERSION "1.0"
+#define NS_SKELETON_VERSION "1.1"
 
 #undef UNICODE                  // Use ANSI WinAPI functions
 #undef _UNICODE                 // Use multibyte encoding on Windows

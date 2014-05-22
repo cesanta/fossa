@@ -15,16 +15,14 @@ if ! test -f "$1" ; then
 fi
 
 D=`dirname $0`
-TMP=/tmp/.$$.tmp
 
-(
-sed -n "1,/\/\/ net_skeleton start/p" "$1"
-echo
-cat $D/../net_skeleton.h
-sed '/#include "net_skeleton.h"/d' $D/../net_skeleton.c
-echo
-sed -n "/\/\/ net_skeleton end/,\$p" "$1"
-) > $TMP
+F1=$D/../net_skeleton.h
+F2=$D/../net_skeleton.c
 
-mv "$1" "$1".$$.bak
-mv $TMP "$1"
+sed '/#include "net_skeleton.h"/d' $F2 > /tmp/$$
+F2=/tmp/$$
+
+A='\/\/ net_skeleton start'
+B='\/\/ net_skeleton end'
+
+sed -i .$$.bak -e "/$A/,/$B/ { /$A/{ n; r $F1" -e "r $F2" -e "}; /$B/!d; }" "$1"

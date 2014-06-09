@@ -557,7 +557,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     iobuf_remove(io, n);
   }
 
-  if (io->len == 0 && conn->flags & NSF_FINISHED_SENDING_DATA) {
+  if (io->len == 0 && (conn->flags & NSF_FINISHED_SENDING_DATA)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 }
@@ -728,6 +728,10 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
     DBG(("%p %d", conn, sock));
   }
   return conn;
+}
+
+struct ns_connection *ns_next(struct ns_server *s, struct ns_connection *conn) {
+  return conn == NULL ? s->active_connections : conn->next;
 }
 
 void ns_iterate(struct ns_server *server, ns_callback_t cb, void *param) {

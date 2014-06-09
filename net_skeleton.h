@@ -50,7 +50,9 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib")    // Linking with winsock library
+#endif
 #include <windows.h>
 #include <process.h>
 #ifndef EINPROGRESS
@@ -199,6 +201,7 @@ int ns_server_poll(struct ns_server *, int milli);
 void ns_server_wakeup(struct ns_server *);
 void ns_server_wakeup_ex(struct ns_server *, ns_callback_t, void *, size_t);
 void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);
+struct ns_connection *ns_next(struct ns_server *, struct ns_connection *);
 struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
 
 int ns_bind(struct ns_server *, const char *addr);

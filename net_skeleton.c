@@ -428,8 +428,8 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
 #endif
     }
     if (flags & 2) {
-      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), ":%d",
-      (int) ntohs(sa.sin.sin_port));
+      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s%d",
+               flags & 1 ? ":" : "", (int) ntohs(sa.sin.sin_port));
     }
   }
 }

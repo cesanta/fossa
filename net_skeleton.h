@@ -126,6 +126,8 @@ union socket_address {
   struct sockaddr_in sin;
 #ifdef NS_ENABLE_IPV6
   struct sockaddr_in6 sin6;
+#else
+  struct sockaddr sin6;
 #endif
 };
 

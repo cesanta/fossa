@@ -302,7 +302,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa) {
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
 #endif
       !bind(sock, &sa->sa, sa->sa.sa_family == AF_INET ?
-            sizeof(sa->sin) : sizeof(sa->sa)) &&
+            sizeof(sa->sin) : sizeof(sa->sin6)) &&
       !listen(sock, SOMAXCONN)) {
     ns_set_non_blocking_mode(sock);
     // In case port was set to 0, get the real port number

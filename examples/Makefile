@@ -17,9 +17,9 @@ nsv7: nsv7.c ../net_skeleton.c $(V7)/v7.c
 	$(CC) nsv7.c ../net_skeleton.c $(V7)/v7.c -o $@ $(CFLAGS) -I$(V7)
 
 u:
-	cc unit_test.c -o unit_test $(CFLAGS) && ./unit_test
-	g++ unit_test.c -o unit_test $(CFLAGS) && ./unit_test
-	clang unit_test.c -o unit_test $(CFLAGS) $(PROF) && ./unit_test
+	cc unit_test.c -o unit_test $(CFLAGS) -lssl && ./unit_test
+	g++ unit_test.c -o unit_test $(CFLAGS) -lssl && ./unit_test
+	clang unit_test.c -o unit_test $(CFLAGS) -lssl $(PROF) && ./unit_test
 	gcov -a unit_test.c
 
 w:

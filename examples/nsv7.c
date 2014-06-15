@@ -39,10 +39,9 @@ static void signal_handler(int sig_num) {
 static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
   struct v7 *v7 = (struct v7 *) nc->server->server_data;
   
-  printf("C handler: %p %d %p\n", nc, ev, p);
-
+  //printf("C handler: %p %d %p\n", nc, ev, p);
   // Call javascript event handler
-  v7_exec(v7, "ns.ev_handler");
+  v7_exec(v7, "ev_handler");
   v7_push(v7, V7_NUM)->v.num = ev;
   v7_push(v7, V7_NUM)->v.num = (unsigned long) p;
   v7_call(v7, v7_top(v7) - 3, 2);

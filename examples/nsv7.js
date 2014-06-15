@@ -1,7 +1,5 @@
 print('Initializing net skeleton scripting...', '\n');
 
-var ns =  {
-  ev_handler: function(a, b) {
-    print('a: ', a, ', b: ', b, '\n');
-  }
+var ev_handler = function(ev, param) {
+  print('JS handler: ev=', ev, ', param: ', param, '\n');
 };

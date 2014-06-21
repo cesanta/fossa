@@ -1,12 +1,16 @@
 #!/bin/sh
+# This script generates self-signed certificates: CA, client and server.
 
 set -e
 set -x
 
+# Change these if needed
 BITS=2048
 DAYS=3650
+MY_DOMAIN="foo.com"
+
 CAS="/CN=cesanta.com/O=Cesanta Software Ltd/C=IE/L=Dublin"
-SUBJ=${SUBJ:="/CN=192.168.1.28/O=Foo+Ltd/C=IE/L=Galway"}
+SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=Foo+Ltd/C=IE/L=Galway"}
 SERIAL=$(date +%s)
 
 echo $SERIAL > ca.srl

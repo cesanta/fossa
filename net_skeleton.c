@@ -501,7 +501,13 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
-      n = SSL_read(conn->ssl, buf, sizeof(buf));
+      // SSL library may have more bytes ready to read then we ask to read.
+      // Therefore, read in a loop until we read everything. Without the loop,
+      // we skip to the next select() cycle which can just timeout.
+      while ((n = SSL_read(conn->ssl, buf, sizeof(buf))) > 0) {
+        iobuf_append(&conn->recv_iobuf, buf, n);
+        ns_call(conn, NS_RECV, &n);
+      }
     } else {
       int res = SSL_accept(conn->ssl);
       int ssl_err = SSL_get_error(conn->ssl, res);

@@ -185,7 +185,7 @@ connection. Number of written bytes is returned.
 
 # License
 
-Tcp_skeleton is released under
+Net Skeleton is released under
 [GNU GPL v.2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
 Businesses have an option to get non-restrictive, royalty-free commercial
 license and professional support from

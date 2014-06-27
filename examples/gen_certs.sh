@@ -7,7 +7,7 @@ set -x
 # Change these if needed
 BITS=2048
 DAYS=3650
-MY_DOMAIN="foo.com"
+MY_DOMAIN=${MY_DOMAIN:="foo.com"}
 
 CAS="/CN=cesanta.com/O=Cesanta Software Ltd/C=IE/L=Dublin"
 SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=Foo+Ltd/C=IE/L=Galway"}

@@ -75,9 +75,9 @@ the behavior of the connection.  Below is a list of connection flags:
 # Example
 
 Below is a minimalistic example that implements TCP echo server. To compile
-and run on UNIX system, start terminal, copy `echo.c`, `tcp_skeleton.c` and
-`tcp_skeleton.h` to some directory and execute
-`cc echo.c tcp_skeleton.c -o echo && ./echo` command. That will start the
+and run on UNIX system, start terminal, copy `echo.c`, `net_skeleton.c` and
+`net_skeleton.h` to some directory and execute
+`cc echo.c net_skeleton.c -o echo && ./echo` command. That will start the
 server. To connect to it, start another terminal, type
 `telnet 127.0.0.1 1234` , press enter, then type any message and press enter.
 

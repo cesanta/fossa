@@ -547,10 +547,12 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     n = SSL_write(conn->ssl, io->buf, io->len);
-    if (n < 0) {
+    if (n <= 0) {
       int ssl_err = SSL_get_error(conn->ssl, n);
       DBG(("%p %d %d", conn, n, ssl_err));
-      if (ssl_err == 2 || ssl_err == 3) {
+      if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
+      if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
+      if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
         return; // Call us again
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;

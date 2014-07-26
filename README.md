@@ -10,10 +10,11 @@ Net Skeleton saves time and money.
 
 # Features
 
-   * Includes both client and server functionality
-   * Cross-platform: works on Windows, Linux/UNIX, QNX, Android, iPhone, etc
+   * Cross-platform: works on Windows, Linux/UNIX, QNX, eCos, Android, iPhone, etc
    * Single-threaded, asynchronous, non-blocking core
-   * SSL/TLS support
+   * Event-based API
+   * Both client and server functionality
+   * SSL/TLS support, client-side SSL auth (two-way SSL)
    * Tiny static and run-time footprint
 
 # Concept
@@ -113,9 +114,6 @@ server. To connect to it, start another terminal, type
 
       return 0;
     }
-
-For more examples, please take a look at
-[tcp_skeleton/examples](https://github.com/cesanta/tcp_skeleton/tree/master/examples).
 
 # API
 

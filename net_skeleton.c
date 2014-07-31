@@ -117,7 +117,7 @@ static void ns_remove_conn(struct ns_connection *conn) {
 // Print message to buffer. If buffer is large enough to hold the message,
 // return buffer. If buffer is to small, allocate large enough buffer on heap,
 // and return allocated buffer.
-static int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
+int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
 

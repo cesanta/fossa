@@ -169,6 +169,7 @@ struct ns_server {
   ns_callback_t callback;
   SSL_CTX *ssl_ctx;
   SSL_CTX *client_ssl_ctx;
+  const char *hexdump_file;
   sock_t ctl[2];
 };
 

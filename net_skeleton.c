@@ -572,10 +572,6 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   } else if (n > 0) {
     iobuf_remove(io, n);
   }
-
-  if (io->len == 0 && (conn->flags & NSF_FINISHED_SENDING_DATA)) {
-    conn->flags |= NSF_CLOSE_IMMEDIATELY;
-  }
 }
 
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
@@ -675,7 +671,9 @@ int ns_server_poll(struct ns_server *server, int milli) {
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     num_active_connections++;
-    if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
+    if ((conn->flags & NSF_CLOSE_IMMEDIATELY) ||
+        (conn->send_iobuf.len == 0 &&
+          (conn->flags & NSF_FINISHED_SENDING_DATA))) {
       ns_close_conn(conn);
     }
   }
@@ -801,7 +799,7 @@ void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
 #endif
 
 #ifdef NS_ENABLE_SSL
-  SSL_library_init();
+  {static int init_done; if (!init_done) { SSL_library_init(); init_done++; }}
   s->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
 #endif
 }

@@ -10,7 +10,7 @@ DAYS=3650
 MY_DOMAIN=${MY_DOMAIN:="foo.com"}
 
 CAS="/CN=cesanta.com/O=Cesanta Software Ltd/C=IE/L=Dublin"
-SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=Foo+Ltd/C=IE/L=Galway"}
+SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=Foo Ltd/C=IE/L=Galway"}
 SERIAL=$(date +%s)
 
 echo $SERIAL > ca.srl
@@ -27,3 +27,8 @@ openssl genrsa -out client.key $BITS
 openssl req -new -key client.key -out client.req -days $DAYS -subj "$SUBJ"
 openssl x509 -req -in client.req -CA ca.pem -CAkey ca.pem -out client.crt -days $DAYS
 cat client.key client.crt > client.pem
+
+rm ca.{crt,key,srl} client.{crt,key,req} server.{crt,key,req}
+mv ca.pem ${MY_DOMAIN}_ca.pem
+mv client.pem ${MY_DOMAIN}_client.pem
+mv server.pem ${MY_DOMAIN}_server.pem

@@ -19,8 +19,8 @@ static void elog(int do_exit, const char *fmt, ...) {
 static void show_usage_and_exit(const char *prog_name) {
   elog(0, "%s", "Copyright (c) 2014 CESANTA SOFTWARE");
   elog(0, "%s", "Usage:");
-  elog(0, "%s [-c cert] [-l listening_port] ", prog_name);
-  elog(1, "%s [-c cert] [host] [port]", prog_name);
+  elog(0, "%s [-d] [-c cert] [-l listening_port]", prog_name);
+  elog(1, "%s [-d] [-c cert] [host] [port]", prog_name);
 }
 
 int main(int argc, char *argv[]) {

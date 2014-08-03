@@ -1,20 +1,13 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
 CFLAGS = -W -Wall -pedantic -O0 -g -I.. $(CFLAGS_EXTRA)
 
-all: echo pubsub nsv7
+all: echo pubsub
 
 echo: echo.c ../net_skeleton.c
 	$(CC) echo.c ../net_skeleton.c -o $@ $(CFLAGS)
 
 pubsub: pubsub.c ../net_skeleton.c
 	$(CC) pubsub.c ../net_skeleton.c -o $@ $(CFLAGS)
-
-nslua: nslua.c ../net_skeleton.c
-	$(CC) nslua.c ../net_skeleton.c -o $@ $(CFLAGS) -llua
-
-V7 = ../../v7
-nsv7: nsv7.c ../net_skeleton.c $(V7)/v7.c
-	$(CC) nsv7.c ../net_skeleton.c $(V7)/v7.c -o $@ $(CFLAGS) -I$(V7)
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) -lssl && ./unit_test

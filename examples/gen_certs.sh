@@ -7,10 +7,16 @@ set -x
 # Change these if needed
 BITS=2048
 DAYS=3650
-MY_DOMAIN=${MY_DOMAIN:="foo.com"}
 
-CAS="/CN=cesanta.com/O=Cesanta Software Ltd/C=IE/L=Dublin"
-SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=Foo Ltd/C=IE/L=Galway"}
+if test -z "$1" ; then
+  echo "Usage: ./$0 <domain_name>"
+  exit 1
+fi
+
+MY_DOMAIN="$1"
+
+CAS="/CN=$MY_DOMAIN/O=$MY_DOMAIN/C=IE/L=Dublin"
+SUBJ=${SUBJ:="/CN=$MY_DOMAIN/O=$MY_DOMAIN/C=IE/L=Galway"}
 SERIAL=$(date +%s)
 
 echo $SERIAL > ca.srl

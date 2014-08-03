@@ -8,6 +8,9 @@ echo: echo.c ../net_skeleton.c
 
 pubsub: pubsub.c ../net_skeleton.c
 	$(CC) pubsub.c ../net_skeleton.c -o $@ $(CFLAGS)
+	
+nc: nc.c
+	$(CC) nc.c ../net_skeleton.c -o $@ $(CFLAGS)
 
 u:
 	cc unit_test.c -o unit_test $(CFLAGS) -lssl && ./unit_test
@@ -19,4 +22,4 @@ w:
 	wine cl unit_test.c /MD && wine unit_test.exe
 
 clean:
-	rm -rf *.gc* *.dSYM unit_test *.txt *.exe a.out echo pubsub ssl_term nsv7
+	rm -rf *.gc* *.dSYM unit_test *.txt *.exe *.obj a.out echo pubsub nc

@@ -8,7 +8,7 @@ echo: echo.c ../net_skeleton.c
 
 pubsub: pubsub.c ../net_skeleton.c
 	$(CC) pubsub.c ../net_skeleton.c -o $@ $(CFLAGS)
-	
+
 nc: nc.c
 	$(CC) nc.c ../net_skeleton.c -o $@ $(CFLAGS)
 

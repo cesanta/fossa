@@ -208,10 +208,7 @@ static void ns_call(struct ns_connection *conn, enum ns_event ev, void *p) {
   if (conn->server->callback) conn->server->callback(conn, ev, p);
 }
 
-static void ns_close_conn(struct ns_connection *conn) {
-  DBG(("%p %d", conn, conn->flags));
-  ns_call(conn, NS_CLOSE, NULL);
-  ns_remove_conn(conn);
+static void ns_destroy_conn(struct ns_connection *conn) {
   closesocket(conn->sock);
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
@@ -219,8 +216,18 @@ static void ns_close_conn(struct ns_connection *conn) {
   if (conn->ssl != NULL) {
     SSL_free(conn->ssl);
   }
+  if (conn->client_ssl_ctx != NULL) {
+    SSL_CTX_free(conn->client_ssl_ctx);
+  }
 #endif
   NS_FREE(conn);
+}
+
+static void ns_close_conn(struct ns_connection *conn) {
+  DBG(("%p %d", conn, conn->flags));
+  ns_call(conn, NS_CLOSE, NULL);
+  ns_remove_conn(conn);
+  ns_destroy_conn(conn);
 }
 
 void ns_set_close_on_exec(sock_t sock) {
@@ -350,37 +357,43 @@ static sock_t ns_open_listening_socket(union socket_address *sa) {
   return sock;
 }
 
+#ifdef NS_ENABLE_SSL
 // Certificate generation script is at
 // https://github.com/cesanta/net_skeleton/blob/master/examples/gen_certs.sh
-int ns_set_ssl_ca_cert(struct ns_server *server, const char *cert) {
-#ifdef NS_ENABLE_SSL
+
+int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   STACK_OF(X509_NAME) *list = SSL_load_client_CA_file(cert);
-  if (cert != NULL && server->ssl_ctx != NULL && list != NULL) {
-    SSL_CTX_set_client_CA_list(server->ssl_ctx, list);
-    SSL_CTX_set_verify(server->ssl_ctx, SSL_VERIFY_PEER |
-                       SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+  if (cert != NULL && ctx != NULL && list != NULL) {
+    SSL_CTX_set_client_CA_list(ctx, list);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                       NULL);
     return 0;
   }
-#endif
-  return server != NULL && cert == NULL ? 0 : -1;
+  return -1;
+}
+
+static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
+  if (ctx == NULL) {
+    return -1;
+  } else if (SSL_CTX_use_certificate_file(ctx, pem_file, 1) == 0 ||
+             SSL_CTX_use_PrivateKey_file(ctx, pem_file, 1) == 0) {
+    return -2;
+  } else {
+    SSL_CTX_set_mode(ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    SSL_CTX_use_certificate_chain_file(ctx, pem_file);
+    return 0;
+  }
+}
+
+int ns_set_ssl_ca_cert(struct ns_server *server, const char *cert) {
+  return ns_use_ca_cert(server->ssl_ctx, cert);
 }
 
 int ns_set_ssl_cert(struct ns_server *server, const char *cert) {
-#ifdef NS_ENABLE_SSL
-  if (cert != NULL &&
-      (server->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
-    return -1;
-  } else if (SSL_CTX_use_certificate_file(server->ssl_ctx, cert, 1) == 0 ||
-             SSL_CTX_use_PrivateKey_file(server->ssl_ctx, cert, 1) == 0) {
-    return -2;
-  } else {
-    SSL_CTX_set_mode(server->ssl_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-    SSL_CTX_use_certificate_chain_file(server->ssl_ctx, cert);
-    return 0;
-  }
-#endif
-  return server != NULL && cert == NULL ? 0 : -3;
+  server->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+  return ns_use_cert(server->ssl_ctx, cert);
 }
+#endif  // NS_ENABLE_SSL
 
 int ns_bind(struct ns_server *server, const char *str) {
   union socket_address sa;
@@ -488,6 +501,20 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
 
   while (i++ % 16) n += snprintf(dst + n, dst_len - n, "%s", "   ");
   n += snprintf(dst + n, dst_len - n, "  %s\n\n", ascii);
+
+  return n;
+}
+
+// Resolve FDQN "host", store IP address in the "ip".
+// Return > 0 (IP address length) on success.
+int ns_resolve(const char *host, char *ip, size_t ip_len) {
+  int n = 0;
+  struct hostent *he;
+
+  if ((he = gethostbyname(host)) != NULL) {
+    n = snprintf(ip, ip_len, "%s",
+                 inet_ntoa(* (struct in_addr *) he->h_addr_list[0]));
+  }
 
   return n;
 }
@@ -711,17 +738,19 @@ int ns_server_poll(struct ns_server *server, int milli) {
   return num_active_connections;
 }
 
-struct ns_connection *ns_connect(struct ns_server *server, const char *host,
-                                 int port, int use_ssl, void *param) {
+struct ns_connection *ns_connect2(struct ns_server *server, const char *host,
+                                  int port, int use_ssl, const char *cert,
+                                  const char *ca_cert, void *param) {
   sock_t sock = INVALID_SOCKET;
   struct sockaddr_in sin;
   struct hostent *he = NULL;
   struct ns_connection *conn = NULL;
   int connect_ret_val;
 
-  (void) use_ssl;
+  (void) use_ssl; (void) cert; (void) ca_cert;
 
-  if (host == NULL || (he = gethostbyname(host)) == NULL ||
+  // TODO(lsm): use non-blocking resolver
+  if ((he = gethostbyname(host)) == NULL ||
       (sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
     DBG(("gethostbyname(%s) failed: %s", host, strerror(errno)));
     return NULL;
@@ -750,9 +779,17 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   conn->last_io_time = time(NULL);
 
 #ifdef NS_ENABLE_SSL
-  if (use_ssl &&
-      (conn->ssl = SSL_new(server->client_ssl_ctx)) != NULL) {
-    SSL_set_fd(conn->ssl, sock);
+  if (use_ssl) {
+    if ((conn->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL ||
+        (cert != NULL && ns_use_cert(conn->client_ssl_ctx, cert) != 0) ||
+        (ca_cert != NULL && ns_use_ca_cert(conn->client_ssl_ctx,
+                                              ca_cert) != 0) ||
+        (conn->ssl = SSL_new(conn->client_ssl_ctx)) == NULL) {
+      ns_destroy_conn(conn);
+      return NULL;
+    } else {
+      SSL_set_fd(conn->ssl, sock);
+    }
   }
 #endif
 
@@ -760,6 +797,12 @@ struct ns_connection *ns_connect(struct ns_server *server, const char *host,
   DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return conn;
+}
+
+// Deprecated
+struct ns_connection *ns_connect(struct ns_server *server, const char *host,
+                                 int port, int use_ssl, void *param) {
+  return ns_connect2(server, host, port, use_ssl, NULL, NULL, param);
 }
 
 struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
@@ -829,7 +872,6 @@ void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
 
 #ifdef NS_ENABLE_SSL
   {static int init_done; if (!init_done) { SSL_library_init(); init_done++; }}
-  s->client_ssl_ctx = SSL_CTX_new(SSLv23_client_method());
 #endif
 }
 
@@ -853,7 +895,6 @@ void ns_server_free(struct ns_server *s) {
 
 #ifdef NS_ENABLE_SSL
   if (s->ssl_ctx != NULL) SSL_CTX_free(s->ssl_ctx);
-  if (s->client_ssl_ctx != NULL) SSL_CTX_free(s->client_ssl_ctx);
-  s->ssl_ctx = s->client_ssl_ctx = NULL;
+  s->ssl_ctx = NULL;
 #endif
 }

@@ -115,6 +115,9 @@ server. To connect to it, start another terminal, type
       return 0;
     }
 
+More elaborate example is examples/nc, which is an implementation of
+popular `netcat` utility with SSL support and traffic hexdump.
+
 # API
 
 Net skeleton server instance is single threaded. All functions should be

@@ -1,3 +1,8 @@
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+//
+// This file implements "netcat" utility with SSL and traffic hexdump.
+
 #include "net_skeleton.h"
 
 static int s_received_signal = 0;

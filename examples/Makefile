@@ -1,5 +1,5 @@
 PROF = -fprofile-arcs -ftest-coverage -g -O0
-CFLAGS = -W -Wall -pedantic -O0 -g -I.. $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -pedantic -O0 -g -I.. -pthread $(CFLAGS_EXTRA)
 
 all: echo pubsub u2 nc
 

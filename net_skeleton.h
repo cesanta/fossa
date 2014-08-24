@@ -110,7 +110,9 @@ typedef int sock_t;
 #define DBG(x)
 #endif
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+#endif
 
 #ifdef NS_ENABLE_SSL
 #ifdef __APPLE__

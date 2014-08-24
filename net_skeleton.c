@@ -473,7 +473,7 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
       // Only Windoze Vista (and newer) have inet_ntop()
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf, len);
+      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,(socklen_t)len);
 #endif
     }
     if (flags & 2) {
@@ -589,7 +589,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = recv(conn->sock, buf, sizeof(buf), 0)) > 0) {
+    while ((n = (int) recv(conn->sock, buf, sizeof(buf), 0)) > 0) {
       DBG(("%p %d <- %d bytes (PLAIN)", conn, conn->flags, n));
       iobuf_append(&conn->recv_iobuf, buf, n);
       ns_call(conn, NS_RECV, &n);
@@ -618,7 +618,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     }
   } else
 #endif
-  { n = send(conn->sock, io->buf, io->len, 0); }
+  { n = (int) send(conn->sock, io->buf, io->len, 0); }
 
   DBG(("%p %d -> %d bytes", conn, conn->flags, n));
 
@@ -631,7 +631,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 }
 
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
-  return iobuf_append(&conn->send_iobuf, buf, len);
+  return (int) iobuf_append(&conn->send_iobuf, buf, len);
 }
 
 static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
@@ -700,7 +700,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
     if (server->ctl[1] != INVALID_SOCKET &&
         FD_ISSET(server->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
-      int len = recv(server->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
+      int len = (int) recv(server->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
       send(server->ctl[1], ctl_msg.message, 1, 0);
       if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
         ns_iterate(server, ctl_msg.callback, ctl_msg.message);

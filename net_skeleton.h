@@ -168,7 +168,7 @@ typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *evp);
 
 struct ns_server {
   void *server_data;
-  sock_t listening_sock;
+  //sock_t listening_sock;
   struct ns_connection *active_connections;
   ns_callback_t callback;
   SSL_CTX *ssl_ctx;
@@ -187,6 +187,7 @@ struct ns_connection {
   SSL_CTX *client_ssl_ctx;
   void *connection_data;
   time_t last_io_time;
+
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
 #define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)
@@ -196,6 +197,7 @@ struct ns_connection {
 #define NSF_ACCEPTED                (1 << 5)
 #define NSF_WANT_READ               (1 << 6)
 #define NSF_WANT_WRITE              (1 << 7)
+#define NSF_LISTENING               (1 << 8)
 
 #define NSF_USER_1                  (1 << 26)
 #define NSF_USER_2                  (1 << 27)
@@ -212,7 +214,7 @@ void ns_server_wakeup_ex(struct ns_server *, ns_callback_t, void *, size_t);
 struct ns_connection *ns_next(struct ns_server *, struct ns_connection *);
 struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
 
-int ns_bind(struct ns_server *, const char *addr);
+struct ns_connection *ns_bind(struct ns_server *, const char *addr);
 int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
 int ns_set_ssl_ca_cert(struct ns_server *, const char *ssl_ca_cert);
 struct ns_connection *ns_connect2(struct ns_server *server, const char *host,

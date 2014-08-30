@@ -190,7 +190,7 @@ static void hexdump(struct ns_connection *nc, const char *path,
             ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" :
             ev == NS_ACCEPT ? "<A" : ev == NS_CONNECT ? "C>" : "XX",
             dst, num_bytes);
-    if (num_bytes > 0 && (buf = (char *) malloc(buf_size)) != NULL) {
+    if (num_bytes > 0 && (buf = (char *) NS_MALLOC(buf_size)) != NULL) {
       ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
         (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
       fprintf(fp, "%s", buf);
@@ -395,46 +395,43 @@ int ns_set_ssl_cert(struct ns_server *server, const char *cert) {
 }
 #endif  // NS_ENABLE_SSL
 
-int ns_bind(struct ns_server *server, const char *str) {
+struct ns_connection *ns_bind(struct ns_server *server, const char *str) {
   union socket_address sa;
+  struct ns_connection *nc = NULL;
+  sock_t sock;
+
   ns_parse_port_string(str, &sa);
-  if (server->listening_sock != INVALID_SOCKET) {
-    closesocket(server->listening_sock);
+  if ((sock = ns_open_listening_socket(&sa)) == INVALID_SOCKET) {
+  } else if ((nc = ns_add_sock(server, sock, NULL)) == NULL) {
+    closesocket(sock);
+  } else {
+    nc->flags |= NSF_LISTENING;
+    DBG(("%p sock %d", nc, sock));
   }
-  server->listening_sock = ns_open_listening_socket(&sa);
-  return server->listening_sock == INVALID_SOCKET ? -1 :
-  (int) ntohs(sa.sin.sin_port);
+
+  return nc;
 }
 
-
-static struct ns_connection *accept_conn(struct ns_server *server) {
+static struct ns_connection *accept_conn(struct ns_server *server, sock_t ls) {
   struct ns_connection *c = NULL;
   union socket_address sa;
   socklen_t len = sizeof(sa);
   sock_t sock = INVALID_SOCKET;
 
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
-  if ((sock = accept(server->listening_sock, &sa.sa, &len)) == INVALID_SOCKET) {
-  } else if ((c = (struct ns_connection *) NS_MALLOC(sizeof(*c))) == NULL ||
-             memset(c, 0, sizeof(*c)) == NULL) {
+  if ((sock = accept(ls, &sa.sa, &len)) == INVALID_SOCKET) {
+  } else if ((c = ns_add_sock(server, sock, NULL)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
   } else if (server->ssl_ctx != NULL &&
              ((c->ssl = SSL_new(server->ssl_ctx)) == NULL ||
               SSL_set_fd(c->ssl, sock) != 1)) {
     DBG(("SSL error"));
-    closesocket(sock);
-    free(c);
+    ns_close_conn(c);
     c = NULL;
 #endif
   } else {
-    ns_set_close_on_exec(sock);
-    ns_set_non_blocking_mode(sock);
-    c->server = server;
-    c->sock = sock;
     c->flags |= NSF_ACCEPTED;
-
-    ns_add_conn(server, c);
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl, server->ssl_ctx));
   }
@@ -644,19 +641,15 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
 }
 
 int ns_server_poll(struct ns_server *server, int milli) {
-  struct ns_connection *conn, *tmp_conn;
+  struct ns_connection *conn, *tmp_conn, *c;
   struct timeval tv;
   fd_set read_set, write_set;
   int num_active_connections = 0;
   sock_t max_fd = INVALID_SOCKET;
   time_t current_time = time(NULL);
 
-  if (server->listening_sock == INVALID_SOCKET &&
-      server->active_connections == NULL) return 0;
-
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
-  ns_add_to_set(server->listening_sock, &read_set, &max_fd);
   ns_add_to_set(server->ctl[1], &read_set, &max_fd);
 
   for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
@@ -684,17 +677,6 @@ int ns_server_poll(struct ns_server *server, int milli) {
     // select() might have been waiting for a long time, reset current_time
     // now to prevent last_io_time being set to the past.
     current_time = time(NULL);
-    
-    // Accept new connections
-    if (server->listening_sock != INVALID_SOCKET &&
-        FD_ISSET(server->listening_sock, &read_set)) {
-      // We're not looping here, and accepting just one connection at
-      // a time. The reason is that eCos does not respect non-blocking
-      // flag on a listening socket and hangs in a loop.
-      if ((conn = accept_conn(server)) != NULL) {
-        conn->last_io_time = current_time;
-      }
-    }
 
     // Read wakeup messages
     if (server->ctl[1] != INVALID_SOCKET &&
@@ -710,9 +692,19 @@ int ns_server_poll(struct ns_server *server, int milli) {
     for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
       tmp_conn = conn->next;
       if (FD_ISSET(conn->sock, &read_set)) {
-        conn->last_io_time = current_time;
-        ns_read_from_socket(conn);
+        if (conn->flags & NSF_LISTENING) {
+          // We're not looping here, and accepting just one connection at
+          // a time. The reason is that eCos does not respect non-blocking
+          // flag on a listening socket and hangs in a loop.
+          if ((c = accept_conn(server, conn->sock)) != NULL) {
+            c->last_io_time = current_time;
+          }
+        } else {
+          conn->last_io_time = current_time;
+          ns_read_from_socket(conn);
+        }
       }
+
       if (FD_ISSET(conn->sock, &write_set)) {
         if (conn->flags & NSF_CONNECTING) {
           ns_read_from_socket(conn);
@@ -765,18 +757,11 @@ struct ns_connection *ns_connect2(struct ns_server *server, const char *host,
   if (ns_is_error(connect_ret_val)) {
     closesocket(sock);
     return NULL;
-  } else if ((conn = (struct ns_connection *)
-              NS_MALLOC(sizeof(*conn))) == NULL) {
+  } else if ((conn = ns_add_sock(server, sock, param)) == NULL) {
     closesocket(sock);
     return NULL;
   }
-
-  memset(conn, 0, sizeof(*conn));
-  conn->server = server;
-  conn->sock = sock;
-  conn->connection_data = param;
   conn->flags = NSF_CONNECTING;
-  conn->last_io_time = time(NULL);
 
 #ifdef NS_ENABLE_SSL
   if (use_ssl) {
@@ -785,16 +770,13 @@ struct ns_connection *ns_connect2(struct ns_server *server, const char *host,
         (ca_cert != NULL && ns_use_ca_cert(conn->client_ssl_ctx,
                                               ca_cert) != 0) ||
         (conn->ssl = SSL_new(conn->client_ssl_ctx)) == NULL) {
-      ns_destroy_conn(conn);
+      ns_close_conn(conn);
       return NULL;
     } else {
       SSL_set_fd(conn->ssl, sock);
     }
   }
 #endif
-
-  ns_add_conn(server, conn);
-  DBG(("%p %s:%d %d %p", conn, host, port, conn->sock, conn->ssl));
 
   return conn;
 }
@@ -810,6 +792,7 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
     ns_set_non_blocking_mode(sock);
+    ns_set_close_on_exec(sock);
     conn->sock = sock;
     conn->connection_data = p;
     conn->server = s;
@@ -852,7 +835,7 @@ void ns_server_wakeup(struct ns_server *server) {
 
 void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
   memset(s, 0, sizeof(*s));
-  s->listening_sock = s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
+  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
   s->server_data = server_data;
   s->callback = cb;
 
@@ -883,10 +866,9 @@ void ns_server_free(struct ns_server *s) {
   // Do one last poll, see https://github.com/cesanta/mongoose/issues/286
   ns_server_poll(s, 0);
 
-  if (s->listening_sock != INVALID_SOCKET) closesocket(s->listening_sock);
   if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
   if (s->ctl[1] != INVALID_SOCKET) closesocket(s->ctl[1]);
-  s->listening_sock = s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
+  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
 
   for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;

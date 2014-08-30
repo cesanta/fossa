@@ -74,16 +74,21 @@ static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
 static const char *test_server_with_ssl(const char *cert) {
   char addr[100], ip[sizeof(addr)], buf[100] = "";
   struct ns_server server;
-  int port, port2;
+  struct ns_connection *nc;
+  int port;
+
   ns_server_init(&server, (void *) "foo", ev_handler);
   server.hexdump_file = "/dev/stdout";
-  port = ns_bind(&server,  LOOPBACK_IP ":0");
+  nc = ns_bind(&server,  LOOPBACK_IP ":0");
+  ASSERT(nc != NULL);
+  //ns_sock_to_str(nc->sock, port_str, sizeof(port_str), 2);
+  //port = atoi(port_str);
+
   if (cert != NULL) ns_set_ssl_cert(&server, cert);
-  ASSERT(port > 0);
-  ns_sock_to_str(server.listening_sock, addr, sizeof(addr), 3);
-  ASSERT(sscanf(addr, "%[^:]:%d", ip, &port2) == 2);
+  ns_sock_to_str(nc->sock, addr, sizeof(addr), 3);
+  ASSERT(sscanf(addr, "%[^:]:%d", ip, &port) == 2);
   ASSERT(strcmp(ip, "127.0.0.1") == 0);
-  ASSERT(port == port2);
+  ASSERT(port > 0);
 
   ASSERT(ns_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
   { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }

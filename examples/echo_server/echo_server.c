@@ -16,12 +16,13 @@ static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
 
 int main(void) {
   struct ns_server server;
-  const char *port = "1234";
+  const char *port1 = "1234", *port2 = "127.0.0.1:17000";
 
   ns_server_init(&server, NULL, ev_handler);
-  ns_bind(&server, port);
+  ns_bind(&server, port1);
+  ns_bind(&server, port2);
 
-  printf("Starting echo server on port %s\n", port);
+  printf("Starting echo server on ports %s, %s\n", port1, port2);
   for (;;) {
     ns_server_poll(&server, 1000);
   }

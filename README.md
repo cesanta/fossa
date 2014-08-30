@@ -28,8 +28,8 @@ client or server. Client connections are created by means of
 socket with `ns_bind()` call, which will accept incoming connections. A
 connection is described by `struct ns_connection` structure.
 
-`ns_server_poll` should be called in an infinite event loop. That
-function iterates over all sockets, accepts new connections,
+`ns_server_poll()` should be called in an infinite event loop.
+`ns_server_poll()` iterates over all sockets, accepts new connections,
 sends and receives data, closes connections, and calls an event handler
 function for each of those events.
 

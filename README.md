@@ -100,14 +100,14 @@ called from the same thread, with exception of `mg_wakeup_server_ex()`.
 
 Initializes and de-initializes the server.
 
-    int ns_bind(struct ns_server *, const char *addr);
+    struct ns_connection *ns_bind(struct ns_server *, const char *addr);
 
 Start listening on the given port. `addr` could be a port number,
 e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
 In latter case, Net Skeleton binds to a specific interface only. Also,
 a value of `"0"` can be used, in which case a random non-occupied port number
-will be chosen. This function returns a positive port number on success, or
-negative value on error.
+will be chosen. This function returns a listening connection on success, or
+`NULL` on error.
 
     int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
 

@@ -9,7 +9,7 @@ $(PROG):
 	cc $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
 	g++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
 	clang $(PROG).c -o $(PROG) $(CFLAGS) -lssl $(PROF) && ./$(PROG)
-	gcov -a $(PROG).c
+	gcov -b $(PROG).c
 
 $(PROG).exe:
 	wine cl $(PROG).c /MD && wine $(PROG).exe

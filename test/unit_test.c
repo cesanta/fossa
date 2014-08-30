@@ -76,7 +76,7 @@ static const char *test_server_with_ssl(const char *cert) {
   struct ns_server server;
   int port, port2;
   ns_server_init(&server, (void *) "foo", ev_handler);
-
+  server.hexdump_file = "/dev/stdout";
   port = ns_bind(&server,  LOOPBACK_IP ":0");
   if (cert != NULL) ns_set_ssl_cert(&server, cert);
   ASSERT(port > 0);
@@ -116,7 +116,7 @@ static const char *test_to64(void) {
 static const char *test_parse_port_string(void) {
   static const char *valid[] = {
     "1", "1.2.3.4:1",
-#if defined(USE_IPV6)
+#if defined(NS_ENABLE_IPV6)
     "[::1]:123", "[3ffe:2a00:100:7031::1]:900",
 #endif
     NULL
@@ -187,6 +187,41 @@ static const char *test_socketpair(void) {
   return NULL;
 }
 
+static void eh2(struct ns_connection *nc, enum ns_event ev, void *p) {
+  (void) p;
+  switch (ev) {
+    case NS_RECV:
+      strcpy((char *) nc->connection_data, nc->recv_iobuf.buf);
+      break;
+    default:
+      break;
+  }
+}
+
+static void *thread_func(void *param) {
+  sock_t sock = * (sock_t *) param;
+  send(sock, ":-)", 4, 0);
+  return NULL;
+}
+
+static const char *test_thread(void) {
+  struct ns_server server;
+  struct ns_connection *nc;
+  sock_t sp[2];
+  char buf[20];
+
+  ASSERT(ns_socketpair(sp) == 1);
+  ns_start_thread(thread_func, &sp[1]);
+
+  ns_server_init(&server, NULL, eh2);
+  ASSERT((nc = ns_add_sock(&server, sp[0], buf)) != NULL);
+  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
+  ASSERT(strcmp(buf, ":-)") == 0);
+  ns_server_free(&server);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_server);
@@ -194,6 +229,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_parse_port_string);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);
+  RUN_TEST(test_thread);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

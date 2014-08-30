@@ -1,4 +1,4 @@
-PROG = echo_server
+PROG = publish_subscribe
 SOURCES = $(PROG).c ../../net_skeleton.c
 CFLAGS = -W -Wall -I../.. -pthread $(CFLAGS_EXTRA)
 

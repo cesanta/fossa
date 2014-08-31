@@ -182,7 +182,7 @@ sent to the socket.
     void ns_set_close_on_exec(sock_t);
     void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port);
     int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
-
+    int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 
 # License
 

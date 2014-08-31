@@ -1,4 +1,22 @@
-// Unit test for the mongoose web server.
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+//
+// This software is dual-licensed: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 2 as
+// published by the Free Software Foundation. For the terms of this
+// license, see <http://www.gnu.org/licenses/>.
+//
+// You are free to use this software under the terms of the GNU General
+// Public License, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+// See the GNU General Public License for more details.
+//
+// Alternatively, you can license this software under a commercial
+// license, as set out in <http://cesanta.com/>.
+//
+// $Date: Sun Aug 31 16:15:31 UTC 2014$
+
+// Net Skeleton unit test
 // g++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
 // cl unit_test.c /MD
 
@@ -75,21 +93,21 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
 #define C_PEM  "client.pem"
 #define CA_PEM "ca.pem"
 
-static const char *test_server_with_ssl(int use_ssl) {
+static const char *test_mgr_with_ssl(int use_ssl) {
   char addr[100], ip[sizeof(addr)], buf[100] = "";
-  struct ns_server server;
+  struct ns_mgr mgr;
   struct ns_connection *nc;
   int port, port2;
 
-  ns_server_init(&server, NULL, ev_handler);
-  server.hexdump_file = "/dev/stdout";
+  ns_mgr_init(&mgr, NULL, ev_handler);
+  mgr.hexdump_file = "/dev/stdout";
 
   if (use_ssl) {
     snprintf(addr, sizeof(addr), "ssl://%s:0:%s:%s", LOOPBACK_IP, S_PEM, CA_PEM);
   } else {
     snprintf(addr, sizeof(addr), "%s:0", LOOPBACK_IP);
   }
-  nc = ns_bind(&server, addr);
+  nc = ns_bind(&mgr, addr, NULL);
 
   ASSERT(nc != NULL);
   port2 = htons(nc->sa.sin.sin_port);
@@ -107,22 +125,22 @@ static const char *test_server_with_ssl(int use_ssl) {
     snprintf(addr, sizeof(addr), "tcp://%s:%d", LOOPBACK_IP, port);
   }
 
-  ASSERT(ns_connect(&server, addr, buf) != NULL);
-  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
+  ASSERT(ns_connect(&mgr, addr, buf) != NULL);
+  { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
 
-  ns_server_free(&server);
+  ns_mgr_free(&mgr);
   return NULL;
 }
 
-static const char *test_server(void) {
-  return test_server_with_ssl(0);
+static const char *test_mgr(void) {
+  return test_mgr_with_ssl(0);
 }
 
 #ifdef NS_ENABLE_SSL
 static const char *test_ssl(void) {
-  return test_server_with_ssl(1);
+  return test_mgr_with_ssl(1);
 }
 #endif
 
@@ -234,7 +252,7 @@ static void *thread_func(void *param) {
 }
 
 static const char *test_thread(void) {
-  struct ns_server server;
+  struct ns_mgr mgr;
   struct ns_connection *nc;
   sock_t sp[2];
   char buf[20];
@@ -242,18 +260,18 @@ static const char *test_thread(void) {
   ASSERT(ns_socketpair(sp) == 1);
   ns_start_thread(thread_func, &sp[1]);
 
-  ns_server_init(&server, NULL, eh2);
-  ASSERT((nc = ns_add_sock(&server, sp[0], buf)) != NULL);
-  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
+  ns_mgr_init(&mgr, NULL, eh2);
+  ASSERT((nc = ns_add_sock(&mgr, sp[0], buf)) != NULL);
+  { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
   ASSERT(strcmp(buf, ":-)") == 0);
-  ns_server_free(&server);
+  ns_mgr_free(&mgr);
 
   return NULL;
 }
 
 static void eh3(struct ns_connection *nc, enum ns_event ev, void *p) {
   struct iobuf *io = &nc->recv_iobuf;
-  char *buf = (char *) (char *)nc->server->server_data;
+  char *buf = (char *) (char *)nc->mgr->user_data;
   (void) p;
 
   switch (ev) {
@@ -263,19 +281,19 @@ static void eh3(struct ns_connection *nc, enum ns_event ev, void *p) {
 }
 
 static const char *test_udp(void) {
-  struct ns_server server;
+  struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *address = "udp://127.0.0.1:7878";
   char buf[20] = "";
 
-  ns_server_init(&server, buf, eh3);
-  ASSERT(ns_bind(&server, address) != NULL);
-  ASSERT((nc = ns_connect(&server, address, NULL)) != NULL);
+  ns_mgr_init(&mgr, buf, eh3);
+  ASSERT(ns_bind(&mgr, address, NULL) != NULL);
+  ASSERT((nc = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(nc, "%s", "boo!");
 
-  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
+  { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
   ASSERT(memcmp(buf, "boo!", 4) == 0);
-  ns_server_free(&server);
+  ns_mgr_free(&mgr);
 
   return NULL;
 }
@@ -287,7 +305,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
-  RUN_TEST(test_server);
+  RUN_TEST(test_mgr);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

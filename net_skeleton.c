@@ -13,6 +13,8 @@
 //
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
+//
+// $Date: Sun Aug 31 16:15:31 UTC 2014$
 
 #include "net_skeleton.h"
 
@@ -114,15 +116,15 @@ void *ns_start_thread(void *(*f)(void *), void *p) {
 }
 #endif  // NS_DISABLE_THREADS
 
-static void ns_add_conn(struct ns_server *server, struct ns_connection *c) {
-  c->next = server->active_connections;
-  server->active_connections = c;
+static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+  c->next = mgr->active_connections;
+  mgr->active_connections = c;
   c->prev = NULL;
   if (c->next != NULL) c->next->prev = c;
 }
 
 static void ns_remove_conn(struct ns_connection *conn) {
-  if (conn->prev == NULL) conn->server->active_connections = conn->next;
+  if (conn->prev == NULL) conn->mgr->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
 }
@@ -214,11 +216,11 @@ static void hexdump(struct ns_connection *nc, const char *path,
 }
 
 static void ns_call(struct ns_connection *conn, enum ns_event ev, void *p) {
-  if (conn->server->hexdump_file != NULL && ev != NS_POLL) {
+  if (conn->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) p : 0;
-    hexdump(conn, conn->server->hexdump_file, len, ev);
+    hexdump(conn, conn->mgr->hexdump_file, len, ev);
   }
-  if (conn->server->callback) conn->server->callback(conn, ev, p);
+  if (conn->mgr->callback) conn->mgr->callback(conn, ev, p);
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {
@@ -438,7 +440,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
 }
 #endif  // NS_ENABLE_SSL
 
-struct ns_connection *ns_bind(struct ns_server *srv, const char *str) {
+struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str, void *data) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int use_ssl, proto;
@@ -454,6 +456,7 @@ struct ns_connection *ns_bind(struct ns_server *srv, const char *str) {
   } else {
     nc->sa = sa;
     nc->flags |= NSF_LISTENING;
+    nc->connection_data = data;
 
     if (proto == SOCK_DGRAM) {
       nc->flags |= NSF_UDP;
@@ -484,7 +487,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(ls->sock, &sa.sa, &len)) == INVALID_SOCKET) {
-  } else if ((c = ns_add_sock(ls->server, sock, NULL)) == NULL) {
+  } else if ((c = ns_add_sock(ls->mgr, sock, NULL)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
   } else if (ls->ssl_ctx != NULL &&
@@ -695,7 +698,7 @@ static void ns_handle_udp(struct ns_connection *ls) {
     nc.recv_iobuf.buf = buf;
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
     nc.sock = ls->sock;
-    nc.server = ls->server;
+    nc.mgr = ls->mgr;
     DBG(("%p %d bytes received", ls, n));
     ns_call(&nc, NS_RECV, &n);
   }
@@ -710,7 +713,7 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   }
 }
 
-int ns_server_poll(struct ns_server *server, int milli) {
+int ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   struct ns_connection *conn, *tmp_conn;
   struct timeval tv;
   fd_set read_set, write_set;
@@ -720,9 +723,9 @@ int ns_server_poll(struct ns_server *server, int milli) {
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
-  ns_add_to_set(server->ctl[1], &read_set, &max_fd);
+  ns_add_to_set(mgr->ctl[1], &read_set, &max_fd);
 
-  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+  for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     ns_call(conn, NS_POLL, &current_time);
     if (!(conn->flags & NSF_WANT_WRITE)) {
@@ -749,17 +752,20 @@ int ns_server_poll(struct ns_server *server, int milli) {
     current_time = time(NULL);
 
     // Read wakeup messages
-    if (server->ctl[1] != INVALID_SOCKET &&
-        FD_ISSET(server->ctl[1], &read_set)) {
+    if (mgr->ctl[1] != INVALID_SOCKET &&
+        FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
-      int len = (int) recv(server->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
-      send(server->ctl[1], ctl_msg.message, 1, 0);
+      int len = (int) recv(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
+      send(mgr->ctl[1], ctl_msg.message, 1, 0);
       if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
-        ns_iterate(server, ctl_msg.callback, ctl_msg.message);
+        struct ns_connection *c;
+        for (c = ns_next(mgr, NULL); c != NULL; c = ns_next(mgr, c)) {
+          ctl_msg.callback(c, NS_POLL, ctl_msg.message);
+        }
       }
     }
 
-    for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+    for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
       tmp_conn = conn->next;
       if (FD_ISSET(conn->sock, &read_set)) {
         if (conn->flags & NSF_LISTENING) {
@@ -788,7 +794,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
     }
   }
 
-  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
+  for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
     num_active_connections++;
     if ((conn->flags & NSF_CLOSE_IMMEDIATELY) ||
@@ -802,7 +808,7 @@ int ns_server_poll(struct ns_server *server, int milli) {
   return num_active_connections;
 }
 
-struct ns_connection *ns_connect(struct ns_server *server,
+struct ns_connection *ns_connect(struct ns_mgr *mgr,
                                  const char *address, void *param) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
@@ -820,7 +826,7 @@ struct ns_connection *ns_connect(struct ns_server *server,
   if (connect_ret_val != 0 && ns_is_error(connect_ret_val)) {
     closesocket(sock);
     return NULL;
-  } else if ((nc = ns_add_sock(server, sock, param)) == NULL) {
+  } else if ((nc = ns_add_sock(mgr, sock, param)) == NULL) {
     closesocket(sock);
     return NULL;
   }
@@ -849,7 +855,7 @@ struct ns_connection *ns_connect(struct ns_server *server,
   return nc;
 }
 
-struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
+struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock, void *p) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
@@ -857,7 +863,7 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
     ns_set_close_on_exec(sock);
     conn->sock = sock;
     conn->connection_data = p;
-    conn->server = s;
+    conn->mgr = s;
     conn->last_io_time = time(NULL);
     ns_add_conn(s, conn);
     DBG(("%p %d", conn, sock));
@@ -865,40 +871,26 @@ struct ns_connection *ns_add_sock(struct ns_server *s, sock_t sock, void *p) {
   return conn;
 }
 
-struct ns_connection *ns_next(struct ns_server *s, struct ns_connection *conn) {
+struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
-void ns_iterate(struct ns_server *server, ns_callback_t cb, void *param) {
-  struct ns_connection *conn, *tmp_conn;
-
-  for (conn = server->active_connections; conn != NULL; conn = tmp_conn) {
-    tmp_conn = conn->next;
-    cb(conn, NS_POLL, param);
-  }
-}
-
-void ns_server_wakeup_ex(struct ns_server *server, ns_callback_t cb,
-                         void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_callback_t cb,void *data, size_t len) {
   struct ctl_msg ctl_msg;
-  if (server->ctl[0] != INVALID_SOCKET && data != NULL &&
+  if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
     ctl_msg.callback = cb;
     memcpy(ctl_msg.message, data, len);
-    send(server->ctl[0], (char *) &ctl_msg,
+    send(mgr->ctl[0], (char *) &ctl_msg,
          offsetof(struct ctl_msg, message) + len, 0);
-    recv(server->ctl[0], (char *) &len, 1, 0);
+    recv(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
 
-void ns_server_wakeup(struct ns_server *server) {
-  ns_server_wakeup_ex(server, NULL, (void *) "", 0);
-}
-
-void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
+void ns_mgr_init(struct ns_mgr *s, void *user_data, ns_callback_t cb) {
   memset(s, 0, sizeof(*s));
   s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
-  s->server_data = server_data;
+  s->user_data = user_data;
   s->callback = cb;
 
 #ifdef _WIN32
@@ -920,13 +912,13 @@ void ns_server_init(struct ns_server *s, void *server_data, ns_callback_t cb) {
 #endif
 }
 
-void ns_server_free(struct ns_server *s) {
+void ns_mgr_free(struct ns_mgr *s) {
   struct ns_connection *conn, *tmp_conn;
 
   DBG(("%p", s));
   if (s == NULL) return;
   // Do one last poll, see https://github.com/cesanta/mongoose/issues/286
-  ns_server_poll(s, 0);
+  ns_mgr_poll(s, 0);
 
   if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
   if (s->ctl[1] != INVALID_SOCKET) closesocket(s->ctl[1]);

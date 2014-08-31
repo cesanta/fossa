@@ -22,7 +22,7 @@ complexity and let them concentrate on the logic, saving time and money.
 # Concept
 
 Net Skeleton is a non-blocking, asyncronous event manager described by
-`struct ns_server` structure. That structure holds active connections
+`struct ns_mgr` structure. That structure holds active connections
 and a pointer to the event handler function. Connections could be either
 client or server. Client connections are created by means of
 `ns_connect2()` call. Server connections are created by making one
@@ -30,8 +30,8 @@ or more listening sockets with `ns_bind()` call,
 which will accept incoming connections. A
 connection is described by `struct ns_connection` structure.
 
-`ns_server_poll()` should be called in an infinite event loop.
-`ns_server_poll()` iterates over all sockets, accepts new connections,
+`ns_mgr_poll()` should be called in an infinite event loop.
+`ns_mgr_poll()` iterates over all sockets, accepts new connections,
 sends and receives data, closes connections, and calls an event handler
 function for each of those events.
 
@@ -53,10 +53,10 @@ sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
 # Using Net Skeleton
 
 - Define an event handler function
-- Initialize server by calling `ns_server_init()`
+- Initialize mgr by calling `ns_mgr_init()`
 - Create a listening socket with `ns_bind()` or client connection with
   `ns_connect2()`
-- Call `ns_server_poll()` in a loop
+- Call `ns_mgr_poll()` in a loop
 
 Net Skeleton accepts incoming connections, reads and writes data, and
 calls specified event handler for each connection when appropriate. An
@@ -76,10 +76,11 @@ the behavior of the connection.  Below is a list of connection flags:
       later and then will be sent by clearing `NSF_BUFFER_BUT_DONT_SEND` flag.
    * `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
    * `NSF_CONNECTING` set when connection is in connecting state after
-      `ns_connect()` call
+      `ns_connect()` call but connect did not finish yet
    * `NSF_CLOSE_IMMEDIATELY` tells Net Skeleton to close the connection
       immediately, usually after some error
-   * `NSF_ACCEPTED` set for all accepted connection
+   * `NSF_LISTENING` set for all listening connections
+   * `NSF_UDP` set if connection is UDP
    * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
       used by a developer to store application-specific state
 
@@ -94,68 +95,90 @@ the behavior of the connection.  Below is a list of connection flags:
 
 # API documentation
 
-Net skeleton server instance is single threaded. All functions should be
-called from the same thread, with exception of `mg_wakeup_server_ex()`.
+Net skeleton manager instance is single threaded. All functions should be
+called from the same thread, with exception of `mg_broadcast()`.
 
-    void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
-    void ns_server_free(struct ns_server *);
+    void ns_mgr_init(struct ns_mgr *, void *user_data, ns_callback_t);
+    void ns_mgr_free(struct ns_mgr *);
 
-Initializes and de-initializes the server.
+Initializes and de-initializes skeleton manager.
 
-    struct ns_connection *ns_bind(struct ns_server *, const char *addr);
+    struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, void *user_data);
 
 Start listening on the given port. `addr` could be a port number,
 e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
-In latter case, Net Skeleton binds to a specific interface only. Also,
-a value of `"0"` can be used, in which case a random non-occupied port number
-will be chosen. This function returns a listening connection on success, or
+Also, a protocol prefix could be specified, valid prefixes are `tcp://`,
+`udp://` and `ssl://`. For SSL, server certficate must be specified:
+`ssl://[IP:]PORT:SERVER_CERT.PEM`. Two enable client certificate authentication
+(two-way SSL), a CA certificate should be specified:
+`ssl://[IP:]PORT:SERVER_CERT.PEM:CA_CERT.PEM`. Server certificate must be
+in PEM format. PEM file should contain both certificate and the private key
+concatenated together.
+
+Note that for UDP listening connections, only `NS_RECV` and `NS_CLOSE`
+are triggered.
+
+If IP address is specified, Net Skeleton binds to a specific interface only.
+Also, port could be `"0"`, in which case a random non-occupied port number
+will be chosen. Return value: a listening connection on success, or
 `NULL` on error.
 
-    int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
+    int ns_mgr_poll(struct ns_mgr *, int milliseconds);
 
-Set SSL certificate to use. Return 0 on success, and negative number on error.
-On success, listening port will expect SSL-encrypted traffic.
+This function performs the actual IO, and must be called in a loop
+(an event loop). Returns number of connections.
 
-    int ns_server_poll(struct ns_server *, int milli);
+    void ns_broadcast(struct ns_mgr *, ns_callback_t cb, void *msg, size_t len);
 
-This function performs the actual IO, and must be called in a loop.
-Return number of active connections.
+Must be called from a different thread. Passes a message of a given length to
+all connections. Skeleton manager has a socketpair, `struct ns_mgr::ctl`,
+where `ns_broadcast()` pushes the message.
+`ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
+specified callback for each connection. Thus the callback function executes
+in event manager thread. Note that `ns_broadcast()` is the only function
+that can be, and must be, called from a different thread.
 
-    void ns_server_wakeup(struct ns_server *);
+    void ns_next(struct ns_mgr *, struct ns_connection *);
 
-Interrupt `ns_server_poll()` that currently runs in another thread and is
-blocked on `select()` system call. This is the only function can can be
-used from a different thread. It is used to force Net Skeleton to
-interrupt `select()` and perform the next IO cycle. A common use case is
-a thread that decides that new data is available for IO.
-
-    void ns_next(struct ns_server *, struct ns_connection *);
-
-Iterates over all active connections:
+Iterates over all active connections, that is the iteration idiom:
 `for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) { ... }` .
 
-    struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
+    struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, void *p);
 
-Add a socket to the server.
+Add a socket to the server. `p` will become
+`struct ns_connection::connection_data` pointer for the created connection.
 
-    struct ns_connection *ns_connect2(struct ns_server *server, const char *host,
-                                      int port, int use_ssl, const char *ssl_cert,
-                                      const char *ca_cert, void *param);
+    struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr,
+                                     void *user_data);
 
 
 Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
-to the new connection.
+to the new connection. `addr` format is the same as for the `ns_bind()` call,
+just an IP address becomes mandatory: `[PROTO://]HOST:PORT[:CERT][:CA_CERT]`.
+`PROTO` could be `tcp://`, `udp://` or `ssl://`. If `HOST` is not an IP
+address, Net Skeleton will resolve it - beware that standard blocking resolver
+will be used. It is a good practice to pre-resolve hosts beforehands and
+use only IP addresses to avoid blockin an IO thread.
+`user_data` will become `struct ns_connection::connection_param`.
+For SSL connections, specify `CERT` if server is requiring client auth.
+Specify `CA_CERT` to authenticate server certificate. All certificates
+must be in PEM format.
+Returns: new client connection, or `NULL` on error.
 
     int ns_send(struct ns_connection *, const void *buf, int len);
     int ns_printf(struct ns_connection *, const char *fmt, ...);
     int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
 These functions are for sending un-formatted and formatted data to the
-connection. Number of written bytes is returned.
+connection. Number of written bytes is returned. Note that these sending
+functions do not actually push data to the sockets, they just append data
+to the output buffer. The exception is UDP connections. For UDP, data is
+sent immediately, and returned value indicates an actual number of bytes
+sent to the socket.
 
     // Utility functions
     void *ns_start_thread(void *(*f)(void *), void *p);
-    int ns_socketpair(sock_t [2]);
+    int ns_socketpair2(sock_t [2], int proto);  // SOCK_STREAM or SOCK_DGRAM
     void ns_set_close_on_exec(sock_t);
     void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port);
     int ns_hexdump(const void *buf, int len, char *dst, int dst_len);

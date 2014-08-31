@@ -1,6 +1,21 @@
 // Copyright (c) 2014 Cesanta Software Limited
 // All rights reserved
 //
+// This software is dual-licensed: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 2 as
+// published by the Free Software Foundation. For the terms of this
+// license, see <http://www.gnu.org/licenses/>.
+//
+// You are free to use this software under the terms of the GNU General
+// Public License, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+// See the GNU General Public License for more details.
+//
+// Alternatively, you can license this software under a commercial
+// license, as set out in <http://cesanta.com/>.
+//
+// $Date: Sun Aug 31 16:15:31 UTC 2014$
+
 // This file implements "netcat" utility with SSL and traffic hexdump.
 
 #include "net_skeleton.h"
@@ -43,12 +58,12 @@ static void on_stdin_read(struct ns_connection *nc, enum ns_event ev, void *p) {
 }
 
 static void *stdio_thread_func(void *param) {
-  struct ns_server *server = (struct ns_server *) param;
+  struct ns_mgr *mgr = (struct ns_mgr *) param;
   int ch;
 
-  // Read stdin until EOF character by character, sending them to the server
+  // Read stdin until EOF character by character, sending them to the mgr
   while ((ch = getchar()) != EOF) {
-    ns_server_wakeup_ex(server, on_stdin_read, &ch, sizeof(ch));
+    ns_broadcast(mgr, on_stdin_read, &ch, sizeof(ch));
   }
   s_received_signal = 1;
 
@@ -61,7 +76,7 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
   switch (ev) {
     case NS_ACCEPT:
     case NS_CONNECT:
-      ns_start_thread(stdio_thread_func, nc->server);
+      ns_start_thread(stdio_thread_func, nc->mgr);
       break;
 
     case NS_CLOSE:
@@ -79,18 +94,18 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
 }
 
 int main(int argc, char *argv[]) {
-  struct ns_server server;
+  struct ns_mgr mgr;
   int i, is_listening = 0;
   const char *address = NULL;
 
-  ns_server_init(&server, NULL, ev_handler);
+  ns_mgr_init(&mgr, NULL, ev_handler);
 
   // Parse command line options
   for (i = 1; i < argc && argv[i][0] == '-'; i++) {
     if (strcmp(argv[i], "-l") == 0) {
       is_listening = 1;
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
-      server.hexdump_file = argv[++i];
+      mgr.hexdump_file = argv[++i];
     } else {
       show_usage_and_exit(argv[0]);
     }
@@ -107,19 +122,19 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   if (is_listening) {
-    if (ns_bind(&server, address) == NULL) {
+    if (ns_bind(&mgr, address, NULL) == NULL) {
       fprintf(stderr, "ns_bind(%s) failed\n", address);
       exit(EXIT_FAILURE);
     }
-  } else if (ns_connect(&server, address, NULL) == NULL) {
+  } else if (ns_connect(&mgr, address, NULL) == NULL) {
     fprintf(stderr, "ns_connect(%s) failed\n", address);
     exit(EXIT_FAILURE);
   }
 
   while (s_received_signal == 0) {
-    ns_server_poll(&server, 1000);
+    ns_mgr_poll(&mgr, 1000);
   }
-  ns_server_free(&server);
+  ns_mgr_free(&mgr);
 
   return EXIT_SUCCESS;
 }

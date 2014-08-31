@@ -1,3 +1,21 @@
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+//
+// This software is dual-licensed: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 2 as
+// published by the Free Software Foundation. For the terms of this
+// license, see <http://www.gnu.org/licenses/>.
+//
+// You are free to use this software under the terms of the GNU General
+// Public License, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+// See the GNU General Public License for more details.
+//
+// Alternatively, you can license this software under a commercial
+// license, as set out in <http://cesanta.com/>.
+//
+// $Date: Sun Aug 31 16:15:31 UTC 2014$
+
 #include "net_skeleton.h"
 
 static void *stdin_thread(void *param) {
@@ -9,20 +27,17 @@ static void *stdin_thread(void *param) {
   return NULL;
 }
 
-static void broadcast(struct ns_connection *conn, enum ns_event ev, void *p) {
-  if (ev == NS_POLL) {
-    struct iobuf *io = (struct iobuf *) p;
-    ns_send(conn, io->buf, io->len);
-  }
-}
-
-static void server_handler(struct ns_connection *conn, enum ns_event ev,
+static void server_handler(struct ns_connection *nc, enum ns_event ev,
                            void *p) {
   (void) p;
   if (ev == NS_RECV) {
-    // Broadcast received message to all connections
-    struct iobuf *io = &conn->recv_iobuf;
-    ns_iterate(conn->server, broadcast, io);
+    // Push received message to all ncections
+    struct iobuf *io = &nc->recv_iobuf;
+    struct ns_connection *c;
+
+    for (c = ns_next(nc->mgr, NULL); c != NULL; c = ns_next(nc->mgr, c)) {
+      ns_send(c, io->buf, io->len);
+    }
     iobuf_remove(io, io->len);
   }
 }
@@ -56,7 +71,7 @@ static void client_handler(struct ns_connection *conn, enum ns_event ev,
 }
 
 int main(int argc, char *argv[]) {
-  struct ns_server server;
+  struct ns_mgr mgr;
 
   if (argc != 3) {
     fprintf(stderr, "Usage: %s <port> <client|server>\n", argv[0]);
@@ -65,10 +80,10 @@ int main(int argc, char *argv[]) {
     int fds[2];
     struct ns_connection *ioconn, *server_conn;
 
-    ns_server_init(&server, NULL, client_handler);
+    ns_mgr_init(&mgr, NULL, client_handler);
 
     // Connect to the pubsub server
-    server_conn = ns_connect(&server, argv[1], NULL);
+    server_conn = ns_connect(&mgr, argv[1], NULL);
     if (server_conn == NULL) {
       fprintf(stderr, "Cannot connect to port %s\n", argv[1]);
       exit(EXIT_FAILURE);
@@ -79,21 +94,21 @@ int main(int argc, char *argv[]) {
     ns_start_thread(stdin_thread, &fds[1]);
 
     // The other end of a pair goes inside the server
-    ioconn = ns_add_sock(&server, fds[0], NULL);
+    ioconn = ns_add_sock(&mgr, fds[0], NULL);
     ioconn->flags |= NSF_USER_1;    // Mark this so we know this is a stdin
     ioconn->connection_data = server_conn;
 
   } else {
     // Server code path
-    ns_server_init(&server, NULL, server_handler);
-    ns_bind(&server, argv[1]);
+    ns_mgr_init(&mgr, NULL, server_handler);
+    ns_bind(&mgr, argv[1], NULL);
     printf("Starting pubsub server on port %s\n", argv[1]);
   }
 
   for (;;) {
-    ns_server_poll(&server, 1000);
+    ns_mgr_poll(&mgr, 1000);
   }
-  ns_server_free(&server);
+  ns_mgr_free(&mgr);
 
   return EXIT_SUCCESS;
 }

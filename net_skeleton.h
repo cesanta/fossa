@@ -13,6 +13,8 @@
 //
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
+//
+// $Date: Sun Aug 31 16:15:31 UTC 2014$
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
@@ -153,7 +155,7 @@ void iobuf_remove(struct iobuf *, size_t data_size);
 // Net skeleton interface
 // Events. Meaning of event parameter (evp) is given in the comment.
 enum ns_event {
-  NS_POLL,     // Sent to each connection on each call to ns_server_poll()
+  NS_POLL,     // Sent to each connection on each call to ns_mgr_poll()
   NS_ACCEPT,   // New connection accept()-ed. union socket_address *remote_addr
   NS_CONNECT,  // connect() succeeded or failed. int *success_status
   NS_RECV,     // Data has benn received. int *num_bytes
@@ -166,18 +168,18 @@ enum ns_event {
 struct ns_connection;
 typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *evp);
 
-struct ns_server {
+struct ns_mgr {
   struct ns_connection *active_connections;
   ns_callback_t callback;           // Event handler function
   const char *hexdump_file;         // Debug hexdump file path
   sock_t ctl[2];                    // Socketpair for mg_wakeup()
-  void *server_data;                // Server user data
+  void *user_data;                  // User data
 };
 
 struct ns_connection {
-  struct ns_connection *next, *prev;  // ns_server::active_connections linkage
+  struct ns_connection *next, *prev;  // ns_mgr::active_connections linkage
   struct ns_connection *listener;     // Set only for accept()-ed connections
-  struct ns_server *server;
+  struct ns_mgr *mgr;
   sock_t sock;
   union socket_address sa;
   struct iobuf recv_iobuf;
@@ -206,17 +208,15 @@ struct ns_connection {
 #define NSF_USER_6                  (1 << 31)
 };
 
-void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
-void ns_server_free(struct ns_server *);
-int ns_server_poll(struct ns_server *, int milli);
-void ns_server_wakeup_ex(struct ns_server *, ns_callback_t, void *, size_t);
+void ns_mgr_init(struct ns_mgr *, void *data, ns_callback_t);
+void ns_mgr_free(struct ns_mgr *);
+int ns_mgr_poll(struct ns_mgr *, int milli);
+void ns_broadcast(struct ns_mgr *, ns_callback_t, void *, size_t);
 
-struct ns_connection *ns_next(struct ns_server *, struct ns_connection *);
-struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
-struct ns_connection *ns_bind(struct ns_server *, const char *addr);
-struct ns_connection *ns_connect(struct ns_server *, const char *addr, void *p);
-
-//int ns_set_certs(struct ns_connection *, const char *cert, const char *ca_cert);
+struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
+struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, void *p);
+struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, void *p);
+struct ns_connection *ns_connect(struct ns_mgr *, const char *addr, void *p);
 
 int ns_send(struct ns_connection *, const void *buf, int len);
 int ns_printf(struct ns_connection *, const char *fmt, ...);
@@ -231,10 +231,6 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
 int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
-
-// Deprecated functions
-void ns_server_wakeup(struct ns_server *);  // DEPRECATED
-void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);  // DEP
 
 #ifdef __cplusplus
 }

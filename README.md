@@ -1,4 +1,4 @@
-TCP client/server library for C/C++
+Networking client/server library for C/C++
 ===================================
 
 Net Skeleton is a networking library written in C.
@@ -12,6 +12,7 @@ complexity and let them concentrate on the logic, saving time and money.
 - Cross-platform: works on Windows, Linux/UNIX, QNX, eCos, Android, iPhone, etc
 - Single-threaded, asynchronous, non-blocking core with simple event-bases API
 - Has both client and server functionality
+- TCP and UDP support
 - SSL/TLS support, client-side SSL auth (two-way SSL)
 - Tiny static and run-time footprint
 - Mature and tested, it is a networking engine of
@@ -24,8 +25,9 @@ Net Skeleton is a non-blocking, asyncronous event manager described by
 `struct ns_server` structure. That structure holds active connections
 and a pointer to the event handler function. Connections could be either
 client or server. Client connections are created by means of
-`ns_connect2()` call. Server connections are created by making a listening
-socket with `ns_bind()` call, which will accept incoming connections. A
+`ns_connect2()` call. Server connections are created by making one
+or more listening sockets with `ns_bind()` call,
+which will accept incoming connections. A
 connection is described by `struct ns_connection` structure.
 
 `ns_server_poll()` should be called in an infinite event loop.

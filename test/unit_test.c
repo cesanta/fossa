@@ -13,7 +13,7 @@
 #include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \
-  printf("Fail on line %d: [%s]\n", line, str); \
+  printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
   return str;                                   \
 } while (0)
 
@@ -47,22 +47,22 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
+static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
   (void) p;
   switch (ev) {
     case NS_CONNECT:
-      ns_printf(conn, "%d %s there", 17, "hi");
+      ns_printf(nc, "%d %s there", 17, "hi");
       break;
     case NS_RECV:
-      if (conn->flags & NSF_ACCEPTED) {
-        struct iobuf *io = &conn->recv_iobuf;
-        ns_send(conn, io->buf, io->len); // Echo message back
+      if (nc->listener != NULL) {
+        struct iobuf *io = &nc->recv_iobuf;
+        ns_send(nc, io->buf, io->len); // Echo message back
         iobuf_remove(io, io->len);
       } else {
-        struct iobuf *io = &conn->recv_iobuf;
+        struct iobuf *io = &nc->recv_iobuf;
         if (io->len == 11 && memcmp(io->buf, "17 hi there", 11) == 0) {
-          sprintf((char *) conn->connection_data, "%s", "ok!");
-          conn->flags |= NSF_CLOSE_IMMEDIATELY;
+          sprintf((char *) nc->connection_data, "%s", "ok!");
+          nc->flags |= NSF_CLOSE_IMMEDIATELY;
         }
       }
       break;
@@ -71,26 +71,43 @@ static void ev_handler(struct ns_connection *conn, enum ns_event ev, void *p) {
   }
 }
 
-static const char *test_server_with_ssl(const char *cert) {
+#define S_PEM  "server.pem"
+#define C_PEM  "client.pem"
+#define CA_PEM "ca.pem"
+
+static const char *test_server_with_ssl(int use_ssl) {
   char addr[100], ip[sizeof(addr)], buf[100] = "";
   struct ns_server server;
   struct ns_connection *nc;
-  int port;
+  int port, port2;
 
-  ns_server_init(&server, (void *) "foo", ev_handler);
+  ns_server_init(&server, NULL, ev_handler);
   server.hexdump_file = "/dev/stdout";
-  nc = ns_bind(&server,  LOOPBACK_IP ":0");
-  ASSERT(nc != NULL);
-  //ns_sock_to_str(nc->sock, port_str, sizeof(port_str), 2);
-  //port = atoi(port_str);
 
-  if (cert != NULL) ns_set_ssl_cert(&server, cert);
+  if (use_ssl) {
+    snprintf(addr, sizeof(addr), "ssl://%s:0:%s:%s", LOOPBACK_IP, S_PEM, CA_PEM);
+  } else {
+    snprintf(addr, sizeof(addr), "%s:0", LOOPBACK_IP);
+  }
+  nc = ns_bind(&server, addr);
+
+  ASSERT(nc != NULL);
+  port2 = htons(nc->sa.sin.sin_port);
+  ASSERT(port2 > 0);
+
   ns_sock_to_str(nc->sock, addr, sizeof(addr), 3);
   ASSERT(sscanf(addr, "%[^:]:%d", ip, &port) == 2);
   ASSERT(strcmp(ip, "127.0.0.1") == 0);
-  ASSERT(port > 0);
+  ASSERT(port == port2);
 
-  ASSERT(ns_connect(&server, LOOPBACK_IP, port, cert != NULL, buf) != NULL);
+  if (use_ssl) {
+    snprintf(addr, sizeof(addr), "ssl://%s:%d:%s:%s", LOOPBACK_IP, port,
+             C_PEM, CA_PEM);
+  } else {
+    snprintf(addr, sizeof(addr), "tcp://%s:%d", LOOPBACK_IP, port);
+  }
+
+  ASSERT(ns_connect(&server, addr, buf) != NULL);
   { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
@@ -100,12 +117,12 @@ static const char *test_server_with_ssl(const char *cert) {
 }
 
 static const char *test_server(void) {
-  return test_server_with_ssl(NULL);
+  return test_server_with_ssl(0);
 }
 
 #ifdef NS_ENABLE_SSL
 static const char *test_ssl(void) {
-  return test_server_with_ssl("ssl_cert.pem");
+  return test_server_with_ssl(1);
 }
 #endif
 
@@ -118,28 +135,35 @@ static const char *test_to64(void) {
   return NULL;
 }
 
-static const char *test_parse_port_string(void) {
+static const char *test_parse_address(void) {
   static const char *valid[] = {
-    "1", "1.2.3.4:1",
+    "1", "1.2.3.4:1", "tcp://123", "udp://0.0.0.0:99", "ssl://17",
+    "ssl://900:a.pem:b.pem", "ssl://1.2.3.4:9000:aa.pem",
 #if defined(NS_ENABLE_IPV6)
-    "[::1]:123", "[3ffe:2a00:100:7031::1]:900",
+    "udp://[::1]:123", "[3ffe:2a00:100:7031::1]:900",
 #endif
     NULL
   };
+  static const int protos[] = {SOCK_STREAM, SOCK_STREAM, SOCK_STREAM,
+    SOCK_DGRAM, SOCK_STREAM, SOCK_STREAM, SOCK_STREAM, SOCK_DGRAM, SOCK_STREAM};
+  static const int use_ssls[] = {0, 0, 0, 0, 1, 1, 1, 0, 0};
   static const char *invalid[] = {
-    "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", NULL
+    "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", "blah://12", NULL
   };
   union socket_address sa;
-  int i;
+  char cert[100], ca[100];
+  int i, proto, use_ssl;
 
   for (i = 0; valid[i] != NULL; i++) {
-    ASSERT(ns_parse_port_string(valid[i], &sa) != 0);
+    ASSERT(ns_parse_address(valid[i], &sa, &proto, &use_ssl, cert, ca) != 0);
+    ASSERT(proto == protos[i]);
+    ASSERT(use_ssl == use_ssls[i]);
   }
 
   for (i = 0; invalid[i] != NULL; i++) {
-    ASSERT(ns_parse_port_string(invalid[i], &sa) == 0);
+    ASSERT(ns_parse_address(invalid[i], &sa, &proto, &use_ssl, cert, ca) == 0);
   }
-  ASSERT(ns_parse_port_string("0", &sa) != 0);
+  ASSERT(ns_parse_address("0", &sa, &proto, &use_ssl, cert, ca) != 0);
 
   return NULL;
 }
@@ -227,17 +251,47 @@ static const char *test_thread(void) {
   return NULL;
 }
 
+static void eh3(struct ns_connection *nc, enum ns_event ev, void *p) {
+  struct iobuf *io = &nc->recv_iobuf;
+  char *buf = (char *) (char *)nc->server->server_data;
+  (void) p;
+
+  switch (ev) {
+    case NS_RECV: memcpy(buf, io->buf, io->len); break;
+    default: break;
+  }
+}
+
+static const char *test_udp(void) {
+  struct ns_server server;
+  struct ns_connection *nc;
+  const char *address = "udp://127.0.0.1:7878";
+  char buf[20] = "";
+
+  ns_server_init(&server, buf, eh3);
+  ASSERT(ns_bind(&server, address) != NULL);
+  ASSERT((nc = ns_connect(&server, address, NULL)) != NULL);
+  ns_printf(nc, "%s", "boo!");
+
+  { int i; for (i = 0; i < 50; i++) ns_server_poll(&server, 1); }
+  ASSERT(memcmp(buf, "boo!", 4) == 0);
+  ns_server_free(&server);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
-  RUN_TEST(test_server);
+  RUN_TEST(test_parse_address);
   RUN_TEST(test_to64);
-  RUN_TEST(test_parse_port_string);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
+  RUN_TEST(test_server);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif
+  RUN_TEST(test_udp);
   return NULL;
 }
 

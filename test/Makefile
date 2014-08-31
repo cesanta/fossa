@@ -3,7 +3,7 @@ PROF = -fprofile-arcs -ftest-coverage -g -O0
 CFLAGS = -W -Wall -O0 -g -I.. -DNS_ENABLE_SSL -pthread $(CFLAGS_EXTRA)
 SOURCES = $(PROG).c ../net_skeleton.c
 
-all: $(PROG)
+all: clean $(PROG)
 
 $(PROG):
 	cc $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)

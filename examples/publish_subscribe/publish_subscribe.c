@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     ns_server_init(&server, NULL, client_handler);
 
     // Connect to the pubsub server
-    server_conn = ns_connect(&server, "127.0.0.1", atoi(argv[1]), 0, NULL);
+    server_conn = ns_connect(&server, argv[1], NULL);
     if (server_conn == NULL) {
       fprintf(stderr, "Cannot connect to port %s\n", argv[1]);
       exit(EXIT_FAILURE);

@@ -17,7 +17,7 @@
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
 
-#define NS_SKELETON_VERSION "1.1"
+#define NS_SKELETON_VERSION "2.0.0"
 
 #undef UNICODE                  // Use ANSI WinAPI functions
 #undef _UNICODE                 // Use multibyte encoding on Windows
@@ -167,24 +167,23 @@ struct ns_connection;
 typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *evp);
 
 struct ns_server {
-  void *server_data;
-  //sock_t listening_sock;
   struct ns_connection *active_connections;
-  ns_callback_t callback;
-  SSL_CTX *ssl_ctx;
-  const char *hexdump_file;
-  sock_t ctl[2];
+  ns_callback_t callback;           // Event handler function
+  const char *hexdump_file;         // Debug hexdump file path
+  sock_t ctl[2];                    // Socketpair for mg_wakeup()
+  void *server_data;                // Server user data
 };
 
 struct ns_connection {
-  struct ns_connection *prev, *next;
+  struct ns_connection *next, *prev;  // ns_server::active_connections linkage
+  struct ns_connection *listener;     // Set only for accept()-ed connections
   struct ns_server *server;
   sock_t sock;
   union socket_address sa;
   struct iobuf recv_iobuf;
   struct iobuf send_iobuf;
   SSL *ssl;
-  SSL_CTX *client_ssl_ctx;
+  SSL_CTX *ssl_ctx;
   void *connection_data;
   time_t last_io_time;
 
@@ -194,10 +193,10 @@ struct ns_connection {
 #define NSF_SSL_HANDSHAKE_DONE      (1 << 2)
 #define NSF_CONNECTING              (1 << 3)
 #define NSF_CLOSE_IMMEDIATELY       (1 << 4)
-#define NSF_ACCEPTED                (1 << 5)
-#define NSF_WANT_READ               (1 << 6)
-#define NSF_WANT_WRITE              (1 << 7)
-#define NSF_LISTENING               (1 << 8)
+#define NSF_WANT_READ               (1 << 5)
+#define NSF_WANT_WRITE              (1 << 6)
+#define NSF_LISTENING               (1 << 7)
+#define NSF_UDP                     (1 << 8)
 
 #define NSF_USER_1                  (1 << 26)
 #define NSF_USER_2                  (1 << 27)
@@ -211,15 +210,13 @@ void ns_server_init(struct ns_server *, void *server_data, ns_callback_t);
 void ns_server_free(struct ns_server *);
 int ns_server_poll(struct ns_server *, int milli);
 void ns_server_wakeup_ex(struct ns_server *, ns_callback_t, void *, size_t);
+
 struct ns_connection *ns_next(struct ns_server *, struct ns_connection *);
 struct ns_connection *ns_add_sock(struct ns_server *, sock_t sock, void *p);
-
 struct ns_connection *ns_bind(struct ns_server *, const char *addr);
-int ns_set_ssl_cert(struct ns_server *, const char *ssl_cert);
-int ns_set_ssl_ca_cert(struct ns_server *, const char *ssl_ca_cert);
-struct ns_connection *ns_connect2(struct ns_server *server, const char *host,
-                                  int port, int use_ssl, const char *ssl_cert,
-                                  const char *ca_cert, void *param);
+struct ns_connection *ns_connect(struct ns_server *, const char *addr, void *p);
+
+//int ns_set_certs(struct ns_connection *, const char *cert, const char *ca_cert);
 
 int ns_send(struct ns_connection *, const void *buf, int len);
 int ns_printf(struct ns_connection *, const char *fmt, ...);
@@ -238,8 +235,6 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 // Deprecated functions
 void ns_server_wakeup(struct ns_server *);  // DEPRECATED
 void ns_iterate(struct ns_server *, ns_callback_t cb, void *param);  // DEP
-struct ns_connection *ns_connect(struct ns_server *, const char *,
-                                 int, int, void *);
 
 #ifdef __cplusplus
 }

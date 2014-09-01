@@ -228,6 +228,9 @@ static void ns_destroy_conn(struct ns_connection *conn) {
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
 #ifdef NS_ENABLE_SSL
+  if (conn->ssl != NULL) {
+    SSL_free(conn->ssl);
+  }
   if (conn->ssl_ctx != NULL) {
     SSL_CTX_free(conn->ssl_ctx);
   }

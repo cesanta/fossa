@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: Sun Aug 31 16:15:31 UTC 2014$
+// $Date: 2014-09-03 16:09:20 UTC $
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
@@ -200,12 +200,12 @@ struct ns_connection {
 #define NSF_LISTENING               (1 << 7)
 #define NSF_UDP                     (1 << 8)
 
-#define NSF_USER_1                  (1 << 26)
-#define NSF_USER_2                  (1 << 27)
-#define NSF_USER_3                  (1 << 28)
-#define NSF_USER_4                  (1 << 29)
-#define NSF_USER_5                  (1 << 30)
-#define NSF_USER_6                  (1 << 31)
+#define NSF_USER_1                  (1 << 20)
+#define NSF_USER_2                  (1 << 21)
+#define NSF_USER_3                  (1 << 22)
+#define NSF_USER_4                  (1 << 23)
+#define NSF_USER_5                  (1 << 24)
+#define NSF_USER_6                  (1 << 25)
 };
 
 void ns_mgr_init(struct ns_mgr *, void *data, ns_callback_t);

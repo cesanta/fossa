@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: Sun Aug 31 16:15:31 UTC 2014$
+// $Date: 2014-09-10 09:31:23 UTC $
 
 #include "net_skeleton.h"
 
@@ -85,7 +85,7 @@ void iobuf_remove(struct iobuf *io, size_t n) {
 
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   if (nc->flags & NSF_UDP) {
-    long n = send(nc->sock, buf, len, 0);
+    long n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));
     DBG(("%p %d send %ld (%d)", nc, nc->sock, n, errno));
     return n < 0 ? 0 : n;
   } else {
@@ -702,6 +702,8 @@ static void ns_handle_udp(struct ns_connection *ls) {
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
     nc.sock = ls->sock;
     nc.mgr = ls->mgr;
+    nc.listener = ls;
+    nc.flags = NSF_UDP;
     DBG(("%p %d bytes received", ls, n));
     ns_call(&nc, NS_RECV, &n);
   }

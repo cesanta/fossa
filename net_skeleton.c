@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-10 09:31:23 UTC $
+// $Date: 2014-09-12 15:20:54 UTC $
 
 #include "net_skeleton.h"
 
@@ -698,6 +698,7 @@ static void ns_handle_udp(struct ns_connection *ls) {
   if (n <= 0) {
     DBG(("%p recvfrom: %s", ls, strerror(errno)));
   } else {
+    nc.mgr = ls->mgr;
     nc.recv_iobuf.buf = buf;
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
     nc.sock = ls->sock;

@@ -8,7 +8,6 @@ all: clean $(PROG)
 $(PROG):
 	cc $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
 	g++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
-	clang $(PROG).c -o $(PROG) $(CFLAGS) -lssl $(PROF) && ./$(PROG)
 	gcov -b $(PROG).c
 
 $(PROG).exe:

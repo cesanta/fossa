@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-15 09:00:35 UTC $
+// $Date: 2014-09-15 21:46:25 UTC $
 
 #include "net_skeleton.h"
 
@@ -216,11 +216,16 @@ static void hexdump(struct ns_connection *nc, const char *path,
 }
 
 static void ns_call(struct ns_connection *conn, enum ns_event ev, void *p) {
+  ns_callback_t cb = conn->callback ? conn->callback : conn->mgr->callback;
+
   if (conn->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) p : 0;
     hexdump(conn, conn->mgr->hexdump_file, len, ev);
   }
-  if (conn->mgr->callback) conn->mgr->callback(conn, ev, p);
+
+  if (cb != NULL) {
+    cb(conn, ev, p);
+  }
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {

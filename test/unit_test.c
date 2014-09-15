@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: Sun Aug 31 16:15:31 UTC 2014$
+// $Date: 2014-09-15 09:00:35 UTC $
 
 // Net Skeleton unit test
 // g++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
@@ -271,12 +271,10 @@ static const char *test_thread(void) {
 
 static void eh3(struct ns_connection *nc, enum ns_event ev, void *p) {
   struct iobuf *io = &nc->recv_iobuf;
-  char *buf = (char *) (char *)nc->mgr->user_data;
   (void) p;
 
-  switch (ev) {
-    case NS_RECV: memcpy(buf, io->buf, io->len); break;
-    default: break;
+  if (ev == NS_RECV) {
+    memcpy((char *) nc->mgr->user_data, io->buf, io->len);
   }
 }
 

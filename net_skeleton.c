@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-12 15:20:54 UTC $
+// $Date: 2014-09-15 09:00:35 UTC $
 
 #include "net_skeleton.h"
 
@@ -86,7 +86,7 @@ void iobuf_remove(struct iobuf *io, size_t n) {
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   if (nc->flags & NSF_UDP) {
     long n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));
-    DBG(("%p %d send %ld (%d)", nc, nc->sock, n, errno));
+    DBG(("%p %d send %ld (%d %s)", nc, nc->sock, n, errno, strerror(errno)));
     return n < 0 ? 0 : n;
   } else {
     return iobuf_append(&nc->send_iobuf, buf, len);
@@ -820,16 +820,16 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr,
   struct ns_connection *nc = NULL;
   union socket_address sa;
   char cert[100], ca_cert[100];
-  int connect_ret_val, use_ssl, proto;
+  int rc, use_ssl, proto;
 
   ns_parse_address(address, &sa, &proto, &use_ssl, cert, ca_cert);
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     return NULL;
   }
   ns_set_non_blocking_mode(sock);
-  connect_ret_val = connect(sock, &sa.sa, sizeof(sa.sin));
+  rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa.sa, sizeof(sa.sin));
 
-  if (connect_ret_val != 0 && ns_is_error(connect_ret_val)) {
+  if (rc != 0 && ns_is_error(rc)) {
     closesocket(sock);
     return NULL;
   } else if ((nc = ns_add_sock(mgr, sock, param)) == NULL) {
@@ -837,12 +837,8 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr,
     return NULL;
   }
 
-  nc->sa = sa;   // Essential, cause UDP conns will use sendto()
-  if (proto == SOCK_DGRAM) {
-    nc->flags = NSF_UDP;
-  } else {
-    nc->flags = NSF_CONNECTING;
-  }
+  nc->sa = sa;   // Important, cause UDP conns will use sendto()
+  nc->flags = (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
 
 #ifdef NS_ENABLE_SSL
   if (use_ssl) {

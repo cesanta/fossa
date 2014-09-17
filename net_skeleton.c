@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-15 21:46:25 UTC $
+// $Date: 2014-09-17 08:49:54 UTC $
 
 #include "net_skeleton.h"
 
@@ -201,7 +201,7 @@ static void hexdump(struct ns_connection *nc, const char *path,
     ns_sock_to_str(nc->sock, src, sizeof(src), 3);
     ns_sock_to_str(nc->sock, dst, sizeof(dst), 7);
     fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL),
-            nc->connection_data, src,
+            nc->user_data, src,
             ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" :
             ev == NS_ACCEPT ? "<A" : ev == NS_CONNECT ? "C>" : "XX",
             dst, num_bytes);
@@ -464,7 +464,7 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str, void *data) {
   } else {
     nc->sa = sa;
     nc->flags |= NSF_LISTENING;
-    nc->connection_data = data;
+    nc->user_data = data;
 
     if (proto == SOCK_DGRAM) {
       nc->flags |= NSF_UDP;
@@ -869,7 +869,7 @@ struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock, void *p) {
     ns_set_non_blocking_mode(sock);
     ns_set_close_on_exec(sock);
     conn->sock = sock;
-    conn->connection_data = p;
+    conn->user_data = p;
     conn->mgr = s;
     conn->last_io_time = time(NULL);
     ns_add_conn(s, conn);

@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-15 09:00:35 UTC $
+// $Date: 2014-09-17 08:49:54 UTC $
 
 // Net Skeleton unit test
 // g++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
@@ -79,7 +79,7 @@ static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
       } else {
         struct iobuf *io = &nc->recv_iobuf;
         if (io->len == 11 && memcmp(io->buf, "17 hi there", 11) == 0) {
-          sprintf((char *) nc->connection_data, "%s", "ok!");
+          sprintf((char *) nc->user_data, "%s", "ok!");
           nc->flags |= NSF_CLOSE_IMMEDIATELY;
         }
       }
@@ -238,7 +238,7 @@ static void eh2(struct ns_connection *nc, enum ns_event ev, void *p) {
   (void) p;
   switch (ev) {
     case NS_RECV:
-      strcpy((char *) nc->connection_data, nc->recv_iobuf.buf);
+      strcpy((char *) nc->user_data, nc->recv_iobuf.buf);
       break;
     default:
       break;

@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: Sun Aug 31 16:15:31 UTC 2014$
+// $Date: 2014-09-17 08:49:54 UTC $
 
 #include "net_skeleton.h"
 
@@ -56,7 +56,7 @@ static void client_handler(struct ns_connection *conn, enum ns_event ev,
   } else if (ev == NS_RECV) {
     if (conn->flags & NSF_USER_1) {
       // Received data from the stdin, forward it to the server
-      struct ns_connection *c = (struct ns_connection *) conn->connection_data;
+      struct ns_connection *c = (struct ns_connection *) conn->user_data;
       ns_send(c, io->buf, io->len);
       iobuf_remove(io, io->len);
     } else {
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     // The other end of a pair goes inside the server
     ioconn = ns_add_sock(&mgr, fds[0], NULL);
     ioconn->flags |= NSF_USER_1;    // Mark this so we know this is a stdin
-    ioconn->connection_data = server_conn;
+    ioconn->user_data = server_conn;
 
   } else {
     // Server code path

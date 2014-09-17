@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-15 21:54:33 UTC $
+// $Date: 2014-09-17 08:49:54 UTC $
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
@@ -187,12 +187,13 @@ struct ns_connection {
   struct ns_connection *listener;     // Set only for accept()-ed connections
   struct ns_mgr *mgr;
   sock_t sock;
-  union socket_address sa;
+  union socket_address sa;            // Peer address
   struct iobuf recv_iobuf;
   struct iobuf send_iobuf;
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  void *connection_data;
+  void *user_data;
+  void *proto_data;
   time_t last_io_time;
   ns_callback_t callback;
 

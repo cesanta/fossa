@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-17 08:49:54 UTC $
+// $Date: 2014-09-23 15:38:42 UTC $
 
 #include "net_skeleton.h"
 
@@ -38,13 +38,19 @@ struct ctl_msg {
   char message[1024 * 8];
 };
 
-void iobuf_init(struct iobuf *iobuf, size_t size) {
+void iobuf_resize(struct iobuf *io, size_t new_size) {
+  char *p;
+  if ((new_size > io->size || (new_size < io->size && new_size >= io->len)) &&
+      (p = (char *) NS_REALLOC(io->buf, new_size)) != NULL) {
+    io->size = new_size;
+    io->buf = p;
+  }
+}
+
+void iobuf_init(struct iobuf *iobuf, size_t initial_size) {
   iobuf->len = iobuf->size = 0;
   iobuf->buf = NULL;
-
-  if (size > 0 && (iobuf->buf = (char *) NS_MALLOC(size)) != NULL) {
-    iobuf->size = size;
-  }
+  iobuf_resize(iobuf, initial_size);
 }
 
 void iobuf_free(struct iobuf *iobuf) {
@@ -215,16 +221,18 @@ static void hexdump(struct ns_connection *nc, const char *path,
   }
 }
 
-static void ns_call(struct ns_connection *conn, enum ns_event ev, void *p) {
-  ns_callback_t cb = conn->callback ? conn->callback : conn->mgr->callback;
+static void ns_call(struct ns_connection *nc, enum ns_event ev, void *p) {
+  ns_callback_t cb = nc->callback ? nc->callback :
+    (nc->listener && nc->listener->callback) ? nc->listener->callback :
+    nc->mgr->callback;
 
-  if (conn->mgr->hexdump_file != NULL && ev != NS_POLL) {
+  if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) p : 0;
-    hexdump(conn, conn->mgr->hexdump_file, len, ev);
+    hexdump(nc, nc->mgr->hexdump_file, len, ev);
   }
 
   if (cb != NULL) {
-    cb(conn, ev, p);
+    cb(nc, ev, p);
   }
 }
 
@@ -738,7 +746,9 @@ int ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
     tmp_conn = conn->next;
-    ns_call(conn, NS_POLL, &current_time);
+    if (conn->listener != NULL) {
+      ns_call(conn, NS_POLL, &current_time);
+    }
     if (!(conn->flags & NSF_WANT_WRITE)) {
       //DBG(("%p read_set", conn));
       ns_add_to_set(conn->sock, &read_set, &max_fd);

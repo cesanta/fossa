@@ -9,11 +9,11 @@ complexity and let them concentrate on the logic, saving time and money.
 
 # Features
 
-- Cross-platform: works on Windows, Linux/UNIX, QNX, eCos, Android, iPhone, etc
+- Cross-platform: works on Linux/UNIX, QNX, eCos, Windows, Android, iPhone, etc
 - Single-threaded, asynchronous, non-blocking core with simple event-bases API
 - Has both client and server functionality
 - TCP and UDP support
-- SSL/TLS support, client-side SSL auth (two-way SSL)
+- SSL/TLS support, one-way and two-way SSL
 - Tiny static and run-time footprint
 - Mature and tested, it is a networking engine of
   [Mongoose Embedded Web Server](https://github.com/cesanta/mongoose),
@@ -22,13 +22,14 @@ complexity and let them concentrate on the logic, saving time and money.
 # Concept
 
 Net Skeleton is a non-blocking, asyncronous event manager described by
-`struct ns_mgr` structure. That structure holds active connections
-and a pointer to the event handler function. Connections could be either
-client or server. Client connections are created by means of
-`ns_connect2()` call. Server connections are created by making one
-or more listening sockets with `ns_bind()` call,
-which will accept incoming connections. A
-connection is described by `struct ns_connection` structure.
+`struct ns_mgr` structure. That structure holds active connections.
+Connections could be either listening, client or accepted connections.
+Client connections are created by means of
+`ns_connect()` call. Listening connections are created by `ns_bind()` call.
+Accepted connections are those that incoming on a listening connection.
+A connection is described by `struct ns_connection` structure, which has
+a number of fields like socket, event handler function, send/receive buffer,
+flags, et cetera.
 
 `ns_mgr_poll()` should be called in an infinite event loop.
 `ns_mgr_poll()` iterates over all sockets, accepts new connections,
@@ -98,12 +99,13 @@ the behavior of the connection.  Below is a list of connection flags:
 Net skeleton manager instance is single threaded. All functions should be
 called from the same thread, with exception of `mg_broadcast()`.
 
-    void ns_mgr_init(struct ns_mgr *, void *user_data, ns_callback_t);
+    void ns_mgr_init(struct ns_mgr *, void *user_data);
     void ns_mgr_free(struct ns_mgr *);
 
 Initializes and de-initializes skeleton manager.
 
-    struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, void *user_data);
+    struct ns_connection *ns_bind(struct ns_mgr *, const char *addr,
+                                  ns_callback_t ev_handler, void *user_data);
 
 Start listening on the given port. `addr` could be a port number,
 e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
@@ -123,10 +125,10 @@ Also, port could be `"0"`, in which case a random non-occupied port number
 will be chosen. Return value: a listening connection on success, or
 `NULL` on error.
 
-    int ns_mgr_poll(struct ns_mgr *, int milliseconds);
+    time_t ns_mgr_poll(struct ns_mgr *, int milliseconds);
 
 This function performs the actual IO, and must be called in a loop
-(an event loop). Returns number of connections.
+(an event loop). Returns number current timestamp.
 
     void ns_broadcast(struct ns_mgr *, ns_callback_t cb, void *msg, size_t len);
 
@@ -143,13 +145,14 @@ that can be, and must be, called from a different thread.
 Iterates over all active connections, that is the iteration idiom:
 `for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) { ... }` .
 
-    struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, void *p);
+    struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock,
+                                      ns_callback_t ev_handler, void *user_data);
 
-Add a socket to the server. `p` will become
-`struct ns_connection::connection_data` pointer for the created connection.
+Add a socket to the server. `user_data` will become
+`struct ns_connection::user_data` pointer for the created connection.
 
     struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr,
-                                     void *user_data);
+                                     ns_callback_t ev_handler, void *user_data);
 
 
 Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
@@ -159,7 +162,7 @@ just an IP address becomes mandatory: `[PROTO://]HOST:PORT[:CERT][:CA_CERT]`.
 address, Net Skeleton will resolve it - beware that standard blocking resolver
 will be used. It is a good practice to pre-resolve hosts beforehands and
 use only IP addresses to avoid blockin an IO thread.
-`user_data` will become `struct ns_connection::connection_param`.
+`user_data` will become `struct ns_connection::user_data`.
 For SSL connections, specify `CERT` if server is requiring client auth.
 Specify `CA_CERT` to authenticate server certificate. All certificates
 must be in PEM format.

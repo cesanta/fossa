@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-23 15:38:42 UTC $
+// $Date: 2014-09-28 05:04:41 UTC $
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
@@ -43,6 +43,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -141,7 +142,7 @@ union socket_address {
 };
 
 // Describes chunk of memory
-struct ns_vec {
+struct ns_str {
   const char *p;
   size_t len;
 };
@@ -159,44 +160,43 @@ size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
 void iobuf_remove(struct iobuf *, size_t data_size);
 void iobuf_resize(struct iobuf *, size_t new_size);
 
-// Net skeleton interface
-// Events. Meaning of event parameter (evp) is given in the comment.
-enum ns_event {
-  NS_POLL,     // Sent to each connection on each call to ns_mgr_poll()
-  NS_ACCEPT,   // New connection accept()-ed. union socket_address *remote_addr
-  NS_CONNECT,  // connect() succeeded or failed. int *success_status
-  NS_RECV,     // Data has benn received. int *num_bytes
-  NS_SEND,     // Data has been written to a socket. int *num_bytes
-  NS_CLOSE     // Connection is closed. NULL
-};
-
 // Callback function (event handler) prototype, must be defined by user.
 // Net skeleton will call event handler, passing events defined above.
 struct ns_connection;
-typedef void (*ns_callback_t)(struct ns_connection *, enum ns_event, void *evp);
+typedef void (*ns_callback_t)(struct ns_connection *, int event_num, void *evp);
+
+// Events. Meaning of event parameter (evp) is given in the comment.
+#define NS_POLL    0  // Sent to each connection on each call to ns_mgr_poll()
+#define NS_ACCEPT  1  // New connection accept()-ed. union socket_address *addr
+#define NS_CONNECT 2  // connect() succeeded or failed. int *success_status
+#define NS_RECV    3  // Data has benn received. int *num_bytes
+#define NS_SEND    4  // Data has been written to a socket. int *num_bytes
+#define NS_CLOSE   5  // Connection is closed. NULL
+
 
 struct ns_mgr {
   struct ns_connection *active_connections;
-  ns_callback_t callback;           // Event handler function
   const char *hexdump_file;         // Debug hexdump file path
   sock_t ctl[2];                    // Socketpair for mg_wakeup()
   void *user_data;                  // User data
 };
 
+
 struct ns_connection {
   struct ns_connection *next, *prev;  // ns_mgr::active_connections linkage
   struct ns_connection *listener;     // Set only for accept()-ed connections
   struct ns_mgr *mgr;
-  sock_t sock;
-  union socket_address sa;            // Peer address
-  struct iobuf recv_iobuf;
-  struct iobuf send_iobuf;
+
+  sock_t sock;                // Socket
+  union socket_address sa;    // Peer address
+  struct iobuf recv_iobuf;    // Received data
+  struct iobuf send_iobuf;    // Data scheduled for sending
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  void *user_data;
-  void *proto_data;
-  time_t last_io_time;
-  ns_callback_t callback;
+  void *user_data;            // User-specific data
+  void *proto_data;           // Application protocol-specific data
+  time_t last_io_time;        // Timestamp of the last socket IO
+  ns_callback_t callback;     // Event handler function
 
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
@@ -217,15 +217,18 @@ struct ns_connection {
 #define NSF_USER_6                  (1 << 25)
 };
 
-void ns_mgr_init(struct ns_mgr *, void *data, ns_callback_t);
+void ns_mgr_init(struct ns_mgr *, void *user_data);
 void ns_mgr_free(struct ns_mgr *);
-int ns_mgr_poll(struct ns_mgr *, int milli);
+time_t ns_mgr_poll(struct ns_mgr *, int milli);
 void ns_broadcast(struct ns_mgr *, ns_callback_t, void *, size_t);
 
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
-struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, void *p);
-struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, void *p);
-struct ns_connection *ns_connect(struct ns_mgr *, const char *addr, void *p);
+struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t,
+                                  ns_callback_t, void *);
+struct ns_connection *ns_bind(struct ns_mgr *, const char *,
+                              ns_callback_t, void *);
+struct ns_connection *ns_connect(struct ns_mgr *, const char *,
+                                 ns_callback_t, void *);
 
 int ns_send(struct ns_connection *, const void *buf, int len);
 int ns_printf(struct ns_connection *, const char *fmt, ...);

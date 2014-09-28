@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-17 08:49:54 UTC $
+// $Date: 2014-09-28 05:04:41 UTC $
 
 // Net Skeleton unit test
 // g++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
@@ -65,7 +65,7 @@ static const char *test_iobuf(void) {
   return NULL;
 }
 
-static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
+static void ev_handler(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   switch (ev) {
     case NS_CONNECT:
@@ -99,7 +99,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   struct ns_connection *nc;
   int port, port2;
 
-  ns_mgr_init(&mgr, NULL, ev_handler);
+  ns_mgr_init(&mgr, NULL);
   mgr.hexdump_file = "/dev/stdout";
 
   if (use_ssl) {
@@ -107,7 +107,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   } else {
     snprintf(addr, sizeof(addr), "%s:0", LOOPBACK_IP);
   }
-  nc = ns_bind(&mgr, addr, NULL);
+  nc = ns_bind(&mgr, addr, ev_handler, NULL);
 
   ASSERT(nc != NULL);
   port2 = htons(nc->sa.sin.sin_port);
@@ -125,7 +125,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
     snprintf(addr, sizeof(addr), "tcp://%s:%d", LOOPBACK_IP, port);
   }
 
-  ASSERT(ns_connect(&mgr, addr, buf) != NULL);
+  ASSERT(ns_connect(&mgr, addr, ev_handler, buf) != NULL);
   { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
 
   ASSERT(strcmp(buf, "ok!") == 0);
@@ -234,7 +234,7 @@ static const char *test_socketpair(void) {
   return NULL;
 }
 
-static void eh2(struct ns_connection *nc, enum ns_event ev, void *p) {
+static void eh2(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   switch (ev) {
     case NS_RECV:
@@ -260,8 +260,8 @@ static const char *test_thread(void) {
   ASSERT(ns_socketpair(sp) == 1);
   ns_start_thread(thread_func, &sp[1]);
 
-  ns_mgr_init(&mgr, NULL, eh2);
-  ASSERT((nc = ns_add_sock(&mgr, sp[0], buf)) != NULL);
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2, buf)) != NULL);
   { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
   ASSERT(strcmp(buf, ":-)") == 0);
   ns_mgr_free(&mgr);
@@ -269,7 +269,7 @@ static const char *test_thread(void) {
   return NULL;
 }
 
-static void eh3(struct ns_connection *nc, enum ns_event ev, void *p) {
+static void eh3(struct ns_connection *nc, int ev, void *p) {
   struct iobuf *io = &nc->recv_iobuf;
   (void) p;
 
@@ -284,9 +284,9 @@ static const char *test_udp(void) {
   const char *address = "udp://127.0.0.1:7878";
   char buf[20] = "";
 
-  ns_mgr_init(&mgr, buf, eh3);
-  ASSERT(ns_bind(&mgr, address, NULL) != NULL);
-  ASSERT((nc = ns_connect(&mgr, address, NULL)) != NULL);
+  ns_mgr_init(&mgr, buf);
+  ASSERT(ns_bind(&mgr, address, eh3, NULL) != NULL);
+  ASSERT((nc = ns_connect(&mgr, address, eh3, NULL)) != NULL);
   ns_printf(nc, "%s", "boo!");
 
   { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }

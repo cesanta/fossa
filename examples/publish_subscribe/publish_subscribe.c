@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-17 08:49:54 UTC $
+// $Date: 2014-09-28 05:04:41 UTC $
 
 #include "net_skeleton.h"
 
@@ -27,8 +27,7 @@ static void *stdin_thread(void *param) {
   return NULL;
 }
 
-static void server_handler(struct ns_connection *nc, enum ns_event ev,
-                           void *p) {
+static void server_handler(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   if (ev == NS_RECV) {
     // Push received message to all ncections
@@ -42,8 +41,7 @@ static void server_handler(struct ns_connection *nc, enum ns_event ev,
   }
 }
 
-static void client_handler(struct ns_connection *conn, enum ns_event ev,
-                           void *p) {
+static void client_handler(struct ns_connection *conn, int ev, void *p) {
   struct iobuf *io = &conn->recv_iobuf;
   (void) p;
 
@@ -80,10 +78,10 @@ int main(int argc, char *argv[]) {
     int fds[2];
     struct ns_connection *ioconn, *server_conn;
 
-    ns_mgr_init(&mgr, NULL, client_handler);
+    ns_mgr_init(&mgr, NULL);
 
     // Connect to the pubsub server
-    server_conn = ns_connect(&mgr, argv[1], NULL);
+    server_conn = ns_connect(&mgr, argv[1], client_handler, NULL);
     if (server_conn == NULL) {
       fprintf(stderr, "Cannot connect to port %s\n", argv[1]);
       exit(EXIT_FAILURE);
@@ -94,14 +92,14 @@ int main(int argc, char *argv[]) {
     ns_start_thread(stdin_thread, &fds[1]);
 
     // The other end of a pair goes inside the server
-    ioconn = ns_add_sock(&mgr, fds[0], NULL);
+    ioconn = ns_add_sock(&mgr, fds[0], client_handler, NULL);
     ioconn->flags |= NSF_USER_1;    // Mark this so we know this is a stdin
     ioconn->user_data = server_conn;
 
   } else {
     // Server code path
-    ns_mgr_init(&mgr, NULL, server_handler);
-    ns_bind(&mgr, argv[1], NULL);
+    ns_mgr_init(&mgr, NULL);
+    ns_bind(&mgr, argv[1], server_handler, NULL);
     printf("Starting pubsub server on port %s\n", argv[1]);
   }
 

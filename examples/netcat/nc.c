@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: Sun Aug 31 16:15:31 UTC 2014$
+// $Date: 2014-09-28 05:04:41 UTC $
 
 // This file implements "netcat" utility with SSL and traffic hexdump.
 
@@ -39,7 +39,7 @@ static void show_usage_and_exit(const char *prog_name) {
   exit(EXIT_FAILURE);
 }
 
-static void on_stdin_read(struct ns_connection *nc, enum ns_event ev, void *p) {
+static void on_stdin_read(struct ns_connection *nc, int ev, void *p) {
   int ch = * (int *) p;
 
   (void) ev;
@@ -70,7 +70,7 @@ static void *stdio_thread_func(void *param) {
   return NULL;
 }
 
-static void ev_handler(struct ns_connection *nc, enum ns_event ev, void *p) {
+static void ev_handler(struct ns_connection *nc, int ev, void *p) {
   (void) p;
 
   switch (ev) {
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
   int i, is_listening = 0;
   const char *address = NULL;
 
-  ns_mgr_init(&mgr, NULL, ev_handler);
+  ns_mgr_init(&mgr, NULL);
 
   // Parse command line options
   for (i = 1; i < argc && argv[i][0] == '-'; i++) {
@@ -122,11 +122,11 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   if (is_listening) {
-    if (ns_bind(&mgr, address, NULL) == NULL) {
+    if (ns_bind(&mgr, address, ev_handler, NULL) == NULL) {
       fprintf(stderr, "ns_bind(%s) failed\n", address);
       exit(EXIT_FAILURE);
     }
-  } else if (ns_connect(&mgr, address, NULL) == NULL) {
+  } else if (ns_connect(&mgr, address, ev_handler, NULL) == NULL) {
     fprintf(stderr, "ns_connect(%s) failed\n", address);
     exit(EXIT_FAILURE);
   }

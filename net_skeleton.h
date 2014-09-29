@@ -14,7 +14,7 @@
 // Alternatively, you can license this software under a commercial
 // license, as set out in <http://cesanta.com/>.
 //
-// $Date: 2014-09-28 05:04:41 UTC $
+// $Date: 2014-09-29 12:47:19 UTC $
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
@@ -85,6 +85,7 @@ typedef unsigned short uint16_t;
 typedef unsigned __int64 uint64_t;
 typedef __int64   int64_t;
 typedef SOCKET sock_t;
+typedef struct _stati64 ns_stat_t;
 #ifndef S_ISDIR
 #define S_ISDIR(x) ((x) & _S_IFDIR)
 #endif
@@ -104,6 +105,7 @@ typedef SOCKET sock_t;
 #define INVALID_SOCKET (-1)
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
+typedef struct stat ns_stat_t;
 #endif
 
 #ifdef NS_ENABLE_DEBUG

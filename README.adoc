@@ -58,7 +58,7 @@ image::http://cesanta.com/images/net_skeleton/iobuf.png[]
 #include "net_skeleton.h"
 
 // This event handler implements TCP echo server
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <1>
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
   struct iobuf *io = &nc->recv_iobuf;
 
   switch (ev) {
@@ -73,10 +73,10 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <1>
 
 int main(void) {
   struct ns_mgr mgr;
-  ns_mgr_init(&mgr, NULL);  // <2>
-  ns_bind(&mgr, "1234", ev_handler, NULL);  // <3>
+  ns_mgr_init(&mgr, NULL);  // 2
+  ns_bind(&mgr, "1234", ev_handler, NULL);  // 3
   for (;;) {
-    ns_mgr_poll(&mgr, 1000);  // <4>
+    ns_mgr_poll(&mgr, 1000);  // 4
   }
   ns_mgr_free(&mgr);
   return 0;

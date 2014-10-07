@@ -58,7 +58,7 @@ image::http://cesanta.com/images/net_skeleton/iobuf.png[]
 #include "net_skeleton.h"
 
 // This event handler implements TCP echo server
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <1>
   struct iobuf *io = &nc->recv_iobuf;
 
   switch (ev) {
@@ -73,10 +73,10 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
 
 int main(void) {
   struct ns_mgr mgr;
-  ns_mgr_init(&mgr, NULL);  // 2
-  ns_bind(&mgr, "1234", ev_handler, NULL);  // 3
+  ns_mgr_init(&mgr, NULL);  //  <2>
+  ns_bind(&mgr, "1234", ev_handler, NULL);  // <3>
   for (;;) {
-    ns_mgr_poll(&mgr, 1000);  // 4
+    ns_mgr_poll(&mgr, 1000);  // <4>
   }
   ns_mgr_free(&mgr);
   return 0;
@@ -224,14 +224,31 @@ sent to the socket.
 
 // Utility functions
 
-void *ns_start_thread(void *(*f)(void *), void *p)::
-int ns_socketpair2(sock_t [2], int proto)::
-void ns_set_close_on_exec(sock_t)::
-void ns_sock_to_str(sock_t sock, char *buf, size_t len, int add_port)::
-int ns_hexdump(const void *buf, int len, char *dst, int dst_len)::
-int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len)::
+void *ns_start_thread(void *(*thread_function)(void *), void *param)::
+  Starts a new thread
 
-//
+int ns_socketpair2(sock_t [2], int proto)::
+  Create a socket pair. `proto` can be either `SOCK_STREAM` or `SOCK_DGRAM`.
+  Return 0 on failure, 1 on success.
+
+void ns_set_close_on_exec(sock_t)::
+  Set close-on-exec bit for a given socket.
+
+void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags)::
+  Converts socket's local or remote address into string. `flags` parameter
+  is a bit mask that controls the behavior. If bit 2 is set (`flags & 4`) then
+  remote address is stringified, otherwise local. if bit 0 is set, then IP
+  address is printed. If bit 1 is set, then port number is printed. If both
+  port number and IP address are printed, they are separated by `:`.
+
+int ns_hexdump(const void *buf, int len, char *dst, int dst_len)::
+  Takes a memory buffer `buf` of length `len` and creates a hex dump of that
+  buffer in `dst`.
+
+int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len)::
+  Converts domain name into IP address. This is a blocking call. Returns 1
+  on success, 0 on failure.
+
 
 == Examples
 

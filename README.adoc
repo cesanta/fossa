@@ -237,7 +237,8 @@ void ns_set_close_on_exec(sock_t)::
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags)::
   Converts socket's local or remote address into string. `flags` parameter
   is a bit mask that controls the behavior. If bit 2 is set (`flags & 4`) then
-  remote address is stringified, otherwise local. if bit 0 is set, then IP
+  the remote address is stringified, otherwise local address is stringified.
+  If bit 0 is set, then IP
   address is printed. If bit 1 is set, then port number is printed. If both
   port number and IP address are printed, they are separated by `:`.
 

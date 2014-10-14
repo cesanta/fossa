@@ -1,4 +1,4 @@
-= Networking client/server library for C/C++
+= Networking library for C/C++
 
 Net Skeleton is a networking library written in C.
 It provides easy to use event-driven interface that allows to implement
@@ -6,17 +6,19 @@ network protocols or scalable network applications  with little effort.
 Net Skeleton releives developers from the burden of network programming
 complexity and let them concentrate on the logic, saving time and money.
 
+Net Skeleton has built-in support for several protocols, like
+HTTP and Websocket, and is ideal for embedded environments. Net Skeleton
+has been designed as an open source platform for connecting devices and
+bringing them online.
+
 == Features
 
 * Cross-platform: works on Linux/UNIX, QNX, eCos, Windows, Android, iPhone, etc
 * Single-threaded, asynchronous, non-blocking core with simple event-based API
 * Has both client and server functionality
-* TCP and UDP support
+* Builtin protocols: plain TCP, plain UDP, HTTP, Websocket, JSON-RPC
 * SSL/TLS support, one-way and two-way SSL
 * Tiny static and run-time footprint
-* Mature and tested, it is a networking engine of
-  [Mongoose Embedded Web Server](https://github.com/cesanta/mongoose),
-  trusted by many blue chip companies in production environment
 
 == Concept
 
@@ -132,7 +134,7 @@ the behavior of the connection.  Below is a list of connection flags:
 
 == API documentation
 
-NOTE: Net skeleton manager instance is single threaded. It does not protect
+CAUTION: Net skeleton manager instance is single threaded. It does not protect
 it's data structures by mutexes, therefore all functions that are dealing
 with particular event manager should be called from the same thread,
 with exception of `mg_broadcast()` function. It is fine to have different
@@ -206,7 +208,6 @@ Add a socket to the server. `user_data` will become
 `struct ns_connection::user_data` pointer for the created connection.
 
 struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr, ns_callback_t ev_handler, void *user_data)::
-
 
 Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
 to the new connection. `addr` format is the same as for the `ns_bind()` call,

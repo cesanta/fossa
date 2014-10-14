@@ -9,7 +9,7 @@ complexity and let them concentrate on the logic, saving time and money.
 == Features
 
 * Cross-platform: works on Linux/UNIX, QNX, eCos, Windows, Android, iPhone, etc
-* Single-threaded, asynchronous, non-blocking core with simple event-bases API
+* Single-threaded, asynchronous, non-blocking core with simple event-based API
 * Has both client and server functionality
 * TCP and UDP support
 * SSL/TLS support, one-way and two-way SSL
@@ -138,6 +138,14 @@ with particular event manager should be called from the same thread,
 with exception of `mg_broadcast()` function. It is fine to have different
 event managers handled by different threads.
 
+=== Structures
+
+- `struct ns_connection` Describes a connection between two peers
+- `struct ns_mgr` Container for a bunch of connections
+- `struct iobuf` Describes piece of data
+
+=== Functions
+
 void ns_mgr_init(struct ns_mgr *, void *user_data)::
   Initializes net skeleton manager.
 
@@ -182,7 +190,9 @@ that can be, and must be, called from a different thread.
 
 void ns_next(struct ns_mgr *, struct ns_connection *)::
 
-Iterates over all active connections, that is the iteration idiom:
+Iterates over all active connections. Returns next connection from the list
+of active connections, or `NULL` if there is no more connections. Below
+is the iteration idiom:
 [source,c]
 ----
 for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
@@ -222,7 +232,7 @@ to the output buffer. The exception is UDP connections. For UDP, data is
 sent immediately, and returned value indicates an actual number of bytes
 sent to the socket.
 
-// Utility functions
+=== Utility functions
 
 void *ns_start_thread(void *(*thread_function)(void *), void *param)::
   Starts a new thread

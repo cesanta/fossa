@@ -132,7 +132,7 @@ the behavior of the connection.  Below is a list of connection flags:
 * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
   used by a developer to store application-specific state
 
-== API documentation
+== Plain TCP/UDP/SSL API
 
 CAUTION: Net skeleton manager instance is single threaded. It does not protect
 it's data structures by mutexes, therefore all functions that are dealing
@@ -146,7 +146,7 @@ event managers handled by different threads.
 - `struct ns_mgr` Container for a bunch of connections
 - `struct iobuf` Describes piece of data
 
-=== Functions
+=== Functions for net skeleton manager
 
 void ns_mgr_init(struct ns_mgr *, void *user_data)::
   Initializes net skeleton manager.
@@ -266,6 +266,10 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len)::
   Converts domain name into IP address. This is a blocking call. Returns 1
   on success, 0 on failure.
 
+
+=== HTTP/Websocket API
+
+=== JSON-RPC API
 
 == Examples
 

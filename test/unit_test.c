@@ -48,6 +48,7 @@
 #define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
 static int static_num_tests = 0;
+static const char *s_local_addr = "127.0.0.1:7777";
 
 static const char *test_iobuf(void) {
   struct iobuf io;
@@ -296,6 +297,190 @@ static const char *test_udp(void) {
   return NULL;
 }
 
+static void poll_mgr(struct ns_mgr *mgr, int num_iterations) {
+  while (num_iterations-- > 0) {
+    ns_mgr_poll(mgr, 1);
+  }
+}
+
+static const char *test_parse_http_message(void) {
+  static const char *a = "GET / HTTP/1.0\n\n";
+  static const char *b = "GET /blah HTTP/1.0\r\nFoo:  bar  \r\n\r\n";
+  static const char *c = "get b c\nz:  k \nb: t\nvvv\n\n xx";
+  static const char *d = "a b c\nContent-Length: 21 \nb: t\nvvv\n\n";
+  struct ns_str *v;
+  struct http_message req;
+
+  ASSERT(parse_http("\b23", 3, &req) == -1);
+  ASSERT(parse_http("get\n\n", 5, &req) == -1);
+  ASSERT(parse_http(a, strlen(a) - 1, &req) == 0);
+  ASSERT(parse_http(a, strlen(a), &req) == (int) strlen(a));
+
+  ASSERT(parse_http(b, strlen(b), &req) == (int) strlen(b));
+  ASSERT(req.header_names[0].len == 3);
+  ASSERT(req.header_values[0].len == 3);
+  ASSERT(req.header_names[1].p == NULL);
+
+  ASSERT(parse_http(c, strlen(c), &req) == (int) strlen(c) - 3);
+  ASSERT(req.header_names[2].p == NULL);
+  ASSERT(req.header_names[0].p != NULL);
+  ASSERT(req.header_names[1].p != NULL);
+  ASSERT(memcmp(req.header_values[1].p, "t", 1) == 0);
+  ASSERT(req.header_names[1].len == 1);
+  ASSERT(req.body.len == 0);
+
+  ASSERT(parse_http(d, strlen(d), &req) == (int) strlen(d));
+  ASSERT(req.body.len == 21);
+  ASSERT(req.message.len == 21 + strlen(d));
+  ASSERT(get_http_header(&req, "foo") == NULL);
+  ASSERT((v = get_http_header(&req, "contENT-Length")) != NULL);
+  ASSERT(v->len == 2 && memcmp(v->p, "21", 2) == 0);
+
+  return NULL;
+}
+
+static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REQUEST) {
+    ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]",
+              (int) hm->uri.len, hm->uri.p, (int) hm->body.len);
+    nc->flags |= NSF_FINISHED_SENDING_DATA;
+  }
+}
+
+static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REPLY) {
+    memcpy(nc->user_data, hm->body.p, hm->body.len);
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
+static const char *test_http(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc, *nc2;
+  char buf[20] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT(ns_bind_http(&mgr, s_local_addr, cb1, NULL) != NULL);
+
+  // Valid HTTP request. Pass test buffer to the callback.
+  ASSERT((nc = ns_connect_http(&mgr, s_local_addr, cb2, buf)) != NULL);
+  ns_printf(nc, "%s", "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
+            "0123456789");
+
+  // Invalid HTTP request
+  ASSERT((nc2 = ns_connect_http(&mgr, s_local_addr, cb2, NULL)) != NULL);
+  ns_printf(nc2, "%s", "bl\x03\n\n");
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  // Check that test buffer has been filled by the callback properly.
+  ASSERT(strcmp(buf, "[/foo 10]") == 0);
+
+  return NULL;
+}
+
+static void cb3(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+    const char *reply = wm->size == 2 && !memcmp(wm->data, "hi", 2) ? "A": "B";
+    ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", reply);
+  }
+}
+
+static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+    memcpy(nc->user_data, wm->data, wm->size);
+    ns_send_websocket(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
+  } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
+    // Send "hi" to server. server must reply "A".
+    ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", "hi");
+  }
+}
+
+static const char *test_websocket(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  char buf[20] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  //mgr.hexdump_file = "/dev/stdout";
+  ASSERT(ns_bind_http(&mgr, s_local_addr, cb3, NULL) != NULL);
+
+  // Websocket request
+  ASSERT((nc = ns_connect_websocket(&mgr, s_local_addr, cb4, buf,
+         "/ws", NULL)) != NULL);
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  // Check that test buffer has been filled by the callback properly.
+  ASSERT(strcmp(buf, "A") == 0);
+
+  return NULL;
+}
+
+// This JSON-RPC handler function calculates sum of numeric parameters
+static void rpc_handler_sum(struct ns_connection *nc, struct json_token *id,
+                            struct json_token *params) {
+  double sum = 0;
+  int i;
+
+  if (id == NULL) {
+    ns_rpc_reply(nc, "{ s: s, s: N, s: s }",
+                 "jsonrpc", "2.0", "id", "error", "id is expected");
+    return;
+  }
+
+  for (i = 0; i < params->num_desc; i++) {
+    if (params[i].type != JSON_TYPE_NUMBER) {
+      ns_rpc_reply(nc, "{ s: s, s: N, s: s }",
+                   "jsonrpc", "2.0", "id", "error", "List of Numbers expected");
+      return;
+    }
+    sum += strtod(params[i].ptr, NULL);
+  }
+
+  ns_rpc_reply(nc, "{ s: s, s: v, s: f }",
+               "jsonrpc", "2.0", "id", id->ptr, id->len, "result", sum);
+}
+
+static void rpc_server(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+  }
+}
+
+static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+    //handle_rpc_reply(nc, wm->data, wm->size);
+  } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
+    //ns_printf_rpc_request(nc, "sum", "[f,f,f]", 1.1, 2.2, 3.3);
+  }
+}
+
+static const char *test_rpc(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  char buf[100];
+
+  ns_mgr_init(&mgr, NULL);
+  ns_bind_http(&mgr, s_local_addr, rpc_server, NULL);
+  ns_connect_websocket(&mgr, s_local_addr, rpc_client, buf, "/ws", NULL);
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
@@ -304,6 +489,10 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
+  RUN_TEST(test_parse_http_message);
+  RUN_TEST(test_http);
+  RUN_TEST(test_websocket);
+  RUN_TEST(test_rpc);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

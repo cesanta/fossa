@@ -260,3 +260,253 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 #endif // __cplusplus
 
 #endif // NS_SKELETON_HEADER_INCLUDED
+// Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
+// Copyright (c) 2013 Cesanta Software Limited
+// All rights reserved
+//
+// This library is dual-licensed: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 2 as
+// published by the Free Software Foundation. For the terms of this
+// license, see <http://www.gnu.org/licenses/>.
+//
+// You are free to use this library under the terms of the GNU General
+// Public License, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+// See the GNU General Public License for more details.
+//
+// Alternatively, you can license this library under a commercial
+// license, as set out in <http://cesanta.com/products.html>.
+
+#ifndef FROZEN_HEADER_INCLUDED
+#define FROZEN_HEADER_INCLUDED
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+#include <stdarg.h>
+
+enum json_type {
+  JSON_TYPE_EOF     = 0,      // End of parsed tokens marker
+  JSON_TYPE_STRING  = 1,
+  JSON_TYPE_NUMBER  = 2,
+  JSON_TYPE_OBJECT  = 3,
+  JSON_TYPE_TRUE    = 4,
+  JSON_TYPE_FALSE   = 5,
+  JSON_TYPE_NULL    = 6,
+  JSON_TYPE_ARRAY   = 7
+};
+
+struct json_token {
+  const char *ptr;      // Points to the beginning of the token
+  int len;              // Token length
+  int num_desc;         // For arrays and object, total number of descendants
+  enum json_type type;  // Type of the token, possible values above
+};
+
+// Error codes
+#define JSON_STRING_INVALID           -1
+#define JSON_STRING_INCOMPLETE        -2
+#define JSON_TOKEN_ARRAY_TOO_SMALL    -3
+
+int parse_json(const char *json_string, int json_string_length,
+               struct json_token *tokens_array, int size_of_tokens_array);
+struct json_token *parse_json2(const char *json_string, int string_length);
+struct json_token *find_json_token(struct json_token *toks, const char *path);
+
+int json_emit_long(char *buf, int buf_len, long value);
+int json_emit_double(char *buf, int buf_len, double value);
+int json_emit_quoted_str(char *buf, int buf_len, const char *str, int len);
+int json_emit_unquoted_str(char *buf, int buf_len, const char *str, int len);
+int json_emit(char *buf, int buf_len, const char *fmt, ...);
+int json_emit_va(char *buf, int buf_len, const char *fmt, va_list);
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+
+#endif // FROZEN_HEADER_INCLUDED
+#ifndef NS_SHA1_HEADER_INCLUDED
+#define NS_SHA1_HEADER_INCLUDED
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+typedef struct {
+    uint32_t state[5];
+    uint32_t count[2];
+    unsigned char buffer[64];
+} SHA1_CTX;
+
+void SHA1Init(SHA1_CTX *);
+void SHA1Update(SHA1_CTX *, const unsigned char *data, uint32_t len);
+void SHA1Final(unsigned char digest[20], SHA1_CTX *);
+
+#ifdef __cplusplus
+}
+#endif  // __cplusplus
+#endif  // NS_SHA1_HEADER_INCLUDED
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+
+#ifndef NS_UTIL_HEADER_DEFINED
+#define NS_UTIL_HEADER_DEFINED
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
+int ns_ncasecmp(const char *s1, const char *s2, size_t len);
+int ns_vcmp(const struct ns_str *str2, const char *str1);
+int ns_vcasecmp(const struct ns_str *str2, const char *str1);
+void ns_base64_decode(const unsigned char *s, int len, char *dst);
+void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+#endif  // NS_UTIL_HEADER_DEFINED
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+
+#ifndef NS_HTTP_HEADER_DEFINED
+#define NS_HTTP_HEADER_DEFINED
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+#define NS_MAX_HTTP_HEADERS 40
+#define NS_MAX_HTTP_REQUEST_SIZE 8192
+#define NS_MAX_PATH 1024
+
+struct http_message {
+  struct ns_str message;    // Whole message: request line + headers + body
+
+  // HTTP Request line (or HTTP response line)
+  struct ns_str method;     // "GET"
+  struct ns_str uri;        // "/my_file.html"
+  struct ns_str proto;      // "HTTP/1.1"
+
+  // Headers
+  struct ns_str header_names[NS_MAX_HTTP_HEADERS];
+  struct ns_str header_values[NS_MAX_HTTP_HEADERS];
+
+  // Message body
+  struct ns_str body;            // Zero-length for requests with no body
+};
+
+struct websocket_message {
+  unsigned char *data;
+  size_t size;
+  unsigned flags;
+};
+
+// HTTP and websocket events. void *ev_data is described in a comment.
+#define NS_HTTP_REQUEST                 100   // struct http_message *
+#define NS_HTTP_REPLY                   101   // struct http_message *
+
+#define NS_WEBSOCKET_HANDSHAKE_REQUEST  111   // NULL
+#define NS_WEBSOCKET_HANDSHAKE_DONE     112   // NULL
+#define NS_WEBSOCKET_FRAME              113   // struct websocket_message *
+#define NS_WEBSOCKET_NOT_SUPPORTED      114   // NULL
+
+struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
+                                   ns_callback_t cb, void *user_data);
+
+struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
+                                      ns_callback_t cb, void *user_data);
+
+struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
+                                           ns_callback_t cb, void *user_data,
+                                           const char *uri, const char *hdrs);
+
+void ns_send_websocket(struct ns_connection *, int op, const void *, size_t);
+void ns_printf_websocket(struct ns_connection *, int op, const char *, ...);
+
+// Websocket opcodes, from http://tools.ietf.org/html/rfc6455
+#define WEBSOCKET_OP_CONTINUE  0
+#define WEBSOCKET_OP_TEXT      1
+#define WEBSOCKET_OP_BINARY    2
+#define WEBSOCKET_OP_CLOSE     8
+#define WEBSOCKET_OP_PING      9
+#define WEBSOCKET_OP_PONG      10
+
+// Utility functions
+struct ns_str *get_http_header(struct http_message *, const char *);
+void ns_serve_uri_from_fs(struct ns_connection *, struct ns_str *uri,
+                          const char *web_root);
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+#endif  // NS_HTTP_HEADER_DEFINED
+// Copyright (c) 2014 Cesanta Software Limited
+// All rights reserved
+
+#ifndef NS_JSON_RPC_HEADER_DEFINED
+#define NS_JSON_RPC_HEADER_DEFINED
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+struct ns_rpc_request {
+  struct json_token *message;   // Whole RPC message
+  struct json_token *id;        // Message ID
+  struct json_token *method;    // Method name
+  struct json_token *params;    // Method params
+};
+typedef void (*ns_rpc_request_handler_t)(struct ns_connection *,
+                                         struct ns_rpc_request *);
+
+struct ns_rpc_reply {
+  struct json_token *message;   // Whole RPC message
+  struct json_token *id;        // Message ID
+  struct json_token *result;    // Remote call result
+};
+
+struct ns_rpc_error {
+  struct json_token *message;   // Whole RPC message
+  struct json_token *id;        // Message ID
+  struct json_token *error_code;      // error.code
+  struct json_token *error_message;   // error.message
+  struct json_token *error_data;      // error.data, can be NULL
+};
+typedef void (*ns_rpc_reply_handler_t)(struct ns_connection *,
+                                       struct ns_rpc_reply *,
+                                       struct ns_rpc_error *);
+
+int ns_printf_rpc_request(struct ns_connection *, const char *method,
+                          const char *params_fmt, ...);
+int ns_printf_rpc_result(struct ns_connection *, struct json_token *id,
+                         const char *result_fmt, ...);
+int ns_printf_rpc_error(struct ns_connection *, int code,
+                        struct json_token *id, const char *msg_fmt, ...);
+
+int ns_handle_rpc_request(struct ns_connection *, const void *buf, int len,
+                          ns_rpc_request_handler_t);
+int ns_handle_rpc_reply(struct ns_connection *, const void *buf, int len,
+                        ns_rpc_reply_handler_t);
+
+
+int ns_printf_standard_rpc_error(struct ns_connection *, int code,
+                                 struct json_token *id);
+
+// JSON-RPC standard error codes
+#define JSON_RPC_PARSE_ERROR              (-32700)
+#define JSON_RPC_INVALID_REQUEST_ERROR    (-32600)
+#define JSON_RPC_METHOD_NOT_FOUND_ERROR   (-32601)
+#define JSON_RPC_INVALID_PARAMS_ERROR     (-32602)
+#define JSON_RPC_INTERNAL_ERROR           (-32603)
+#define JSON_RPC_SERVER_ERROR             (-32000)
+
+int ns_rpc_reply(struct ns_connection *, const char *fmt, ...);
+//int nc_rpc_dispatch(struct ns_connection *, struct ns_rpc_method *);
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+#endif  // NS_JSON_RPC_HEADER_DEFINED

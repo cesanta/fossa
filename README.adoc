@@ -155,26 +155,6 @@ void ns_mgr_free(struct ns_mgr *)::
 
 De-initializes skeleton manager, closes and deallocates all active connections.
 
-struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_callback_t ev_handler, void *user_data)::
-
-Start listening on the given port. `addr` could be a port number,
-e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
-Also, a protocol prefix could be specified, valid prefixes are `tcp://`,
-`udp://` and `ssl://`. For SSL, server certficate must be specified:
-`ssl://[IP:]PORT:SERVER_CERT.PEM`. Two enable client certificate authentication
-(two-way SSL), a CA certificate should be specified:
-`ssl://[IP:]PORT:SERVER_CERT.PEM:CA_CERT.PEM`. Server certificate must be
-in PEM format. PEM file should contain both certificate and the private key
-concatenated together.
-
-Note that for UDP listening connections, only `NS_RECV` and `NS_CLOSE`
-are triggered.
-
-If IP address is specified, Net Skeleton binds to a specific interface only.
-Also, port could be `"0"`, in which case a random non-occupied port number
-will be chosen. Return value: a listening connection on success, or
-`NULL` on error.
-
 time_t ns_mgr_poll(struct ns_mgr *, int milliseconds)::
 
 This function performs the actual IO, and must be called in a loop
@@ -202,6 +182,9 @@ for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
 }
 ----
 
+
+=== Functions for adding new connections
+
 struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, ns_callback_t ev_handler, void *user_data)::
 
 Add a socket to the server. `user_data` will become
@@ -221,6 +204,28 @@ For SSL connections, specify `CERT` if server is requiring client auth.
 Specify `CA_CERT` to authenticate server certificate. All certificates
 must be in PEM format.
 Returns: new client connection, or `NULL` on error.
+
+struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_callback_t ev_handler, void *user_data)::
+
+Start listening on the given port. `addr` could be a port number,
+e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
+Also, a protocol prefix could be specified, valid prefixes are `tcp://`,
+`udp://` and `ssl://`. For SSL, server certficate must be specified:
+`ssl://[IP:]PORT:SERVER_CERT.PEM`. Two enable client certificate authentication
+(two-way SSL), a CA certificate should be specified:
+`ssl://[IP:]PORT:SERVER_CERT.PEM:CA_CERT.PEM`. Server certificate must be
+in PEM format. PEM file should contain both certificate and the private key
+concatenated together.
+
+Note that for UDP listening connections, only `NS_RECV` and `NS_CLOSE`
+are triggered.
+
+If IP address is specified, Net Skeleton binds to a specific interface only.
+Also, port could be `"0"`, in which case a random non-occupied port number
+will be chosen. Return value: a listening connection on success, or
+`NULL` on error.
+
+=== Functions for sending data
 
 int ns_send(struct ns_connection *, const void *buf, int len)::
 int ns_printf(struct ns_connection *, const char *fmt, ...)::

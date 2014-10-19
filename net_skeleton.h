@@ -410,18 +410,11 @@ struct websocket_message {
 #define NS_WEBSOCKET_FRAME              113   // struct websocket_message *
 #define NS_WEBSOCKET_NOT_SUPPORTED      114   // NULL
 
-struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
-                                   ns_event_handler_t cb, void *user_data);
-
-struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
-                                      ns_event_handler_t cb, void *user_data);
-
-struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
-                                           ns_event_handler_t cb, void *user_data,
-                                           const char *uri, const char *hdrs);
-
-void ns_send_websocket(struct ns_connection *, int op, const void *, size_t);
-void ns_printf_websocket(struct ns_connection *, int op, const char *, ...);
+void ns_set_protocol_http_websocket(struct ns_connection *);
+void ns_send_websocket_handshake(struct ns_connection *, const char *,
+                                 const char *);
+void ns_send_websocket_frame(struct ns_connection *, int, const void *, size_t);
+void ns_printf_websocket_frame(struct ns_connection *, int, const char *, ...);
 
 // Websocket opcodes, from http://tools.ietf.org/html/rfc6455
 #define WEBSOCKET_OP_CONTINUE  0
@@ -432,9 +425,14 @@ void ns_printf_websocket(struct ns_connection *, int op, const char *, ...);
 #define WEBSOCKET_OP_PONG      10
 
 // Utility functions
-struct ns_str *get_http_header(struct http_message *, const char *);
-void ns_serve_uri_from_fs(struct ns_connection *, struct ns_str *uri,
-                          const char *web_root);
+struct ns_str *ns_get_http_header(struct http_message *, const char *);
+
+struct http_server_opts {
+  const char *document_root;
+  const char *index_files;
+};
+void ns_serve_http(struct ns_connection *, struct http_message *,
+                   struct http_server_opts);
 
 #ifdef __cplusplus
 }

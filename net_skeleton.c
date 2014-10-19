@@ -1693,49 +1693,26 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
-                                   ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_bind(mgr, addr, http_handler);
-  if (nc != NULL) {
-    nc->proto_data = (void *) cb;
-    nc->user_data = user_data;
-  }
-  return nc;
+void ns_set_protocol_http_websocket(struct ns_connection *nc) {
+  nc->proto_data = (void *) nc->callback;
+  nc->callback = http_handler;
 }
 
-struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
-                                      ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
+void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
+                                 const char *extra_headers) {
+  unsigned long random = (unsigned long) uri;
+  char key[sizeof(random) * 2];
 
-  if (nc != NULL) {
-    nc->proto_data = (void *) cb;
-    nc->user_data = user_data;
-  }
-  return nc;
+  ns_base64_encode((unsigned char *) &random, sizeof(random), key);
+  ns_printf(nc, "GET %s HTTP/1.1\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Version: 13\r\n"
+            "Sec-WebSocket-Key: %s\r\n"
+            "%s\r\n",
+            uri, key, extra_headers == NULL ? "" : extra_headers);
 }
 
-struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
-                                           ns_event_handler_t cb, void *udata,
-                                           const char *uri, const char *hdrs) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
-
-  if (nc != NULL) {
-    unsigned long random = (unsigned long) uri;
-    char key[sizeof(random) * 2];
-    nc->proto_data = (void *) cb;
-    nc->user_data = udata;
-
-    ns_base64_encode((unsigned char *) &random, sizeof(random), key);
-    ns_printf(nc, "GET %s HTTP/1.1\r\n"
-              "Upgrade: websocket\r\n"
-              "Connection: Upgrade\r\n"
-              "Sec-WebSocket-Version: 13\r\n"
-              "Sec-WebSocket-Key: %s\r\n"
-              "%s\r\n",
-              uri, key, hdrs == NULL ? "" : hdrs);
-  }
-  return nc;
-}
 
 void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {

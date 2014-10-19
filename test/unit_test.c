@@ -362,20 +362,24 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
 
 static const char *test_http(void) {
   struct ns_mgr mgr;
-  struct ns_connection *nc, *nc2;
+  struct ns_connection *nc;
   char buf[20] = "";
 
   ns_mgr_init(&mgr, NULL);
-  ASSERT(ns_bind_http(&mgr, s_local_addr, cb1, NULL) != NULL);
+  ASSERT((nc = ns_bind(&mgr, s_local_addr, cb1)) != NULL);
+  ns_set_protocol_http_websocket(nc);
 
   // Valid HTTP request. Pass test buffer to the callback.
-  ASSERT((nc = ns_connect_http(&mgr, s_local_addr, cb2, buf)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf;
   ns_printf(nc, "%s", "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
             "0123456789");
 
   // Invalid HTTP request
-  ASSERT((nc2 = ns_connect_http(&mgr, s_local_addr, cb2, NULL)) != NULL);
-  ns_printf(nc2, "%s", "bl\x03\n\n");
+  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  ns_printf(nc, "%s", "bl\x03\n\n");
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
@@ -413,11 +417,14 @@ static const char *test_websocket(void) {
 
   ns_mgr_init(&mgr, NULL);
   //mgr.hexdump_file = "/dev/stdout";
-  ASSERT(ns_bind_http(&mgr, s_local_addr, cb3, NULL) != NULL);
+  ASSERT((nc = ns_bind(&mgr, s_local_addr, cb3)) != NULL);
+  ns_set_protocol_http_websocket(nc);
 
   // Websocket request
-  ASSERT((nc = ns_connect_websocket(&mgr, s_local_addr, cb4, buf,
-         "/ws", NULL)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb4)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf;
+  ns_send_websocket_handshake(nc, "/ws", NULL);
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 

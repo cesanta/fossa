@@ -163,7 +163,7 @@ void iobuf_resize(struct iobuf *, size_t new_size);
 // Callback function (event handler) prototype, must be defined by user.
 // Net skeleton will call event handler, passing events defined above.
 struct ns_connection;
-typedef void (*ns_callback_t)(struct ns_connection *, int event_num, void *evp);
+typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
 // Events. Meaning of event parameter (evp) is given in the comment.
 #define NS_POLL    0  // Sent to each connection on each call to ns_mgr_poll()
@@ -184,7 +184,7 @@ struct ns_mgr {
 // List of event handlers
 struct ns_cb_list {
   struct ns_cb_list *next;
-  ns_callback_t cb;
+  ns_event_handler_t cb;
 };
 
 #define NS_ADD_CB(nc, cb) do { \
@@ -206,7 +206,7 @@ struct ns_connection {
   void *user_data;            // User-specific data
   void *proto_data;           // Application protocol-specific data
   time_t last_io_time;        // Timestamp of the last socket IO
-  ns_callback_t callback;     // Event handler function
+  ns_event_handler_t callback;     // Event handler function
   struct ns_cb_list *cblist;  // List of event handlers
 
   unsigned int flags;
@@ -231,15 +231,15 @@ struct ns_connection {
 void ns_mgr_init(struct ns_mgr *, void *user_data);
 void ns_mgr_free(struct ns_mgr *);
 time_t ns_mgr_poll(struct ns_mgr *, int milli);
-void ns_broadcast(struct ns_mgr *, ns_callback_t, void *, size_t);
+void ns_broadcast(struct ns_mgr *, ns_event_handler_t, void *, size_t);
 
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t,
-                                  ns_callback_t, void *);
+                                  ns_event_handler_t, void *);
 struct ns_connection *ns_bind(struct ns_mgr *, const char *,
-                              ns_callback_t, void *);
+                              ns_event_handler_t, void *);
 struct ns_connection *ns_connect(struct ns_mgr *, const char *,
-                                 ns_callback_t, void *);
+                                 ns_event_handler_t, void *);
 
 int ns_send(struct ns_connection *, const void *buf, int len);
 int ns_printf(struct ns_connection *, const char *fmt, ...);

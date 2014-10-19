@@ -131,7 +131,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     }
 
     // Call event handler
-    ((ns_callback_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
+    ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
     // Remove frame from the iobuf
     iobuf_remove(&nc->recv_iobuf, frame_len);
@@ -189,7 +189,7 @@ void ns_printf_websocket(struct ns_connection *nc, int op,
 }
 
 static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  ns_callback_t cb = (ns_callback_t) nc->proto_data;
+  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
 
   cb(nc, ev, ev_data);
 
@@ -224,7 +224,7 @@ static void send_websocket_handshake(struct ns_connection *nc,
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct iobuf *io = &nc->recv_iobuf;
-  ns_callback_t cb = (ns_callback_t) nc->proto_data;
+  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
@@ -284,7 +284,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 }
 
 struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
-                                   ns_callback_t cb, void *user_data) {
+                                   ns_event_handler_t cb, void *user_data) {
   struct ns_connection *nc = ns_bind(mgr, addr, http_handler, user_data);
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
@@ -293,7 +293,7 @@ struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
 }
 
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
-                                      ns_callback_t cb, void *user_data) {
+                                      ns_event_handler_t cb, void *user_data) {
   struct ns_connection *nc = ns_connect(mgr, addr, http_handler, user_data);
 
   if (nc != NULL) {
@@ -303,7 +303,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
 }
 
 struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
-                                           ns_callback_t cb, void *udata,
+                                           ns_event_handler_t cb, void *udata,
                                            const char *uri, const char *hdrs) {
   struct ns_connection *nc = ns_connect(mgr, addr, http_handler, udata);
 

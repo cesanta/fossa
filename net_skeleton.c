@@ -34,7 +34,7 @@
 #define NS_VPRINTF_BUFFER_SIZE      500
 
 struct ctl_msg {
-  ns_callback_t callback;
+  ns_event_handler_t callback;
   char message[1024 * 8];
 };
 
@@ -451,7 +451,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
 #endif  // NS_ENABLE_SSL
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
-                              ns_callback_t callback, void *user_data) {
+                              ns_event_handler_t callback, void *user_data) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int use_ssl, proto;
@@ -828,7 +828,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 }
 
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
-                                 ns_callback_t callback, void *user_data) {
+                                 ns_event_handler_t callback, void *user_data) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
@@ -871,7 +871,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
 }
 
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
-                                  ns_callback_t callback, void *user_data) {
+                                  ns_event_handler_t callback, void *user_data) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
@@ -892,7 +892,7 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
-void ns_broadcast(struct ns_mgr *mgr, ns_callback_t cb,void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
@@ -1543,7 +1543,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     }
 
     // Call event handler
-    ((ns_callback_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
+    ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
     // Remove frame from the iobuf
     iobuf_remove(&nc->recv_iobuf, frame_len);
@@ -1601,7 +1601,7 @@ void ns_printf_websocket(struct ns_connection *nc, int op,
 }
 
 static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  ns_callback_t cb = (ns_callback_t) nc->proto_data;
+  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
 
   cb(nc, ev, ev_data);
 
@@ -1636,7 +1636,7 @@ static void send_websocket_handshake(struct ns_connection *nc,
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct iobuf *io = &nc->recv_iobuf;
-  ns_callback_t cb = (ns_callback_t) nc->proto_data;
+  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
@@ -1696,7 +1696,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 }
 
 struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
-                                   ns_callback_t cb, void *user_data) {
+                                   ns_event_handler_t cb, void *user_data) {
   struct ns_connection *nc = ns_bind(mgr, addr, http_handler, user_data);
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
@@ -1705,7 +1705,7 @@ struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
 }
 
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
-                                      ns_callback_t cb, void *user_data) {
+                                      ns_event_handler_t cb, void *user_data) {
   struct ns_connection *nc = ns_connect(mgr, addr, http_handler, user_data);
 
   if (nc != NULL) {
@@ -1715,7 +1715,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
 }
 
 struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
-                                           ns_callback_t cb, void *udata,
+                                           ns_event_handler_t cb, void *udata,
                                            const char *uri, const char *hdrs) {
   struct ns_connection *nc = ns_connect(mgr, addr, http_handler, udata);
 

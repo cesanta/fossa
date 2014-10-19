@@ -44,13 +44,13 @@ struct websocket_message {
 #define NS_WEBSOCKET_NOT_SUPPORTED      114   // NULL
 
 struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
-                                   ns_callback_t cb, void *user_data);
+                                   ns_event_handler_t cb, void *user_data);
 
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
-                                      ns_callback_t cb, void *user_data);
+                                      ns_event_handler_t cb, void *user_data);
 
 struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
-                                           ns_callback_t cb, void *user_data,
+                                           ns_event_handler_t cb, void *user_data,
                                            const char *uri, const char *hdrs);
 
 void ns_send_websocket(struct ns_connection *, int op, const void *, size_t);

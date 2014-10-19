@@ -34,7 +34,7 @@
 #define NS_VPRINTF_BUFFER_SIZE      500
 
 struct ctl_msg {
-  ns_callback_t callback;
+  ns_event_handler_t callback;
   char message[1024 * 8];
 };
 
@@ -451,7 +451,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
 #endif  // NS_ENABLE_SSL
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
-                              ns_callback_t callback, void *user_data) {
+                              ns_event_handler_t callback, void *user_data) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int use_ssl, proto;
@@ -828,7 +828,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 }
 
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
-                                 ns_callback_t callback, void *user_data) {
+                                 ns_event_handler_t callback, void *user_data) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
@@ -871,7 +871,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
 }
 
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
-                                  ns_callback_t callback, void *user_data) {
+                                  ns_event_handler_t callback, void *user_data) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
@@ -892,7 +892,7 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
-void ns_broadcast(struct ns_mgr *mgr, ns_callback_t cb,void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {

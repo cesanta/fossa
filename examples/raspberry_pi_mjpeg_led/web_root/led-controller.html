@@ -1,0 +1,26 @@
+<link href="/bower_components/polymer/polymer.html" rel="import">
+<link href="/bower_components/core-ajax/core-ajax.html" rel="import">
+
+<polymer-element name="led-controller" hidden attributes="led">
+  <template>
+    <core-ajax
+      id="api"
+      body="{{body}}"
+      url="/api"
+      contentType="application/json"
+      method="POST"
+      ></core-ajax>
+  </template>
+	<script>
+    Polymer({
+      led: false,
+      body: "{}",
+      ledChanged: function() {
+        this.body = JSON.stringify({"onoff": this.led ? ["on"] : []});
+      },
+      bodyChanged: function() {
+        this.$.api.go();
+      },
+    });
+  </script>
+</polymer-element>

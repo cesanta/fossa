@@ -1,0 +1,60 @@
+{
+  "name": "asciidoctor.js",
+  "version": "1.5.1",
+  "description": "A JavaScript AsciiDoc processor, cross-compiled from the Ruby-based AsciiDoc implementation, Asciidoctor, using Opal",
+  "keywords": [
+    "asciidoc",
+    "asciidoctor",
+    "opal",
+    "javascript",
+    "library"
+  ],
+  "homepage": "https://github.com/asciidoctor/asciidoctor.js",
+  "authors": [
+    "Dan Allen (https://github.com/mojavelinux)",
+    "Guillaume Grossetie (https://github.com/mogztter)",
+    "Anthonny Quérouil (https://github.com/anthonny)"
+  ],
+  "license": "MIT",
+  "main": [
+    "dist/asciidoctor.js",
+    "dist/asciidoctor-core.js",
+    "dist/asciidoctor-extensions.js",
+    "dist/asciidoctor-docbook.js",
+    "dist/asciidoctor-all.js",
+    "dist/asciidoctor.min.js",
+    "dist/asciidoctor-core.min.js",
+    "dist/asciidoctor-extensions.min.js",
+    "dist/asciidoctor-docbook.min.js",
+    "dist/asciidoctor-all.min.js",
+    "dist/asciidoctor.min.gz.js",
+    "dist/asciidoctor-core.min.gz.js",
+    "dist/asciidoctor-extensions.min.gz.js",
+    "dist/asciidoctor-docbook.min.gz.js",
+    "dist/asciidoctor-all.gz.js",
+    "dist/css/asciidoctor.css"
+  ],
+  "dependencies": {
+    "opal": "~0.6.2"
+  },
+  "ignore": [
+    "**/.*",
+    "examples",
+    "Gemfile",
+    "Rakefile",
+    "spec",
+    "src",
+    "dist/npm",
+    "error-in-chrome-console.png",
+    "error-in-javascript-debugger.png"
+  ],
+  "_release": "1.5.1",
+  "_resolution": {
+    "type": "version",
+    "tag": "v1.5.1",
+    "commit": "63863a456624d4a966704e5ec9749d42898510c4"
+  },
+  "_source": "git://github.com/asciidoctor/asciidoctor.js.git",
+  "_target": "~1.5.1",
+  "_originalSource": "git://github.com/asciidoctor/asciidoctor.js.git"
+}

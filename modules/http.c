@@ -161,8 +161,8 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
   ns_send(nc, header, header_len);
 }
 
-void ns_send_websocket(struct ns_connection *nc, int op,
-                       const void *data, size_t len) {
+void ns_send_websocket_frame(struct ns_connection *nc, int op,
+                             const void *data, size_t len) {
   ns_send_ws_header(nc, op, len);
   ns_send(nc, data, len);
 
@@ -179,7 +179,7 @@ void ns_printf_websocket(struct ns_connection *nc, int op,
 
   va_start(ap, fmt);
   if ((len = ns_avprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
-    ns_send_websocket(nc, op, buf, len);
+    ns_send_websocket_frame(nc, op, buf, len);
   }
   va_end(ap);
 
@@ -343,12 +343,12 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
-void ns_serve_uri_from_fs(struct ns_connection *nc, struct ns_str *uri,
-                          const char *web_root) {
+void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
+                   struct http_server_opts opts) {
   char path[NS_MAX_PATH];
   ns_stat_t st;
 
-  snprintf(path, sizeof(path), "%s/%.*s", web_root, (int) uri->len, uri->p);
+  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root, (int) hm->uri.len, hm->uri.p);
   remove_double_dots(path);
 
   if (stat(path, &st) != 0) {

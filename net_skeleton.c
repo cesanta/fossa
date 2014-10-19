@@ -1350,7 +1350,9 @@ int json_emit_va(char *s, int s_len, const char *fmt, va_list ap) {
     switch (*fmt) {
       case '[': case ']': case '{': case '}': case ',': case ':':
       case ' ': case '\r': case '\n': case '\t':
-        if (s < end) *s = *fmt;
+        if (s < end) {
+          *s = *fmt;
+        }
         s++;
         break;
       case 'i':
@@ -1392,7 +1394,10 @@ int json_emit_va(char *s, int s_len, const char *fmt, va_list ap) {
     fmt++;
   }
 
-  if (s < end) *s = '\0';
+  // Best-effort to 0-terminate generated string
+  if (s < end) {
+    *s = '\0';
+  }
 
   return s - orig;
 }

@@ -403,7 +403,7 @@ static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
 
   if (ev == NS_WEBSOCKET_FRAME) {
     memcpy(nc->user_data, wm->data, wm->size);
-    ns_send_websocket(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
+    ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
     // Send "hi" to server. server must reply "A".
     ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", "hi");

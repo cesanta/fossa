@@ -5,10 +5,10 @@ SOURCES = skeleton.c $(FR)/frozen.c http.c sha1.c util.c json-rpc.c
 all: ../net_skeleton.c ../net_skeleton.h
 
 ../net_skeleton.h: Makefile $(HEADERS)
-	$(MAKE) merge_net_skeleton.h >$@
+	$(MAKE) -s merge_net_skeleton.h >$@
 
 ../net_skeleton.c: Makefile $(SOURCES)
-	$(MAKE) merge_net_skeleton.c >$@
+	$(MAKE) -s merge_net_skeleton.c >$@
 
 merge_net_skeleton.h: Makefile $(HEADERS)
 	@cat $(HEADERS)

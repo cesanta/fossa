@@ -6,8 +6,8 @@ SOURCES = $(PROG).c ../net_skeleton.c
 all: clean ismerged $(PROG)
 
 ismerged:
-	$(MAKE) -C ../modules merge_net_skeleton.c | diff ../net_skeleton.c -
-	$(MAKE) -C ../modules merge_net_skeleton.h | diff ../net_skeleton.h -
+	cd ../modules; $(MAKE) -s merge_net_skeleton.c | diff ../net_skeleton.c -
+	cd ../modules; $(MAKE) -s merge_net_skeleton.h | diff ../net_skeleton.h -
 
 $(PROG):
 	g++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)

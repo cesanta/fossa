@@ -37,8 +37,8 @@ int main(void) {
   const char *port1 = "1234", *port2 = "127.0.0.1:17000";
 
   ns_mgr_init(&mgr, NULL);
-  ns_bind(&mgr, port1, ev_handler, NULL);
-  ns_bind(&mgr, port2, ev_handler, NULL);
+  ns_bind(&mgr, port1, ev_handler);
+  ns_bind(&mgr, port2, ev_handler);
 
   printf("Starting echo mgr on ports %s, %s\n", port1, port2);
   for (;;) {

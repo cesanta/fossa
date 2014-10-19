@@ -122,11 +122,11 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   if (is_listening) {
-    if (ns_bind(&mgr, address, ev_handler, NULL) == NULL) {
+    if (ns_bind(&mgr, address, ev_handler) == NULL) {
       fprintf(stderr, "ns_bind(%s) failed\n", address);
       exit(EXIT_FAILURE);
     }
-  } else if (ns_connect(&mgr, address, ev_handler, NULL) == NULL) {
+  } else if (ns_connect(&mgr, address, ev_handler) == NULL) {
     fprintf(stderr, "ns_connect(%s) failed\n", address);
     exit(EXIT_FAILURE);
   }

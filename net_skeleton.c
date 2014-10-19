@@ -451,7 +451,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
 #endif  // NS_ENABLE_SSL
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
-                              ns_event_handler_t callback, void *user_data) {
+                              ns_event_handler_t callback) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int use_ssl, proto;
@@ -462,12 +462,11 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
   if (use_ssl && cert[0] == '\0') return NULL;
 
   if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
-  } else if ((nc = ns_add_sock(srv, sock, callback, NULL)) == NULL) {
+  } else if ((nc = ns_add_sock(srv, sock, callback)) == NULL) {
     closesocket(sock);
   } else {
     nc->sa = sa;
     nc->flags |= NSF_LISTENING;
-    nc->user_data = user_data;
     nc->callback = callback;
 
     if (proto == SOCK_DGRAM) {
@@ -499,8 +498,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 
   // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
   if ((sock = accept(ls->sock, &sa.sa, &len)) == INVALID_SOCKET) {
-  } else if ((c = ns_add_sock(ls->mgr, sock, ls->callback,
-              ls->user_data)) == NULL) {
+  } else if ((c = ns_add_sock(ls->mgr, sock, ls->callback)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
   } else if (ls->ssl_ctx != NULL &&
@@ -513,6 +511,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   } else {
     c->listener = ls;
     c->proto_data = ls->proto_data;
+    c->user_data = ls->user_data;
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
   }
@@ -828,7 +827,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 }
 
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
-                                 ns_event_handler_t callback, void *user_data) {
+                                 ns_event_handler_t callback) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
@@ -845,7 +844,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
   if (rc != 0 && ns_is_error(rc)) {
     closesocket(sock);
     return NULL;
-  } else if ((nc = ns_add_sock(mgr, sock, callback, user_data)) == NULL) {
+  } else if ((nc = ns_add_sock(mgr, sock, callback)) == NULL) {
     closesocket(sock);
     return NULL;
   }
@@ -871,14 +870,13 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
 }
 
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
-                                  ns_event_handler_t callback, void *user_data) {
+                                  ns_event_handler_t callback) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
     ns_set_non_blocking_mode(sock);
     ns_set_close_on_exec(sock);
     conn->sock = sock;
-    conn->user_data = user_data;
     conn->callback = callback;
     conn->mgr = s;
     conn->last_io_time = time(NULL);
@@ -1697,19 +1695,21 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
 struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
                                    ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_bind(mgr, addr, http_handler, user_data);
+  struct ns_connection *nc = ns_bind(mgr, addr, http_handler);
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
+    nc->user_data = user_data;
   }
   return nc;
 }
 
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
                                       ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler, user_data);
+  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
 
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
+    nc->user_data = user_data;
   }
   return nc;
 }
@@ -1717,12 +1717,13 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
 struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
                                            ns_event_handler_t cb, void *udata,
                                            const char *uri, const char *hdrs) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler, udata);
+  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
 
   if (nc != NULL) {
     unsigned long random = (unsigned long) uri;
     char key[sizeof(random) * 2];
     nc->proto_data = (void *) cb;
+    nc->user_data = udata;
 
     ns_base64_encode((unsigned char *) &random, sizeof(random), key);
     ns_printf(nc, "GET %s HTTP/1.1\r\n"

@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     ns_mgr_init(&mgr, NULL);
 
     // Connect to the pubsub server
-    server_conn = ns_connect(&mgr, argv[1], client_handler, NULL);
+    server_conn = ns_connect(&mgr, argv[1], client_handler);
     if (server_conn == NULL) {
       fprintf(stderr, "Cannot connect to port %s\n", argv[1]);
       exit(EXIT_FAILURE);
@@ -92,14 +92,14 @@ int main(int argc, char *argv[]) {
     ns_start_thread(stdin_thread, &fds[1]);
 
     // The other end of a pair goes inside the server
-    ioconn = ns_add_sock(&mgr, fds[0], client_handler, NULL);
+    ioconn = ns_add_sock(&mgr, fds[0], client_handler);
     ioconn->flags |= NSF_USER_1;    // Mark this so we know this is a stdin
     ioconn->user_data = server_conn;
 
   } else {
     // Server code path
     ns_mgr_init(&mgr, NULL);
-    ns_bind(&mgr, argv[1], server_handler, NULL);
+    ns_bind(&mgr, argv[1], server_handler);
     printf("Starting pubsub server on port %s\n", argv[1]);
   }
 

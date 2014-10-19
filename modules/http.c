@@ -285,19 +285,21 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
 struct ns_connection *ns_bind_http(struct ns_mgr *mgr, const char *addr,
                                    ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_bind(mgr, addr, http_handler, user_data);
+  struct ns_connection *nc = ns_bind(mgr, addr, http_handler);
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
+    nc->user_data = user_data;
   }
   return nc;
 }
 
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
                                       ns_event_handler_t cb, void *user_data) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler, user_data);
+  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
 
   if (nc != NULL) {
     nc->proto_data = (void *) cb;
+    nc->user_data = user_data;
   }
   return nc;
 }
@@ -305,12 +307,13 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr, const char *addr,
 struct ns_connection *ns_connect_websocket(struct ns_mgr *mgr, const char *addr,
                                            ns_event_handler_t cb, void *udata,
                                            const char *uri, const char *hdrs) {
-  struct ns_connection *nc = ns_connect(mgr, addr, http_handler, udata);
+  struct ns_connection *nc = ns_connect(mgr, addr, http_handler);
 
   if (nc != NULL) {
     unsigned long random = (unsigned long) uri;
     char key[sizeof(random) * 2];
     nc->proto_data = (void *) cb;
+    nc->user_data = udata;
 
     ns_base64_encode((unsigned char *) &random, sizeof(random), key);
     ns_printf(nc, "GET %s HTTP/1.1\r\n"

@@ -160,7 +160,7 @@ time_t ns_mgr_poll(struct ns_mgr *, int milliseconds)::
 This function performs the actual IO, and must be called in a loop
 (an event loop). Returns number current timestamp.
 
-void ns_broadcast(struct ns_mgr *, ns_callback_t cb, void *msg, size_t len)::
+void ns_broadcast(struct ns_mgr *, ns_event_handler_t cb, void *msg, size_t len)::
 
 Must be called from a different thread. Passes a message of a given length to
 all connections. Skeleton manager has a socketpair, `struct ns_mgr::ctl`,
@@ -185,12 +185,12 @@ for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
 
 === Functions for adding new connections
 
-struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, ns_callback_t ev_handler, void *user_data)::
+struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t sock, ns_event_handler_t ev_handler)::
 
-Add a socket to the server. `user_data` will become
-`struct ns_connection::user_data` pointer for the created connection.
+Create a connection, associate it with the given socket and event handler, and
+add to the manager.
 
-struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr, ns_callback_t ev_handler, void *user_data)::
+struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr, ns_event_handler_t ev_handler)::
 
 Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
 to the new connection. `addr` format is the same as for the `ns_bind()` call,
@@ -199,13 +199,12 @@ just an IP address becomes mandatory: `[PROTO://]HOST:PORT[:CERT][:CA_CERT]`.
 address, Net Skeleton will resolve it - beware that standard blocking resolver
 will be used. It is a good practice to pre-resolve hosts beforehands and
 use only IP addresses to avoid blockin an IO thread.
-`user_data` will become `struct ns_connection::user_data`.
 For SSL connections, specify `CERT` if server is requiring client auth.
 Specify `CA_CERT` to authenticate server certificate. All certificates
 must be in PEM format.
 Returns: new client connection, or `NULL` on error.
 
-struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_callback_t ev_handler, void *user_data)::
+struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_event_handler_t ev_handler)::
 
 Start listening on the given port. `addr` could be a port number,
 e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
@@ -268,6 +267,59 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len)::
 
 
 === HTTP/Websocket API
+
+void ns_set_protocol_http_websocket(struct ns_connection *)::
+  Attach built-in HTTP event handler to the given connection. User-defined
+  event handler will receive following extra events:
+  - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
+    `struct http_message` through the handler's `void *ev_data` pointer.
+  - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
+    `struct http_message` through the handler's `void *ev_data` pointer.
+  - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
+    request. `ev_data` contains parsed HTTP request.
+  - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
+    `ev_data` is `NULL`.
+  - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
+    `struct websocket_message *`
+
+void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri, const char *extra_headers)::
+  Sends websocket handshake to the server. `nc` must be a valid connection, connected to a server, `uri` is an URI on the server, `extra_headers` is
+  extra HTTP headers to send or `NULL`.
+  This function is to be used by websocket client.
+
+void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data, size_t data_len)::
+  Send websocket frame to the remote end. `op` specifies frame's type , one of:
+  - WEBSOCKET_OP_CONTINUE
+  - WEBSOCKET_OP_TEXT
+  - WEBSOCKET_OP_BINARY
+  - WEBSOCKET_OP_CLOSE
+  - WEBSOCKET_OP_PING
+  - WEBSOCKET_OP_PONG
+  `data` and `data_len` contain frame data.
+
+void ns_send_websocket_framev(struct ns_connection *nc, int op, const struct ns_str *frames, int num_frames);
+  Send multiple websocket frames. Like `ns_send_websocket_frame()`, but sends
+  multiple frames at once.
+
+void ns_printf_websocket_frame(struct ns_connection *nc, int op, const char *fmt, ...)::
+  Send websocket frame to the remote end. Like `ns_send_websocket_frame()`,
+  but allows to create formatted message with `printf()`-like semantics.
+
+struct ns_str *ns_get_http_header(struct http_message *, const char *)::
+  Returns HTTP header if it is present in the HTTP message, or `NULL`.
+
+int ns_parse_http(const char *s, int n, struct http_message *req)::
+  Parses HTTP message. Return number of bytes parsed. If HTTP message is
+  incomplete, `0` is returned. On parse error, negative number is returned.
+
+int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst, size_t dst_len)::
+  Fetch an HTTP form variable `name` from a `buf` into a buffer specified by
+  `dst`, `dst_len`. Destination is always zero-terminated. Return length
+  of a fetched variable. If not found, 0 is returned. `buf` must be
+  valid url-encoded buffer. If destination is too small, `-1` is returned.
+
+void ns_serve_http(struct ns_connection *nc, struct http_message *request, struct ns_serve_http_opts options)::
+  Serve given HTTP request according to the `options`.
 
 === JSON-RPC API
 

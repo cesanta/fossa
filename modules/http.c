@@ -278,7 +278,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         nc->flags |= NSF_USER_1;
 
         /* Send handshake */
-        cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, NULL);
+        cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
         if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           if (nc->send_iobuf.len == 0) {
             ws_handshake(nc, vec);

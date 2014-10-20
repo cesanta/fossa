@@ -175,6 +175,25 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   }
 }
 
+void ns_send_websocket_framev(struct ns_connection *nc, int op,
+                              const struct ns_str *strv, int strvcnt) {
+  int i;
+  int len = 0;
+  for (i=0; i<strvcnt; i++) {
+    len += strv[i].len;
+  }
+
+  ns_send_ws_header(nc, op, len);
+
+  for (i=0; i<strvcnt; i++) {
+    ns_send(nc, strv[i].p, strv[i].len);
+  }
+
+  if (op == WEBSOCKET_OP_CLOSE) {
+    nc->flags |= NSF_FINISHED_SENDING_DATA;
+  }
+}
+
 void ns_printf_websocket_frame(struct ns_connection *nc, int op,
                                const char *fmt, ...) {
   char mem[4192], *buf = mem;

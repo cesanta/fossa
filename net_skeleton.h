@@ -59,7 +59,7 @@
 #else
 #define va_copy(x,y) (x) = (y)
 #endif
-#endif /* MINGW #defines va_copy */
+#endif
 
 #ifdef _WIN32
 #ifdef _MSC_VER
@@ -78,9 +78,6 @@
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
-#ifndef va_copy
-#define va_copy(x,y) (x) = (y)
-#endif /* MINGW #defines va_copy */
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) * 1000)
@@ -197,17 +194,6 @@ struct ns_mgr {
   void *user_data;                  /* User data */
 };
 
-/* List of event handlers */
-struct ns_cb_list {
-  struct ns_cb_list *next;
-  ns_event_handler_t cb;
-};
-
-#define NS_ADD_CB(nc, cb) do { \
-  static struct ns_cb_chain __tmp = { (nc)->cblist, cb }; \
-  (nc)->cblist = &__tmp; \
-} while (0)
-
 struct ns_connection {
   struct ns_connection *next, *prev;  /* ns_mgr::active_connections linkage */
   struct ns_connection *listener;     /* Set only for accept()-ed connections */
@@ -223,7 +209,6 @@ struct ns_connection {
   void *proto_data;           /* Application protocol-specific data */
   time_t last_io_time;        /* Timestamp of the last socket IO */
   ns_event_handler_t callback;     /* Event handler function */
-  struct ns_cb_list *cblist;  /* List of event handlers */
 
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)

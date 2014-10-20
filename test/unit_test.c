@@ -13,25 +13,9 @@
  *
  * Alternatively, you can license this software under a commercial
  * license, as set out in <http://cesanta.com/>.
- *
- * $Date: 2014-09-28 05:04:41 UTC $
  */
 
-/*
- * Net Skeleton unit test
- * g++ -x=c++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
- * cl unit_test.c /MD
- */
-
-#ifndef _WIN32
-#define NS_ENABLE_IPV6
-#ifndef NS_ENABLE_SSL
-#define NS_ENABLE_SSL
-#endif
-#endif
-
-/* #define NS_ENABLE_DEBUG */
-#include "../net_skeleton.h"
+#include "net_skeleton.h"
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
@@ -276,9 +260,11 @@ static const char *test_thread(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
+  printf("%s [%p]\n", __func__, nc->user_data);
   poll_mgr(&mgr, 50);
   ASSERT(strcmp(buf, ":-)") == 0);
   ns_mgr_free(&mgr);
+  closesocket(sp[1]);
 
   return NULL;
 }

@@ -222,13 +222,13 @@ static void hexdump(struct ns_connection *nc, const char *path,
   }
 }
 
-static void ns_call(struct ns_connection *nc, int ev, void *p) {
+static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
-    int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) p : 0;
+    int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
     hexdump(nc, nc->mgr->hexdump_file, len, ev);
   }
 
-  nc->callback(nc, ev, p);
+  nc->callback(nc, ev, ev_data);
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {

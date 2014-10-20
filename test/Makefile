@@ -1,6 +1,6 @@
 PROG = unit_test
 PROF = -fprofile-arcs -ftest-coverage -g -O0
-CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -pthread $(PROF) $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -DNS_ENABLE_IPV6 -pthread $(PROF) $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 SOURCES = $(PROG).c ../net_skeleton.c
 

@@ -49,6 +49,8 @@ void ns_set_protocol_http_websocket(struct ns_connection *);
 void ns_send_websocket_handshake(struct ns_connection *, const char *,
                                  const char *);
 void ns_send_websocket_frame(struct ns_connection *, int, const void *, size_t);
+void ns_send_websocket_framev(struct ns_connection *, int, const struct ns_str *, int);
+
 void ns_printf_websocket_frame(struct ns_connection *, int, const char *, ...);
 
 /* Websocket opcodes, from http://tools.ietf.org/html/rfc6455 */

@@ -17,24 +17,24 @@ ismerged:
 
 $(PROG): Makefile
 	$(MAKE) clean_coverage
-	g++ -x c++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
+	g++ -x c++ $(SOURCES) -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
 	gcov -b $(PROG).c
 
 $(PROG)_ansi: Makefile
 	$(MAKE) clean_coverage
-	gcc $(PEDANTIC) -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
+	gcc $(PEDANTIC) -ansi $(SOURCES) -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
 	gcov -b $(PROG).c
 
 $(PROG)_c99: Makefile
 	$(MAKE) clean_coverage
-	gcc $(PEDANTIC) -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
+	gcc $(PEDANTIC) -std=c99 $(SOURCES) -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
 
 $(PROG)_mingw.exe: Makefile
 	$(MAKE) clean_coverage
-	$(MINGW_GCC) $(PROG).c -o $(PROG)_mingw.exe -W -Wall -Werror -I..
+	$(MINGW_GCC) $(SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror -I..
 
 $(PROG).exe:
-	wine cl $(PROG).c /MD && echo "Compiled OK\n" && wine $(PROG).exe
+	wine cl $(SOURCES) /MD && echo "Compiled OK\n" && wine $(PROG).exe
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 *.txt *.exe *.obj *.o a.out

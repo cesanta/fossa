@@ -61,6 +61,7 @@ void ns_printf_websocket_frame(struct ns_connection *, int, const char *, ...);
 
 /* Utility functions */
 struct ns_str *ns_get_http_header(struct http_message *, const char *);
+int ns_parse_http(const char *s, int n, struct http_message *req);
 
 struct http_server_opts {
   const char *document_root;

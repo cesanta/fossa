@@ -34,7 +34,7 @@ static int get_request_len(const char *s, int buf_len) {
   return 0;
 }
 
-static int parse_http(const char *s, int n, struct http_message *req) {
+int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end;
   int len, i;
 
@@ -237,7 +237,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
 
     case NS_RECV:
-      req_len = parse_http(io->buf, io->len, &hm);
+      req_len = ns_parse_http(io->buf, io->len, &hm);
       if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
       } else if (req_len == 0) {
@@ -275,7 +275,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
 
     case NS_CLOSE:
-      if (io->len > 0 && parse_http(io->buf, io->len, &hm) > 0 && cb) {
+      if (io->len > 0 && ns_parse_http(io->buf, io->len, &hm) > 0 && cb) {
         hm.body.len = io->buf + io->len - hm.body.p;
         cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       }

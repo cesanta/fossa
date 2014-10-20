@@ -59,7 +59,7 @@
 #else
 #define va_copy(x,y) (x) = (y)
 #endif
-#endif /* MINGW #defines va_copy */
+#endif
 
 #ifdef _WIN32
 #ifdef _MSC_VER
@@ -78,9 +78,6 @@
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
-#ifndef va_copy
-#define va_copy(x,y) (x) = (y)
-#endif /* MINGW #defines va_copy */
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) * 1000)

@@ -425,7 +425,6 @@ static const char *test_websocket(void) {
   return NULL;
 }
 
-#if 0
 /* This JSON-RPC handler function calculates sum of numeric parameters */
 static void rpc_handler_sum(struct ns_connection *nc, struct json_token *id,
                             struct json_token *params) {
@@ -453,14 +452,19 @@ static void rpc_handler_sum(struct ns_connection *nc, struct json_token *id,
 
 static void rpc_server(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
+  struct json_token *tokens;
 
   if (ev == NS_WEBSOCKET_FRAME) {
+    tokens = parse_json2((char *) wm->data, wm->size);
+    rpc_handler_sum(nc, NULL, NULL);
+    free(tokens);
   }
 }
 
 static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
-  struct websocket_message *wm = (struct websocket_message *) ev_data;
+  /*struct websocket_message *wm = (struct websocket_message *) ev_data;*/
 
+  (void) nc; (void) ev_data;
   if (ev == NS_WEBSOCKET_FRAME) {
     /* handle_rpc_reply(nc, wm->data, wm->size); */
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
@@ -474,14 +478,19 @@ static const char *test_rpc(void) {
   char buf[100];
 
   ns_mgr_init(&mgr, NULL);
-  ns_bind_http(&mgr, s_local_addr, rpc_server, NULL);
-  ns_connect_websocket(&mgr, s_local_addr, rpc_client, buf, "/ws", NULL);
+
+  ASSERT((nc = ns_bind(&mgr, s_local_addr, rpc_server)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+
+  ASSERT((nc = ns_connect(&mgr, s_local_addr, rpc_client)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf;
+
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
   return NULL;
 }
-#endif
 
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
@@ -496,9 +505,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_http);
   RUN_TEST(test_websocket);
-#if 0
   RUN_TEST(test_rpc);
-#endif
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

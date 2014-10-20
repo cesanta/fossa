@@ -441,13 +441,14 @@ void ns_printf_websocket_frame(struct ns_connection *, int, const char *, ...);
 /* Utility functions */
 struct ns_str *ns_get_http_header(struct http_message *, const char *);
 int ns_parse_http(const char *s, int n, struct http_message *req);
+int ns_get_http_var(const struct ns_str *, const char *, char *dst, size_t);
 
-struct http_server_opts {
+
+struct ns_serve_http_opts {
   const char *document_root;
-  const char *index_files;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
-                   struct http_server_opts);
+                   struct ns_serve_http_opts);
 
 #ifdef __cplusplus
 }

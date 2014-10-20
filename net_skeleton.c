@@ -1803,12 +1803,75 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
+int ns_url_decode(const char *src, int src_len, char *dst,
+                  int dst_len, int is_form_url_encoded) {
+  int i, j, a, b;
+#define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
+
+  for (i = j = 0; i < src_len && j < dst_len - 1; i++, j++) {
+    if (src[i] == '%' && i < src_len - 2 &&
+        isxdigit(* (const unsigned char *) (src + i + 1)) &&
+        isxdigit(* (const unsigned char *) (src + i + 2))) {
+      a = tolower(* (const unsigned char *) (src + i + 1));
+      b = tolower(* (const unsigned char *) (src + i + 2));
+      dst[j] = (char) ((HEXTOI(a) << 4) | HEXTOI(b));
+      i += 2;
+    } else if (is_form_url_encoded && src[i] == '+') {
+      dst[j] = ' ';
+    } else {
+      dst[j] = src[i];
+    }
+  }
+
+  dst[j] = '\0'; /* Null-terminate the destination */
+
+  return i >= src_len ? j : -1;
+}
+
+int ns_get_http_var(const struct ns_str *buf, const char *name,
+                    char *dst, size_t dst_len) {
+  const char *p, *e, *s;
+  size_t name_len;
+  int len;
+
+  if (dst == NULL || dst_len == 0) {
+    len = -2;
+  } else if (buf->p == NULL || name == NULL || buf->len == 0) {
+    len = -1;
+    dst[0] = '\0';
+  } else {
+    name_len = strlen(name);
+    e = buf->p + buf->len;
+    len = -1;
+    dst[0] = '\0';
+
+    for (p = buf->p; p + name_len < e; p++) {
+      if ((p == buf->p || p[-1] == '&') && p[name_len] == '=' &&
+          !ns_ncasecmp(name, p, name_len)) {
+        p += name_len + 1;
+        s = (const char *) memchr(p, '&', (size_t)(e - p));
+        if (s == NULL) {
+          s = e;
+        }
+        len = ns_url_decode(p, (size_t)(s - p), dst, dst_len, 1);
+        if (len == -1) {
+          len = -2;
+        }
+        break;
+      }
+    }
+  }
+
+  return len;
+}
+
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
-                   struct http_server_opts opts) {
+                   struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
   ns_stat_t st;
 
-  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root, (int) hm->uri.len, hm->uri.p);
+  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root,
+           (int) hm->uri.len, hm->uri.p);
   remove_double_dots(path);
 
   if (stat(path, &st) != 0) {

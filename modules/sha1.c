@@ -1,5 +1,5 @@
-// Copyright(c) By Steve Reid <steve@edmweb.com>
-// 100% Public Domain
+/* Copyright(c) By Steve Reid <steve@edmweb.com> */
+/* 100% Public Domain */
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
@@ -21,7 +21,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 static uint32_t blk0(union char64long16 *block, int i) {
-  // Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN
+  /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
   if (!is_big_endian()) {
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
       (rol(block->l[i], 8) & 0x00FF00FF);
@@ -72,8 +72,8 @@ void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   state[2] += c;
   state[3] += d;
   state[4] += e;
-  // Erase working structures. The order of operations is important,
-  // used to ensure that compiler doesn't optimize those out.
+  /* Erase working structures. The order of operations is important, 
+   * used to ensure that compiler doesn't optimize those out. */
   memset(block, 0, sizeof(block));
   a = b = c = d = e = 0;
   (void) a; (void) b; (void) c; (void) d; (void) e;
@@ -130,4 +130,4 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   memset(context, '\0', sizeof(*context));
   memset(&finalcount, '\0', sizeof(finalcount));
 }
-#endif  // NS_DISABLE_HTTP_WEBSOCKET
+#endif  /* NS_DISABLE_HTTP_WEBSOCKET */

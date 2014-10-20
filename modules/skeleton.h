@@ -1,41 +1,41 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
-//
-// This software is dual-licensed: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation. For the terms of this
-// license, see <http://www.gnu.org/licenses/>.
-//
-// You are free to use this software under the terms of the GNU General
-// Public License, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
-//
-// Alternatively, you can license this software under a commercial
-// license, as set out in <http://cesanta.com/>.
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ */
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
 
 #define NS_SKELETON_VERSION "2.2.0"
 
-#undef UNICODE                  // Use ANSI WinAPI functions
-#undef _UNICODE                 // Use multibyte encoding on Windows
-#define _MBCS                   // Use multibyte encoding on Windows
-#define _INTEGRAL_MAX_BITS 64   // Enable _stati64() on Windows
-#define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005+
-#undef WIN32_LEAN_AND_MEAN      // Let windows.h always include winsock2.h
-#define _XOPEN_SOURCE 600       // For flockfile() on Linux
-#define __STDC_FORMAT_MACROS    // <inttypes.h> wants this for C++
-#define __STDC_LIMIT_MACROS     // C++ wants that for INT64_MAX
+#undef UNICODE                  /* Use ANSI WinAPI functions */
+#undef _UNICODE                 /* Use multibyte encoding on Windows */
+#define _MBCS                   /* Use multibyte encoding on Windows */
+#define _INTEGRAL_MAX_BITS 64   /* Enable _stati64() on Windows */
+#define _CRT_SECURE_NO_WARNINGS /* Disable deprecation warning in VS2005+ */
+#undef WIN32_LEAN_AND_MEAN      /* Let windows.h always include winsock2.h */
+#define _XOPEN_SOURCE 600       /* For flockfile() on Linux */
+#define __STDC_FORMAT_MACROS    /* <inttypes.h> wants this for C++ */
+#define __STDC_LIMIT_MACROS     /* C++ wants that for INT64_MAX */
 #ifndef _LARGEFILE_SOURCE
-#define _LARGEFILE_SOURCE       // Enable fseeko() and ftello() functions
+#define _LARGEFILE_SOURCE       /* Enable fseeko() and ftello() functions */
 #endif
-#define _FILE_OFFSET_BITS 64    // Enable 64-bit file offsets
+#define _FILE_OFFSET_BITS 64    /* Enable 64-bit file offsets */
 
 #ifdef _MSC_VER
-#pragma warning (disable : 4127)  // FD_SET() emits warning, disable it
-#pragma warning (disable : 4204)  // missing c99 support
+#pragma warning (disable : 4127)  /* FD_SET() emits warning, disable it */
+#pragma warning (disable : 4204)  /* missing c99 support */
 #endif
 
 #include <sys/types.h>
@@ -54,7 +54,7 @@
 
 #ifdef _WIN32
 #ifdef _MSC_VER
-#pragma comment(lib, "ws2_32.lib")    // Linking with winsock library
+#pragma comment(lib, "ws2_32.lib")    /* Linking with winsock library */
 #endif
 #include <windows.h>
 #include <process.h>
@@ -94,7 +94,7 @@ typedef struct _stati64 ns_stat_t;
 #include <pthread.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <arpa/inet.h>  // For inet_pton() when NS_ENABLE_IPV6 is defined
+#include <arpa/inet.h>  /* For inet_pton() when NS_ENABLE_IPV6 is defined */
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -129,7 +129,7 @@ typedef void *SSL_CTX;
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 union socket_address {
   struct sockaddr sa;
@@ -141,13 +141,13 @@ union socket_address {
 #endif
 };
 
-// Describes chunk of memory
+/* Describes chunk of memory */
 struct ns_str {
   const char *p;
   size_t len;
 };
 
-// IO buffers interface
+/* IO buffers interface */
 struct iobuf {
   char *buf;
   size_t len;
@@ -160,28 +160,28 @@ size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
 void iobuf_remove(struct iobuf *, size_t data_size);
 void iobuf_resize(struct iobuf *, size_t new_size);
 
-// Callback function (event handler) prototype, must be defined by user.
-// Net skeleton will call event handler, passing events defined above.
+/* Callback function (event handler) prototype, must be defined by user. */
+/* Net skeleton will call event handler, passing events defined above. */
 struct ns_connection;
 typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
-// Events. Meaning of event parameter (evp) is given in the comment.
-#define NS_POLL    0  // Sent to each connection on each call to ns_mgr_poll()
-#define NS_ACCEPT  1  // New connection accept()-ed. union socket_address *addr
-#define NS_CONNECT 2  // connect() succeeded or failed. int *success_status
-#define NS_RECV    3  // Data has benn received. int *num_bytes
-#define NS_SEND    4  // Data has been written to a socket. int *num_bytes
-#define NS_CLOSE   5  // Connection is closed. NULL
+/* Events. Meaning of event parameter (evp) is given in the comment. */
+#define NS_POLL    0  /* Sent to each connection on each call to ns_mgr_poll() */
+#define NS_ACCEPT  1  /* New connection accept()-ed. union socket_address *addr */
+#define NS_CONNECT 2  /* connect() succeeded or failed. int *success_status */
+#define NS_RECV    3  /* Data has benn received. int *num_bytes */
+#define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
+#define NS_CLOSE   5  /* Connection is closed. NULL */
 
 
 struct ns_mgr {
   struct ns_connection *active_connections;
-  const char *hexdump_file;         // Debug hexdump file path
-  sock_t ctl[2];                    // Socketpair for mg_wakeup()
-  void *user_data;                  // User data
+  const char *hexdump_file;         /* Debug hexdump file path */
+  sock_t ctl[2];                    /* Socketpair for mg_wakeup() */
+  void *user_data;                  /* User data */
 };
 
-// List of event handlers
+/* List of event handlers */
 struct ns_cb_list {
   struct ns_cb_list *next;
   ns_event_handler_t cb;
@@ -193,21 +193,21 @@ struct ns_cb_list {
 } while (0)
 
 struct ns_connection {
-  struct ns_connection *next, *prev;  // ns_mgr::active_connections linkage
-  struct ns_connection *listener;     // Set only for accept()-ed connections
+  struct ns_connection *next, *prev;  /* ns_mgr::active_connections linkage */
+  struct ns_connection *listener;     /* Set only for accept()-ed connections */
   struct ns_mgr *mgr;
 
-  sock_t sock;                // Socket
-  union socket_address sa;    // Peer address
-  struct iobuf recv_iobuf;    // Received data
-  struct iobuf send_iobuf;    // Data scheduled for sending
+  sock_t sock;                /* Socket */
+  union socket_address sa;    /* Peer address */
+  struct iobuf recv_iobuf;    /* Received data */
+  struct iobuf send_iobuf;    /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  void *user_data;            // User-specific data
-  void *proto_data;           // Application protocol-specific data
-  time_t last_io_time;        // Timestamp of the last socket IO
-  ns_event_handler_t callback;     // Event handler function
-  struct ns_cb_list *cblist;  // List of event handlers
+  void *user_data;            /* User-specific data */
+  void *proto_data;           /* Application protocol-specific data */
+  time_t last_io_time;        /* Timestamp of the last socket IO */
+  ns_event_handler_t callback;     /* Event handler function */
+  struct ns_cb_list *cblist;  /* List of event handlers */
 
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
@@ -242,10 +242,10 @@ int ns_send(struct ns_connection *, const void *buf, int len);
 int ns_printf(struct ns_connection *, const char *fmt, ...);
 int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
-// Utility functions
+/* Utility functions */
 void *ns_start_thread(void *(*f)(void *), void *p);
 int ns_socketpair(sock_t [2]);
-int ns_socketpair2(sock_t [2], int sock_type);  // SOCK_STREAM or SOCK_DGRAM
+int ns_socketpair2(sock_t [2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
@@ -254,6 +254,6 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // NS_SKELETON_HEADER_INCLUDED
+#endif /* NS_SKELETON_HEADER_INCLUDED */

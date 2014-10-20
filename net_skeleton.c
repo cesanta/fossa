@@ -1,21 +1,22 @@
 #include "net_skeleton.h"
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
-//
-// This software is dual-licensed: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation. For the terms of this
-// license, see <http://www.gnu.org/licenses/>.
-//
-// You are free to use this software under the terms of the GNU General
-// Public License, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
-//
-// Alternatively, you can license this software under a commercial
-// license, as set out in <http://cesanta.com/>.
-//
-// $Date: 2014-09-28 05:04:41 UTC $
+/* Copyright (c) 2014 Cesanta Software Limited
+* All rights reserved
+*
+* This software is dual-licensed: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation. For the terms of this
+* license, see <http://www.gnu.org/licenses/>.
+*
+* You are free to use this software under the terms of the GNU General
+* Public License, but WITHOUT ANY WARRANTY; without even the implied
+* warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* Alternatively, you can license this software under a commercial
+* license, as set out in <http://cesanta.com/>.
+*
+* $Date: 2014-09-28 05:04:41 UTC $
+*/
 
 
 #ifndef NS_MALLOC
@@ -120,7 +121,7 @@ void *ns_start_thread(void *(*f)(void *), void *p) {
   return (void *) thread_id;
 #endif
 }
-#endif  // NS_DISABLE_THREADS
+#endif  /* NS_DISABLE_THREADS */
 
 static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
@@ -135,36 +136,36 @@ static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->next) conn->next->prev = conn->prev;
 }
 
-// Print message to buffer. If buffer is large enough to hold the message,
-// return buffer. If buffer is to small, allocate large enough buffer on heap,
-// and return allocated buffer.
+/* Print message to buffer. If buffer is large enough to hold the message,
+ * return buffer. If buffer is to small, allocate large enough buffer on heap,
+ * and return allocated buffer. */
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
 
-  va_copy(ap_copy, ap);
+  __va_copy(ap_copy, ap);
   len = vsnprintf(*buf, size, fmt, ap_copy);
   va_end(ap_copy);
 
   if (len < 0) {
-    // eCos and Windows are not standard-compliant and return -1 when
-    // the buffer is too small. Keep allocating larger buffers until we
-    // succeed or out of memory.
+    /* eCos and Windows are not standard-compliant and return -1 when
+     * the buffer is too small. Keep allocating larger buffers until we
+     * succeed or out of memory. */
     *buf = NULL;
     while (len < 0) {
       if (*buf) free(*buf);
       size *= 2;
       if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
-      va_copy(ap_copy, ap);
+      __va_copy(ap_copy, ap);
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
   } else if (len > (int) size) {
-    // Standard-compliant code path. Allocate a buffer that is large enough.
+    /* Standard-compliant code path. Allocate a buffer that is large enough. */
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
       len = -1;
     } else {
-      va_copy(ap_copy, ap);
+      __va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
     }
@@ -310,9 +311,9 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
 int ns_socketpair(sock_t sp[2]) {
   return ns_socketpair2(sp, SOCK_STREAM);
 }
-#endif  // NS_DISABLE_SOCKETPAIR
+#endif  /* NS_DISABLE_SOCKETPAIR */
 
-// TODO(lsm): use non-blocking resolver
+/* TODO(lsm): use non-blocking resolver */
 static int ns_resolve2(const char *host, struct in_addr *ina) {
   struct hostent *he;
   if ((he = gethostbyname(host)) == NULL) {
@@ -324,14 +325,14 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   return 0;
 }
 
-// Resolve FDQN "host", store IP address in the "ip".
-// Return > 0 (IP address length) on success.
+/* Resolve FDQN "host", store IP address in the "ip".
+ * Return > 0 (IP address length) on success. */
 int ns_resolve(const char *host, char *buf, size_t n) {
   struct in_addr ad;
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
 }
 
-// Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT]
+/* Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT] */
 static int ns_parse_address(const char *str, union socket_address *sa,
                             int *proto, int *use_ssl, char *cert, char *ca) {
   unsigned int a, b, c, d, port;
@@ -341,9 +342,9 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   char buf[100];
 #endif
 
-  // MacOS needs that. If we do not zero it, subsequent bind() will fail.
-  // Also, all-zeroes in the socket address means binding to all addresses
-  // for both IPv4 and IPv6 (INADDR_ANY and IN6ADDR_ANY_INIT).
+  /* MacOS needs that. If we do not zero it, subsequent bind() will fail. */
+  /* Also, all-zeroes in the socket address means binding to all addresses */
+  /* for both IPv4 and IPv6 (INADDR_ANY and IN6ADDR_ANY_INIT). */
   memset(sa, 0, sizeof(*sa));
   sa->sin.sin_family = AF_INET;
 
@@ -362,13 +363,13 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   }
 
   if (sscanf(str, "%u.%u.%u.%u:%u%n", &a, &b, &c, &d, &port, &len) == 5) {
-    // Bind to a specific IPv4 address, e.g. 192.168.1.5:8080
+    /* Bind to a specific IPv4 address, e.g. 192.168.1.5:8080 */
     sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
     sa->sin.sin_port = htons((uint16_t) port);
 #ifdef NS_ENABLE_IPV6
   } else if (sscanf(str, "[%99[^]]]:%u%n", buf, &port, &len) == 2 &&
              inet_pton(AF_INET6, buf, &sa->sin6.sin6_addr)) {
-    // IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080
+    /* IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080 */
     sa->sin6.sin6_family = AF_INET6;
     sa->sin6.sin6_port = htons((uint16_t) port);
 #endif
@@ -376,7 +377,7 @@ static int ns_parse_address(const char *str, union socket_address *sa,
     sa->sin.sin_port = htons((uint16_t) port);
     ns_resolve2(host, &sa->sin.sin_addr);
   } else if (sscanf(str, "%u%n", &port, &len) == 1) {
-    // If only port is specified, bind to IPv4, INADDR_ANY
+    /* If only port is specified, bind to IPv4, INADDR_ANY */
     sa->sin.sin_port = htons((uint16_t) port);
   }
 
@@ -388,7 +389,7 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   return port < 0xffff && str[len] == '\0' ? len : 0;
 }
 
-// 'sa' must be an initialized address to bind to
+/* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
     sizeof(sa->sin) : sizeof(sa->sin6);
@@ -399,18 +400,18 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
 #ifndef _WIN32
-      // SO_RESUSEADDR is not enabled on Windows because the semantics of
-      // SO_REUSEADDR on UNIX and Windows is different. On Windows,
-      // SO_REUSEADDR allows to bind a socket to a port without error even if
-      // the port is already open by another program. This is not the behavior
-      // SO_REUSEADDR was designed for, and leads to hard-to-track failure
-      // scenarios. Therefore, SO_REUSEADDR was disabled on Windows.
+      /* SO_RESUSEADDR is not enabled on Windows because the semantics of
+       * SO_REUSEADDR on UNIX and Windows is different. On Windows,
+       * SO_REUSEADDR allows to bind a socket to a port without error even if
+       * the port is already open by another program. This is not the behavior
+       * SO_REUSEADDR was designed for, and leads to hard-to-track failure
+       * scenarios. Therefore, SO_REUSEADDR was disabled on Windows. */
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
 #endif
       !bind(sock, &sa->sa, sa_len) &&
       (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0)) {
     ns_set_non_blocking_mode(sock);
-    // In case port was set to 0, get the real port number
+    /* In case port was set to 0, get the real port number */
     (void) getsockname(sock, &sa->sa, &sa_len);
   } else if (sock != INVALID_SOCKET) {
     closesocket(sock);
@@ -421,8 +422,8 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 }
 
 #ifdef NS_ENABLE_SSL
-// Certificate generation script is at
-// https://github.com/cesanta/net_skeleton/blob/master/scripts/gen_certs.sh
+/* Certificate generation script is at */
+/* https://github.com/cesanta/net_skeleton/blob/master/scripts/gen_certs.sh */
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -448,7 +449,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
     return 0;
   }
 }
-#endif  // NS_ENABLE_SSL
+#endif  /* NS_ENABLE_SSL */
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
                               ns_event_handler_t callback) {
@@ -496,7 +497,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   socklen_t len = sizeof(sa);
   sock_t sock = INVALID_SOCKET;
 
-  // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
+  /* NOTE(lsm): on Windows, sock is always > FD_SETSIZE */
   if ((sock = accept(ls->sock, &sa.sa, &len)) == INVALID_SOCKET) {
   } else if ((c = ns_add_sock(ls->mgr, sock, ls->callback)) == NULL) {
     closesocket(sock);
@@ -547,7 +548,7 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
                 (void *) &sa.sin.sin_addr :
                 (void *) &sa.sin6.sin6_addr, buf, len);
 #elif defined(_WIN32)
-      // Only Windoze Vista (and newer) have inet_ntop()
+      /* Only Windoze Vista (and newer) have inet_ntop() */
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
       inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,(socklen_t)len);
@@ -609,7 +610,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         ok = 1;
       }
@@ -627,9 +628,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
-      // SSL library may have more bytes ready to read then we ask to read.
-      // Therefore, read in a loop until we read everything. Without the loop,
-      // we skip to the next select() cycle which can just timeout.
+      /* SSL library may have more bytes ready to read then we ask to read.
+       * Therefore, read in a loop until we read everything. Without the loop,
+       * we skip to the next select() cycle which can just timeout. */
       while ((n = SSL_read(conn->ssl, buf, sizeof(buf))) > 0) {
         DBG(("%p %d <- %d bytes (SSL)", conn, conn->flags, n));
         iobuf_append(&conn->recv_iobuf, buf, n);
@@ -643,7 +644,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
@@ -674,7 +675,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     if (n <= 0) {
       int ssl_err = ns_ssl_err(conn, n);
       if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
@@ -749,13 +750,13 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
       ns_call(conn, NS_POLL, &current_time);
     }
     if (!(conn->flags & NSF_WANT_WRITE)) {
-      //DBG(("%p read_set", conn));
+      /*DBG(("%p read_set", conn)); */
       ns_add_to_set(conn->sock, &read_set, &max_fd);
     }
     if (((conn->flags & NSF_CONNECTING) && !(conn->flags & NSF_WANT_READ)) ||
         (conn->send_iobuf.len > 0 && !(conn->flags & NSF_CONNECTING) &&
          !(conn->flags & NSF_BUFFER_BUT_DONT_SEND))) {
-      //DBG(("%p write_set", conn));
+      /*DBG(("%p write_set", conn)); */
       ns_add_to_set(conn->sock, &write_set, &max_fd);
     }
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
@@ -767,11 +768,11 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   tv.tv_usec = (milli % 1000) * 1000;
 
   if (select((int) max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
-    // select() might have been waiting for a long time, reset current_time
-    // now to prevent last_io_time being set to the past.
+    /* select() might have been waiting for a long time, reset current_time
+     *  now to prevent last_io_time being set to the past. */
     current_time = time(NULL);
 
-    // Read wakeup messages
+    /* Read wakeup messages */
     if (mgr->ctl[1] != INVALID_SOCKET &&
         FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
@@ -792,9 +793,9 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
           if (conn->flags & NSF_UDP) {
             ns_handle_udp(conn);
           } else {
-            // We're not looping here, and accepting just one connection at
-            // a time. The reason is that eCos does not respect non-blocking
-            // flag on a listening socket and hangs in a loop.
+            /* We're not looping here, and accepting just one connection at
+             * a time. The reason is that eCos does not respect non-blocking
+             * flag on a listening socket and hangs in a loop. */
             accept_conn(conn);
           }
         } else {
@@ -849,7 +850,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
     return NULL;
   }
 
-  nc->sa = sa;   // Important, cause UDP conns will use sendto()
+  nc->sa = sa;   /* Important, cause UDP conns will use sendto() */
   nc->flags = (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
 
 #ifdef NS_ENABLE_SSL
@@ -910,8 +911,8 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #ifdef _WIN32
   { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
 #else
-  // Ignore SIGPIPE signal, so if client cancels the request, it
-  // won't kill the whole process.
+  /* Ignore SIGPIPE signal, so if client cancels the request, it
+   * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
 #endif
 
@@ -931,7 +932,7 @@ void ns_mgr_free(struct ns_mgr *s) {
 
   DBG(("%p", s));
   if (s == NULL) return;
-  // Do one last poll, see https://github.com/cesanta/mongoose/issues/286
+  /* Do one last poll, see https://github.com/cesanta/mongoose/issues/286 */
   ns_mgr_poll(s, 0);
 
   if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
@@ -943,24 +944,25 @@ void ns_mgr_free(struct ns_mgr *s) {
     ns_close_conn(conn);
   }
 }
-// Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
-// Copyright (c) 2013 Cesanta Software Limited
-// All rights reserved
-//
-// This library is dual-licensed: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation. For the terms of this
-// license, see <http://www.gnu.org/licenses/>.
-//
-// You are free to use this library under the terms of the GNU General
-// Public License, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
-//
-// Alternatively, you can license this library under a commercial
-// license, as set out in <http://cesanta.com/products.html>.
+/* Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
+ * Copyright (c) 2013 Cesanta Software Limited
+ * All rights reserved
+ *
+ * This library is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this library under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this library under a commercial
+ * license, as set out in <http://cesanta.com/products.html>.
+ */
 
-#define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005+
+#define _CRT_SECURE_NO_WARNINGS /* Disable deprecation warning in VS2005+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1068,7 +1070,7 @@ static int capture_len(struct frozen *f, int token_index, const char *ptr) {
   return 0;
 }
 
-// identifier = letter { letter | digit | '_' }
+/* identifier = letter { letter | digit | '_' } */
 static int parse_identifier(struct frozen *f) {
   EXPECT(is_alpha(cur(f)), JSON_STRING_INVALID);
   TRY(capture_ptr(f, f->cur, JSON_TYPE_STRING));
@@ -1089,7 +1091,7 @@ static int get_utf8_char_len(unsigned char ch) {
   }
 }
 
-// string = '"' { quoted_printable_chars } '"'
+/* string = '"' { quoted_printable_chars } '"' */
 static int parse_string(struct frozen *f) {
   int n, ch = 0, len = 0;
   TRY(test_and_skip(f, '"'));
@@ -1097,8 +1099,8 @@ static int parse_string(struct frozen *f) {
   for (; f->cur < f->end; f->cur += len) {
     ch = * (unsigned char *) f->cur;
     len = get_utf8_char_len((unsigned char) ch);
-    //printf("[%c] [%d]\n", ch, len);
-    EXPECT(ch >= 32 && len > 0, JSON_STRING_INVALID);  // No control chars
+    /*printf("[%c] [%d]\n", ch, len); */
+    EXPECT(ch >= 32 && len > 0, JSON_STRING_INVALID);  /* No control chars */
     EXPECT(len < left(f), JSON_STRING_INCOMPLETE);
     if (ch == '\\') {
       EXPECT((n = get_escape_len(f->cur + 1, left(f))) > 0, n);
@@ -1112,7 +1114,7 @@ static int parse_string(struct frozen *f) {
   return ch == '"' ? 0 : JSON_STRING_INCOMPLETE;
 }
 
-// number = [ '-' ] digit+ [ '.' digit+ ] [ ['e'|'E'] ['+'|'-'] digit+ ]
+/* number = [ '-' ] digit+ [ '.' digit+ ] [ ['e'|'E'] ['+'|'-'] digit+ ] */
 static int parse_number(struct frozen *f) {
   int ch = cur(f);
   TRY(capture_ptr(f, f->cur, JSON_TYPE_NUMBER));
@@ -1138,7 +1140,7 @@ static int parse_number(struct frozen *f) {
   return 0;
 }
 
-// array = '[' [ value { ',' value } ] ']'
+/* array = '[' [ value { ',' value } ] ']' */
 static int parse_array(struct frozen *f) {
   int ind;
   TRY(test_and_skip(f, '['));
@@ -1173,7 +1175,7 @@ static int expect(struct frozen *f, const char *s, int len, enum json_type t) {
   return 0;
 }
 
-// value = 'null' | 'true' | 'false' | number | string | array | object
+/* value = 'null' | 'true' | 'false' | number | string | array | object */
 static int parse_value(struct frozen *f) {
   int ch = cur(f);
 
@@ -1195,7 +1197,7 @@ static int parse_value(struct frozen *f) {
   return 0;
 }
 
-// key = identifier | string
+/* key = identifier | string */
 static int parse_key(struct frozen *f) {
   int ch = cur(f);
 #if 0
@@ -1211,7 +1213,7 @@ static int parse_key(struct frozen *f) {
   return 0;
 }
 
-// pair = key ':' value
+/* pair = key ':' value */
 static int parse_pair(struct frozen *f) {
   TRY(parse_key(f));
   TRY(test_and_skip(f, ':'));
@@ -1219,7 +1221,7 @@ static int parse_pair(struct frozen *f) {
   return 0;
 }
 
-// object = '{' pair { ',' pair } '}'
+/* object = '{' pair { ',' pair } '}' */
 static int parse_object(struct frozen *f) {
   int ind;
   TRY(test_and_skip(f, '{'));
@@ -1243,15 +1245,29 @@ static int doit(struct frozen *f) {
   return 0;
 }
 
-// json = object
+/* json = object */
 int parse_json(const char *s, int s_len, struct json_token *arr, int arr_len) {
-  struct frozen frozen = { s + s_len, s, arr, arr_len, 0, 0 };
+  struct frozen frozen;
+  frozen.end = s + s_len;
+  frozen.cur = s;
+  frozen.tokens = arr;
+  frozen.max_tokens = arr_len;
+  frozen.num_tokens = 0;
+  frozen.do_realloc = 0;
+
   TRY(doit(&frozen));
   return frozen.cur - s;
 }
 
 struct json_token *parse_json2(const char *s, int s_len) {
-  struct frozen frozen = { s + s_len, s, NULL, 0, 0, 1 };
+  struct frozen frozen;
+  frozen.end = s + s_len;
+  frozen.cur = s;
+  frozen.tokens = NULL;
+  frozen.max_tokens = 0;
+  frozen.num_tokens = 0;
+  frozen.do_realloc = 1;
+
   if (doit(&frozen) < 0) {
     FROZEN_FREE((void *) frozen.tokens);
     frozen.tokens = NULL;
@@ -1276,11 +1292,11 @@ struct json_token *find_json_token(struct json_token *toks, const char *path) {
         ind += path[n] - '0';
       }
       if (path[n++] != ']') return 0;
-      skip = 1;  // In objects, we skip 2 elems while iterating, in arrays 1.
+      skip = 1;  /* In objects, we skip 2 elems while iterating, in arrays 1. */
     } else if (toks->type != JSON_TYPE_OBJECT) return 0;
     toks++;
     for (i = 0; i < toks[-1].num_desc; i += skip, ind2++) {
-      // ind == -1 indicated that we're iterating an array, not object
+      /* ind == -1 indicated that we're iterating an array, not object */
       if (ind == -1 && toks[i].type != JSON_TYPE_STRING) return 0;
       if (ind2 == ind ||
           (ind == -1 && toks[i].len == n && compare(path, toks[i].ptr, n))) {
@@ -1394,7 +1410,7 @@ int json_emit_va(char *s, int s_len, const char *fmt, va_list ap) {
     fmt++;
   }
 
-  // Best-effort to 0-terminate generated string
+  /* Best-effort to 0-terminate generated string */
   if (s < end) {
     *s = '\0';
   }
@@ -1412,16 +1428,18 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 
   return len;
 }
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 
-// Check whether full request is buffered. Return:
-//   -1  if request is malformed
-//    0  if request is not yet fully buffered
-//   >0  actual request length, including last \r\n\r\n
+/* Check whether full request is buffered. Return:
+ *   -1  if request is malformed
+ *    0  if request is not yet fully buffered
+ *   >0  actual request length, including last \r\n\r\n
+ */
 static int get_request_len(const char *s, int buf_len) {
   const unsigned char *buf = (unsigned char *) s;
   int i;
@@ -1452,10 +1470,10 @@ static int parse_http(const char *s, int n, struct http_message *req) {
   req->message.len = req->body.len = (size_t) ~0;
   end = s + len;
 
-  // Request is fully buffered. Skip leading whitespaces.
+  /* Request is fully buffered. Skip leading whitespaces. */
   while (s < end && isspace(* (unsigned char *) s)) s++;
 
-  // Parse request line: method, URI, proto
+  /* Parse request line: method, URI, proto */
   s = ns_skip(s, end, " ", &req->method);
   s = ns_skip(s, end, " ", &req->uri);
   s = ns_skip(s, end, "\r\n", &req->proto);
@@ -1468,7 +1486,7 @@ static int parse_http(const char *s, int n, struct http_message *req) {
     s = ns_skip(s, end, "\r\n", v);
 
     while (v->len > 0 && v->p[v->len - 1] == ' ') {
-      v->len--;  // Trim trailing spaces in header value
+      v->len--;  /* Trim trailing spaces in header value */
     }
 
     if (k->len == 0 || v->len == 0) {
@@ -1502,7 +1520,7 @@ struct ns_str *get_http_header(struct http_message *hm, const char *name) {
 }
 
 static int deliver_websocket_data(struct ns_connection *nc) {
-  // Having buf unsigned char * is important, as it is used below in arithmetic
+  /* Having buf unsigned char * is important, as it is used below in arithmetic */
   unsigned char *buf = (unsigned char *) nc->recv_iobuf.buf;
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
   len, mask_len = 0, header_len = 0, ok;
@@ -1533,17 +1551,17 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     wsm.data = buf + header_len;
     wsm.flags = buf[0];
 
-    // Apply mask if necessary
+    /* Apply mask if necessary */
     if (mask_len > 0) {
       for (i = 0; i < data_len; i++) {
         buf[i + header_len] ^= (buf + header_len - mask_len)[i % 4];
       }
     }
 
-    // Call event handler
+    /* Call event handler */
     ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
-    // Remove frame from the iobuf
+    /* Remove frame from the iobuf */
     iobuf_remove(&nc->recv_iobuf, frame_len);
   }
 
@@ -1648,11 +1666,11 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
       } else if (req_len == 0) {
-        // Do nothing, request is not yet fully buffered
+        /* Do nothing, request is not yet fully buffered */
       } else if (nc->listener == NULL &&
                  get_http_header(&hm, "Sec-WebSocket-Accept")) {
-        // We're websocket client, got handshake response from server.
-        // TODO(lsm): check the validity of accept Sec-WebSocket-Accept
+        /* We're websocket client, got handshake response from server. */
+        /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
         iobuf_remove(io, req_len);
         nc->callback = websocket_handler;
         nc->flags |= NSF_USER_1;
@@ -1660,12 +1678,12 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         websocket_handler(nc, NS_RECV, ev_data);
       } else if (nc->listener != NULL &&
                  (vec = get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
-        // This is a websocket request. Switch protocol handlers.
+        /* This is a websocket request. Switch protocol handlers. */
         iobuf_remove(io, req_len);
         nc->callback = websocket_handler;
         nc->flags |= NSF_USER_1;
 
-        // Send handshake
+        /* Send handshake */
         cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, NULL);
         if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           if (nc->send_iobuf.len == 0) {
@@ -1675,7 +1693,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
           websocket_handler(nc, NS_RECV, ev_data);
         }
       } else if (hm.message.len <= io->len) {
-        // Whole HTTP message is fully buffered, call event handler
+        /* Whole HTTP message is fully buffered, call event handler */
         if (cb) cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
         iobuf_remove(io, hm.message.len);
       }
@@ -1775,9 +1793,9 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     ns_send_http_file(nc, path, &st);
   }
 }
-#endif  // NS_DISABLE_HTTP_WEBSOCKET
-// Copyright(c) By Steve Reid <steve@edmweb.com>
-// 100% Public Domain
+#endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+/* Copyright(c) By Steve Reid <steve@edmweb.com> */
+/* 100% Public Domain */
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
@@ -1797,7 +1815,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 static uint32_t blk0(union char64long16 *block, int i) {
-  // Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN
+  /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
   if (!is_big_endian()) {
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
       (rol(block->l[i], 8) & 0x00FF00FF);
@@ -1848,8 +1866,8 @@ void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   state[2] += c;
   state[3] += d;
   state[4] += e;
-  // Erase working structures. The order of operations is important,
-  // used to ensure that compiler doesn't optimize those out.
+  /* Erase working structures. The order of operations is important, 
+   * used to ensure that compiler doesn't optimize those out. */
   memset(block, 0, sizeof(block));
   a = b = c = d = e = 0;
   (void) a; (void) b; (void) c; (void) d; (void) e;
@@ -1906,8 +1924,10 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   memset(context, '\0', sizeof(*context));
   memset(&finalcount, '\0', sizeof(finalcount));
 }
-#endif  // NS_DISABLE_HTTP_WEBSOCKET// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+#endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved 
+ */
 
 
 const char *ns_skip(const char *s, const char *end,
@@ -1969,26 +1989,26 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   dst[j++] = '\0';
 }
 
-// Convert one byte of encoded base64 input stream to 6-bit chunk
+/* Convert one byte of encoded base64 input stream to 6-bit chunk */
 static unsigned char from_b64(unsigned char ch) {
-  // Inverse lookup map
+  /* Inverse lookup map */
   static const unsigned char tab[128] = {
-    255, 255, 255, 255, 255, 255, 255, 255, //  0
-    255, 255, 255, 255, 255, 255, 255, 255, //  8
-    255, 255, 255, 255, 255, 255, 255, 255, //  16
-    255, 255, 255, 255, 255, 255, 255, 255, //  24
-    255, 255, 255, 255, 255, 255, 255, 255, //  32
-    255, 255, 255,  62, 255, 255, 255,  63, //  40
-     52,  53,  54,  55,  56,  57,  58,  59, //  48
-     60,  61, 255, 255, 255, 200, 255, 255, //  56   '=' is 200, on index 61
-    255,   0,   1,   2,   3,   4,   5,   6, //  64
-      7,   8,   9,  10,  11,  12,  13,  14, //  72
-     15,  16,  17,  18,  19,  20,  21,  22, //  80
-     23,  24,  25, 255, 255, 255, 255, 255, //  88
-    255,  26,  27,  28,  29,  30,  31,  32, //  96
-     33,  34,  35,  36,  37,  38,  39,  40, //  104
-     41,  42,  43,  44,  45,  46,  47,  48, //  112
-     49,  50,  51, 255, 255, 255, 255, 255, //  120
+    255, 255, 255, 255, 255, 255, 255, 255, /*  0 */
+    255, 255, 255, 255, 255, 255, 255, 255, /*  8 */
+    255, 255, 255, 255, 255, 255, 255, 255, /*  16 */
+    255, 255, 255, 255, 255, 255, 255, 255, /*  24 */
+    255, 255, 255, 255, 255, 255, 255, 255, /*  32 */
+    255, 255, 255,  62, 255, 255, 255,  63, /*  40 */
+     52,  53,  54,  55,  56,  57,  58,  59, /*  48 */
+     60,  61, 255, 255, 255, 200, 255, 255, /*  56   '=' is 200, on index 61 */
+    255,   0,   1,   2,   3,   4,   5,   6, /*  64 */
+      7,   8,   9,  10,  11,  12,  13,  14, /*  72 */
+     15,  16,  17,  18,  19,  20,  21,  22, /*  80 */
+     23,  24,  25, 255, 255, 255, 255, 255, /*  88 */
+    255,  26,  27,  28,  29,  30,  31,  32, /*  96 */
+     33,  34,  35,  36,  37,  38,  39,  40, /*  104 */
+     41,  42,  43,  44,  45,  46,  47,  48, /*  112 */
+     49,  50,  51, 255, 255, 255, 255, 255, /*  120 */
   };
   return tab[ch & 127];
 }
@@ -2000,7 +2020,7 @@ void ns_base64_decode(const unsigned char *s, int len, char *dst) {
          (b = from_b64(s[1])) != 255 &&
          (c = from_b64(s[2])) != 255 &&
          (d = from_b64(s[3])) != 255) {
-    if (a == 200 || b == 200) break;  // '=' can't be there
+    if (a == 200 || b == 200) break;  /* '=' can't be there */
     *dst++ = a << 2 | b >> 4;
     if (c == 200) break;
     *dst++ = b << 4 | c >> 2;
@@ -2011,8 +2031,8 @@ void ns_base64_decode(const unsigned char *s, int len, char *dst) {
   }
   *dst = 0;
 }
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+/* Copyright (c) 2014 Cesanta Software Limited */
+/* All rights reserved */
 
 #ifndef NS_DISABLE_JSON_RPC
 
@@ -2022,9 +2042,9 @@ int ns_rpc_reply(struct ns_connection *nc, const char *fmt, ...) {
   va_list ap, ap_copy;
   int len, n = 0;
 
-  // Find out how long the message is, without actually making a message
+  /* Find out how long the message is, without actually making a message */
   va_start(ap, fmt);
-  va_copy(ap_copy, ap);
+  __va_copy(ap_copy, ap);
   len = json_emit_va(NULL, 0, fmt, ap);
   va_end(ap);
 
@@ -2033,7 +2053,7 @@ int ns_rpc_reply(struct ns_connection *nc, const char *fmt, ...) {
       iobuf_resize(io, io->len + len);
     }
     if (io->size <= io->len + len) {
-      // Output buffer is large enough to hold RPC message, create a message
+      /* Output buffer is large enough to hold RPC message, create a message */
       n = json_emit_va(io->buf + io->len, len, fmt, ap_copy);
       io->len += n;
     }
@@ -2060,7 +2080,7 @@ int nc_rpc_dispatch(struct ns_connection *nc, struct ns_rpc_method *tbl) {
 
   int n = parse_json(io->buf, io->len, toks, sizeof(toks));
   if (n == JSON_STRING_INCOMPLETE) {
-    // Do nothing, we haven't received everything yet
+    /* Do nothing, we haven't received everything yet */
   } else if (n > 0) {
     method = find_json_token(toks, "method");
     params = find_json_token(toks, "params");
@@ -2078,4 +2098,4 @@ int nc_rpc_dispatch(struct ns_connection *nc, struct ns_rpc_method *tbl) {
 }
 #endif
 
-#endif  // NS_DISABLE_JSON_RPC
+#endif  /* NS_DISABLE_JSON_RPC */

@@ -1,12 +1,13 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
 
 #ifndef NS_UTIL_HEADER_DEFINED
 #define NS_UTIL_HEADER_DEFINED
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
 int ns_ncasecmp(const char *s1, const char *s2, size_t len);
@@ -17,5 +18,5 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
-#endif  // NS_UTIL_HEADER_DEFINED
+#endif /* __cplusplus */
+#endif  /* NS_UTIL_HEADER_DEFINED */

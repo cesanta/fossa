@@ -1,24 +1,25 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
-//
-// This software is dual-licensed: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation. For the terms of this
-// license, see <http://www.gnu.org/licenses/>.
-//
-// You are free to use this software under the terms of the GNU General
-// Public License, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
-//
-// Alternatively, you can license this software under a commercial
-// license, as set out in <http://cesanta.com/>.
-//
-// $Date: 2014-09-28 05:04:41 UTC $
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ *
+ * $Date: 2014-09-28 05:04:41 UTC $
+ */
 
-// Net Skeleton unit test
-// g++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
-// cl unit_test.c /MD
+/* Net Skeleton unit test 
+ * g++ -x=c++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
+ * cl unit_test.c /MD 
+ */
 
 #ifndef _WIN32
 #define NS_ENABLE_IPV6
@@ -27,7 +28,7 @@
 #endif
 #endif
 
-//#define NS_ENABLE_DEBUG
+/* #define NS_ENABLE_DEBUG */
 #include "../net_skeleton.c"
 
 #define FAIL(str, line) do {                    \
@@ -81,7 +82,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
     case NS_RECV:
       if (nc->listener != NULL) {
         struct iobuf *io = &nc->recv_iobuf;
-        ns_send(nc, io->buf, io->len); // Echo message back
+        ns_send(nc, io->buf, io->len); /* Echo message back */
         iobuf_remove(io, io->len);
       } else {
         struct iobuf *io = &nc->recv_iobuf;
@@ -226,12 +227,12 @@ static const char *test_socketpair(void) {
   ASSERT(ns_socketpair2(sp, SOCK_DGRAM) == 1);
   ASSERT(sizeof(foo) < sizeof(buf));
 
-  // Send string in one direction
+  /* Send string in one direction */
   ASSERT(send(sp[0], foo, sizeof(foo), 0) == sizeof(foo));
   ASSERT(recv(sp[1], buf, sizeof(buf), 0) == sizeof(foo));
   ASSERT(strcmp(buf, "hi there") == 0);
 
-  // Now in opposite direction
+  /* Now in opposite direction */
   ASSERT(send(sp[1], foo, sizeof(foo), 0) == sizeof(foo));
   ASSERT(recv(sp[0], buf, sizeof(buf), 0) == sizeof(foo));
   ASSERT(strcmp(buf, "hi there") == 0);
@@ -369,21 +370,21 @@ static const char *test_http(void) {
   ASSERT((nc = ns_bind(&mgr, s_local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
-  // Valid HTTP request. Pass test buffer to the callback.
+  /* Valid HTTP request. Pass test buffer to the callback. */
   ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_printf(nc, "%s", "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
             "0123456789");
 
-  // Invalid HTTP request
+  /* Invalid HTTP request */
   ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   ns_printf(nc, "%s", "bl\x03\n\n");
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
-  // Check that test buffer has been filled by the callback properly.
+  /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10]") == 0);
 
   return NULL;
@@ -405,7 +406,7 @@ static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
     memcpy(nc->user_data, wm->data, wm->size);
     ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
-    // Send "hi" to server. server must reply "A".
+    /* Send "hi" to server. server must reply "A". */
     ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", "hi");
   }
 }
@@ -416,11 +417,11 @@ static const char *test_websocket(void) {
   char buf[20] = "";
 
   ns_mgr_init(&mgr, NULL);
-  //mgr.hexdump_file = "/dev/stdout";
+  /* mgr.hexdump_file = "/dev/stdout"; */
   ASSERT((nc = ns_bind(&mgr, s_local_addr, cb3)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
-  // Websocket request
+  /* Websocket request */
   ASSERT((nc = ns_connect(&mgr, s_local_addr, cb4)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
@@ -428,14 +429,14 @@ static const char *test_websocket(void) {
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
-  // Check that test buffer has been filled by the callback properly.
+  /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "A") == 0);
 
   return NULL;
 }
 
 #if 0
-// This JSON-RPC handler function calculates sum of numeric parameters
+/* This JSON-RPC handler function calculates sum of numeric parameters */
 static void rpc_handler_sum(struct ns_connection *nc, struct json_token *id,
                             struct json_token *params) {
   double sum = 0;
@@ -471,9 +472,9 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
 
   if (ev == NS_WEBSOCKET_FRAME) {
-    //handle_rpc_reply(nc, wm->data, wm->size);
+    /* handle_rpc_reply(nc, wm->data, wm->size); */
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
-    //ns_printf_rpc_request(nc, "sum", "[f,f,f]", 1.1, 2.2, 3.3);
+    /* ns_printf_rpc_request(nc, "sum", "[f,f,f]", 1.1, 2.2, 3.3); */
   }
 }
 
@@ -503,7 +504,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_http);
   RUN_TEST(test_websocket);
-  //RUN_TEST(test_rpc);
+  /* RUN_TEST(test_rpc); */
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

@@ -75,7 +75,6 @@
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) * 1000)
-int64_t strtoll(const char * str, char ** endptr, int base);
 #define to64(x) _atoi64(x)
 typedef int socklen_t;
 typedef unsigned char uint8_t;

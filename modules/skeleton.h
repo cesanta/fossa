@@ -69,9 +69,9 @@
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
-#ifndef va_copy
-#define va_copy(x,y) x = y
-#endif // MINGW #defines va_copy
+#ifndef __va_copy
+#define __va_copy(x,y) (x) = (y)
+#endif /* MINGW #defines va_copy */
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) * 1000)
@@ -101,6 +101,7 @@ typedef struct _stati64 ns_stat_t;
 #define closesocket(x) close(x)
 #define __cdecl
 #define INVALID_SOCKET (-1)
+int64_t strtoll(const char * str, char ** endptr, int base);
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;

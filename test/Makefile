@@ -21,12 +21,12 @@ $(PROG): Makefile
 
 $(PROG)_ansi: Makefile
 	$(MAKE) clean_coverage
-	gcc -pedantic -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
+	gcc -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
 	gcov -b $(PROG).c
 
 $(PROG)_c99: Makefile
 	$(MAKE) clean_coverage
-	gcc -pedantic -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
+	gcc -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
 
 $(PROG)_mingw.exe: Makefile
 	$(MAKE) clean_coverage

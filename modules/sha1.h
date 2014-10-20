@@ -1,9 +1,13 @@
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
 #ifndef NS_SHA1_HEADER_INCLUDED
 #define NS_SHA1_HEADER_INCLUDED
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 typedef struct {
     uint32_t state[5];
@@ -17,5 +21,5 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
 
 #ifdef __cplusplus
 }
-#endif  // __cplusplus
-#endif  // NS_SHA1_HEADER_INCLUDED
+#endif  /* __cplusplus */
+#endif  /* NS_SHA1_HEADER_INCLUDED */

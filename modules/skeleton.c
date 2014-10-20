@@ -1,20 +1,21 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
-//
-// This software is dual-licensed: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License version 2 as
-// published by the Free Software Foundation. For the terms of this
-// license, see <http://www.gnu.org/licenses/>.
-//
-// You are free to use this software under the terms of the GNU General
-// Public License, but WITHOUT ANY WARRANTY; without even the implied
-// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
-//
-// Alternatively, you can license this software under a commercial
-// license, as set out in <http://cesanta.com/>.
-//
-// $Date: 2014-09-28 05:04:41 UTC $
+/* Copyright (c) 2014 Cesanta Software Limited
+* All rights reserved
+*
+* This software is dual-licensed: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation. For the terms of this
+* license, see <http://www.gnu.org/licenses/>.
+*
+* You are free to use this software under the terms of the GNU General
+* Public License, but WITHOUT ANY WARRANTY; without even the implied
+* warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* Alternatively, you can license this software under a commercial
+* license, as set out in <http://cesanta.com/>.
+*
+* $Date: 2014-09-28 05:04:41 UTC $
+*/
 
 #include "net_skeleton.h"
 
@@ -120,7 +121,7 @@ void *ns_start_thread(void *(*f)(void *), void *p) {
   return (void *) thread_id;
 #endif
 }
-#endif  // NS_DISABLE_THREADS
+#endif  /* NS_DISABLE_THREADS */
 
 static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
@@ -135,36 +136,36 @@ static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->next) conn->next->prev = conn->prev;
 }
 
-// Print message to buffer. If buffer is large enough to hold the message,
-// return buffer. If buffer is to small, allocate large enough buffer on heap,
-// and return allocated buffer.
+/* Print message to buffer. If buffer is large enough to hold the message,
+ * return buffer. If buffer is to small, allocate large enough buffer on heap,
+ * and return allocated buffer. */
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
 
-  va_copy(ap_copy, ap);
+  __va_copy(ap_copy, ap);
   len = vsnprintf(*buf, size, fmt, ap_copy);
   va_end(ap_copy);
 
   if (len < 0) {
-    // eCos and Windows are not standard-compliant and return -1 when
-    // the buffer is too small. Keep allocating larger buffers until we
-    // succeed or out of memory.
+    /* eCos and Windows are not standard-compliant and return -1 when
+     * the buffer is too small. Keep allocating larger buffers until we
+     * succeed or out of memory. */
     *buf = NULL;
     while (len < 0) {
       if (*buf) free(*buf);
       size *= 2;
       if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
-      va_copy(ap_copy, ap);
+      __va_copy(ap_copy, ap);
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
   } else if (len > (int) size) {
-    // Standard-compliant code path. Allocate a buffer that is large enough.
+    /* Standard-compliant code path. Allocate a buffer that is large enough. */
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
       len = -1;
     } else {
-      va_copy(ap_copy, ap);
+      __va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
     }
@@ -310,9 +311,9 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
 int ns_socketpair(sock_t sp[2]) {
   return ns_socketpair2(sp, SOCK_STREAM);
 }
-#endif  // NS_DISABLE_SOCKETPAIR
+#endif  /* NS_DISABLE_SOCKETPAIR */
 
-// TODO(lsm): use non-blocking resolver
+/* TODO(lsm): use non-blocking resolver */
 static int ns_resolve2(const char *host, struct in_addr *ina) {
   struct hostent *he;
   if ((he = gethostbyname(host)) == NULL) {
@@ -324,14 +325,14 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   return 0;
 }
 
-// Resolve FDQN "host", store IP address in the "ip".
-// Return > 0 (IP address length) on success.
+/* Resolve FDQN "host", store IP address in the "ip".
+ * Return > 0 (IP address length) on success. */
 int ns_resolve(const char *host, char *buf, size_t n) {
   struct in_addr ad;
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
 }
 
-// Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT]
+/* Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT] */
 static int ns_parse_address(const char *str, union socket_address *sa,
                             int *proto, int *use_ssl, char *cert, char *ca) {
   unsigned int a, b, c, d, port;
@@ -341,9 +342,9 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   char buf[100];
 #endif
 
-  // MacOS needs that. If we do not zero it, subsequent bind() will fail.
-  // Also, all-zeroes in the socket address means binding to all addresses
-  // for both IPv4 and IPv6 (INADDR_ANY and IN6ADDR_ANY_INIT).
+  /* MacOS needs that. If we do not zero it, subsequent bind() will fail. */
+  /* Also, all-zeroes in the socket address means binding to all addresses */
+  /* for both IPv4 and IPv6 (INADDR_ANY and IN6ADDR_ANY_INIT). */
   memset(sa, 0, sizeof(*sa));
   sa->sin.sin_family = AF_INET;
 
@@ -362,13 +363,13 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   }
 
   if (sscanf(str, "%u.%u.%u.%u:%u%n", &a, &b, &c, &d, &port, &len) == 5) {
-    // Bind to a specific IPv4 address, e.g. 192.168.1.5:8080
+    /* Bind to a specific IPv4 address, e.g. 192.168.1.5:8080 */
     sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
     sa->sin.sin_port = htons((uint16_t) port);
 #ifdef NS_ENABLE_IPV6
   } else if (sscanf(str, "[%99[^]]]:%u%n", buf, &port, &len) == 2 &&
              inet_pton(AF_INET6, buf, &sa->sin6.sin6_addr)) {
-    // IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080
+    /* IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080 */
     sa->sin6.sin6_family = AF_INET6;
     sa->sin6.sin6_port = htons((uint16_t) port);
 #endif
@@ -376,7 +377,7 @@ static int ns_parse_address(const char *str, union socket_address *sa,
     sa->sin.sin_port = htons((uint16_t) port);
     ns_resolve2(host, &sa->sin.sin_addr);
   } else if (sscanf(str, "%u%n", &port, &len) == 1) {
-    // If only port is specified, bind to IPv4, INADDR_ANY
+    /* If only port is specified, bind to IPv4, INADDR_ANY */
     sa->sin.sin_port = htons((uint16_t) port);
   }
 
@@ -388,7 +389,7 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   return port < 0xffff && str[len] == '\0' ? len : 0;
 }
 
-// 'sa' must be an initialized address to bind to
+/* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
     sizeof(sa->sin) : sizeof(sa->sin6);
@@ -399,18 +400,18 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
 #ifndef _WIN32
-      // SO_RESUSEADDR is not enabled on Windows because the semantics of
-      // SO_REUSEADDR on UNIX and Windows is different. On Windows,
-      // SO_REUSEADDR allows to bind a socket to a port without error even if
-      // the port is already open by another program. This is not the behavior
-      // SO_REUSEADDR was designed for, and leads to hard-to-track failure
-      // scenarios. Therefore, SO_REUSEADDR was disabled on Windows.
+      /* SO_RESUSEADDR is not enabled on Windows because the semantics of
+       * SO_REUSEADDR on UNIX and Windows is different. On Windows,
+       * SO_REUSEADDR allows to bind a socket to a port without error even if
+       * the port is already open by another program. This is not the behavior
+       * SO_REUSEADDR was designed for, and leads to hard-to-track failure
+       * scenarios. Therefore, SO_REUSEADDR was disabled on Windows. */
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
 #endif
       !bind(sock, &sa->sa, sa_len) &&
       (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0)) {
     ns_set_non_blocking_mode(sock);
-    // In case port was set to 0, get the real port number
+    /* In case port was set to 0, get the real port number */
     (void) getsockname(sock, &sa->sa, &sa_len);
   } else if (sock != INVALID_SOCKET) {
     closesocket(sock);
@@ -421,8 +422,8 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 }
 
 #ifdef NS_ENABLE_SSL
-// Certificate generation script is at
-// https://github.com/cesanta/net_skeleton/blob/master/scripts/gen_certs.sh
+/* Certificate generation script is at */
+/* https://github.com/cesanta/net_skeleton/blob/master/scripts/gen_certs.sh */
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -448,7 +449,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
     return 0;
   }
 }
-#endif  // NS_ENABLE_SSL
+#endif  /* NS_ENABLE_SSL */
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
                               ns_event_handler_t callback) {
@@ -496,7 +497,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   socklen_t len = sizeof(sa);
   sock_t sock = INVALID_SOCKET;
 
-  // NOTE(lsm): on Windows, sock is always > FD_SETSIZE
+  /* NOTE(lsm): on Windows, sock is always > FD_SETSIZE */
   if ((sock = accept(ls->sock, &sa.sa, &len)) == INVALID_SOCKET) {
   } else if ((c = ns_add_sock(ls->mgr, sock, ls->callback)) == NULL) {
     closesocket(sock);
@@ -547,7 +548,7 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
                 (void *) &sa.sin.sin_addr :
                 (void *) &sa.sin6.sin6_addr, buf, len);
 #elif defined(_WIN32)
-      // Only Windoze Vista (and newer) have inet_ntop()
+      /* Only Windoze Vista (and newer) have inet_ntop() */
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
       inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,(socklen_t)len);
@@ -609,7 +610,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         ok = 1;
       }
@@ -627,9 +628,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
-      // SSL library may have more bytes ready to read then we ask to read.
-      // Therefore, read in a loop until we read everything. Without the loop,
-      // we skip to the next select() cycle which can just timeout.
+      /* SSL library may have more bytes ready to read then we ask to read.
+       * Therefore, read in a loop until we read everything. Without the loop,
+       * we skip to the next select() cycle which can just timeout. */
       while ((n = SSL_read(conn->ssl, buf, sizeof(buf))) > 0) {
         DBG(("%p %d <- %d bytes (SSL)", conn, conn->flags, n));
         iobuf_append(&conn->recv_iobuf, buf, n);
@@ -643,7 +644,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
@@ -674,7 +675,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     if (n <= 0) {
       int ssl_err = ns_ssl_err(conn, n);
       if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; // Call us again
+        return; /* Call us again */
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
@@ -749,13 +750,13 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
       ns_call(conn, NS_POLL, &current_time);
     }
     if (!(conn->flags & NSF_WANT_WRITE)) {
-      //DBG(("%p read_set", conn));
+      /*DBG(("%p read_set", conn)); */
       ns_add_to_set(conn->sock, &read_set, &max_fd);
     }
     if (((conn->flags & NSF_CONNECTING) && !(conn->flags & NSF_WANT_READ)) ||
         (conn->send_iobuf.len > 0 && !(conn->flags & NSF_CONNECTING) &&
          !(conn->flags & NSF_BUFFER_BUT_DONT_SEND))) {
-      //DBG(("%p write_set", conn));
+      /*DBG(("%p write_set", conn)); */
       ns_add_to_set(conn->sock, &write_set, &max_fd);
     }
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
@@ -767,11 +768,11 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   tv.tv_usec = (milli % 1000) * 1000;
 
   if (select((int) max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
-    // select() might have been waiting for a long time, reset current_time
-    // now to prevent last_io_time being set to the past.
+    /* select() might have been waiting for a long time, reset current_time
+     *  now to prevent last_io_time being set to the past. */
     current_time = time(NULL);
 
-    // Read wakeup messages
+    /* Read wakeup messages */
     if (mgr->ctl[1] != INVALID_SOCKET &&
         FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
@@ -792,9 +793,9 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
           if (conn->flags & NSF_UDP) {
             ns_handle_udp(conn);
           } else {
-            // We're not looping here, and accepting just one connection at
-            // a time. The reason is that eCos does not respect non-blocking
-            // flag on a listening socket and hangs in a loop.
+            /* We're not looping here, and accepting just one connection at
+             * a time. The reason is that eCos does not respect non-blocking
+             * flag on a listening socket and hangs in a loop. */
             accept_conn(conn);
           }
         } else {
@@ -849,7 +850,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
     return NULL;
   }
 
-  nc->sa = sa;   // Important, cause UDP conns will use sendto()
+  nc->sa = sa;   /* Important, cause UDP conns will use sendto() */
   nc->flags = (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
 
 #ifdef NS_ENABLE_SSL
@@ -910,8 +911,8 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #ifdef _WIN32
   { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
 #else
-  // Ignore SIGPIPE signal, so if client cancels the request, it
-  // won't kill the whole process.
+  /* Ignore SIGPIPE signal, so if client cancels the request, it
+   * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
 #endif
 
@@ -931,7 +932,7 @@ void ns_mgr_free(struct ns_mgr *s) {
 
   DBG(("%p", s));
   if (s == NULL) return;
-  // Do one last poll, see https://github.com/cesanta/mongoose/issues/286
+  /* Do one last poll, see https://github.com/cesanta/mongoose/issues/286 */
   ns_mgr_poll(s, 0);
 
   if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);

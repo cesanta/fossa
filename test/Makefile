@@ -1,20 +1,42 @@
 PROG = unit_test
 PROF = -fprofile-arcs -ftest-coverage -g -O0
-CFLAGS = -W -Wall -I.. -DNS_ENABLE_SSL -pthread $(PROF) $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -pthread $(PROF) $(CFLAGS_EXTRA)
 SOURCES = $(PROG).c ../net_skeleton.c
 
-all: clean ismerged $(PROG)
+# http://crossgcc.rts-software.org/doku.php?id=compiling_for_win32
+MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-gcc
+
+all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG)
+
+.PHONY: clean clean_coverage $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
 
 ismerged:
 	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.c | diff ../net_skeleton.c -
 	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.h | diff ../net_skeleton.h -
 
-$(PROG):
-	g++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
+$(PROG): Makefile
+	$(MAKE) clean_coverage
+	g++ -x c++ $(PROG).c -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
 	gcov -b $(PROG).c
 
-$(PROG).exe:
-	wine cl $(PROG).c /MD && wine $(PROG).exe
+$(PROG)_ansi: Makefile
+	$(MAKE) clean_coverage
+	gcc -pedantic -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
+	gcov -b $(PROG).c
 
-clean:
-	rm -rf *.gc* *.dSYM $(PROG) *.txt *.exe *.obj *.o a.out
+$(PROG)_c99: Makefile
+	$(MAKE) clean_coverage
+	gcc -pedantic -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
+
+$(PROG)_mingw.exe: Makefile
+	$(MAKE) clean_coverage
+	$(MINGW_GCC) $(PROG).c -o $(PROG)_mingw.exe -W -Wall -Werror -I..
+
+$(PROG).exe:
+	wine cl $(PROG).c /MD && echo "Compiled OK\n" && wine $(PROG).exe
+
+clean: clean_coverage
+	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 *.txt *.exe *.obj *.o a.out
+
+clean_coverage:
+	rm -rf *.gc* *.dSYM

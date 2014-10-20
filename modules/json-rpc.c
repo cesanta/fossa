@@ -1,5 +1,5 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+/* Copyright (c) 2014 Cesanta Software Limited */
+/* All rights reserved */
 
 #ifndef NS_DISABLE_JSON_RPC
 
@@ -11,9 +11,9 @@ int ns_rpc_reply(struct ns_connection *nc, const char *fmt, ...) {
   va_list ap, ap_copy;
   int len, n = 0;
 
-  // Find out how long the message is, without actually making a message
+  /* Find out how long the message is, without actually making a message */
   va_start(ap, fmt);
-  va_copy(ap_copy, ap);
+  __va_copy(ap_copy, ap);
   len = json_emit_va(NULL, 0, fmt, ap);
   va_end(ap);
 
@@ -22,7 +22,7 @@ int ns_rpc_reply(struct ns_connection *nc, const char *fmt, ...) {
       iobuf_resize(io, io->len + len);
     }
     if (io->size <= io->len + len) {
-      // Output buffer is large enough to hold RPC message, create a message
+      /* Output buffer is large enough to hold RPC message, create a message */
       n = json_emit_va(io->buf + io->len, len, fmt, ap_copy);
       io->len += n;
     }
@@ -49,7 +49,7 @@ int nc_rpc_dispatch(struct ns_connection *nc, struct ns_rpc_method *tbl) {
 
   int n = parse_json(io->buf, io->len, toks, sizeof(toks));
   if (n == JSON_STRING_INCOMPLETE) {
-    // Do nothing, we haven't received everything yet
+    /* Do nothing, we haven't received everything yet */
   } else if (n > 0) {
     method = find_json_token(toks, "method");
     params = find_json_token(toks, "params");
@@ -67,4 +67,4 @@ int nc_rpc_dispatch(struct ns_connection *nc, struct ns_rpc_method *tbl) {
 }
 #endif
 
-#endif  // NS_DISABLE_JSON_RPC
+#endif  /* NS_DISABLE_JSON_RPC */

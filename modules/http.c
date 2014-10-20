@@ -1,5 +1,6 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
@@ -8,10 +9,11 @@
 #include "util.h"
 #include "http.h"
 
-// Check whether full request is buffered. Return:
-//   -1  if request is malformed
-//    0  if request is not yet fully buffered
-//   >0  actual request length, including last \r\n\r\n
+/* Check whether full request is buffered. Return:
+ *   -1  if request is malformed
+ *    0  if request is not yet fully buffered
+ *   >0  actual request length, including last \r\n\r\n
+ */
 static int get_request_len(const char *s, int buf_len) {
   const unsigned char *buf = (unsigned char *) s;
   int i;
@@ -42,10 +44,10 @@ static int parse_http(const char *s, int n, struct http_message *req) {
   req->message.len = req->body.len = (size_t) ~0;
   end = s + len;
 
-  // Request is fully buffered. Skip leading whitespaces.
+  /* Request is fully buffered. Skip leading whitespaces. */
   while (s < end && isspace(* (unsigned char *) s)) s++;
 
-  // Parse request line: method, URI, proto
+  /* Parse request line: method, URI, proto */
   s = ns_skip(s, end, " ", &req->method);
   s = ns_skip(s, end, " ", &req->uri);
   s = ns_skip(s, end, "\r\n", &req->proto);
@@ -58,7 +60,7 @@ static int parse_http(const char *s, int n, struct http_message *req) {
     s = ns_skip(s, end, "\r\n", v);
 
     while (v->len > 0 && v->p[v->len - 1] == ' ') {
-      v->len--;  // Trim trailing spaces in header value
+      v->len--;  /* Trim trailing spaces in header value */
     }
 
     if (k->len == 0 || v->len == 0) {
@@ -92,7 +94,7 @@ struct ns_str *get_http_header(struct http_message *hm, const char *name) {
 }
 
 static int deliver_websocket_data(struct ns_connection *nc) {
-  // Having buf unsigned char * is important, as it is used below in arithmetic
+  /* Having buf unsigned char * is important, as it is used below in arithmetic */
   unsigned char *buf = (unsigned char *) nc->recv_iobuf.buf;
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
   len, mask_len = 0, header_len = 0, ok;
@@ -123,17 +125,17 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     wsm.data = buf + header_len;
     wsm.flags = buf[0];
 
-    // Apply mask if necessary
+    /* Apply mask if necessary */
     if (mask_len > 0) {
       for (i = 0; i < data_len; i++) {
         buf[i + header_len] ^= (buf + header_len - mask_len)[i % 4];
       }
     }
 
-    // Call event handler
+    /* Call event handler */
     ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
-    // Remove frame from the iobuf
+    /* Remove frame from the iobuf */
     iobuf_remove(&nc->recv_iobuf, frame_len);
   }
 
@@ -238,11 +240,11 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
       } else if (req_len == 0) {
-        // Do nothing, request is not yet fully buffered
+        /* Do nothing, request is not yet fully buffered */
       } else if (nc->listener == NULL &&
                  get_http_header(&hm, "Sec-WebSocket-Accept")) {
-        // We're websocket client, got handshake response from server.
-        // TODO(lsm): check the validity of accept Sec-WebSocket-Accept
+        /* We're websocket client, got handshake response from server. */
+        /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
         iobuf_remove(io, req_len);
         nc->callback = websocket_handler;
         nc->flags |= NSF_USER_1;
@@ -250,12 +252,12 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         websocket_handler(nc, NS_RECV, ev_data);
       } else if (nc->listener != NULL &&
                  (vec = get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
-        // This is a websocket request. Switch protocol handlers.
+        /* This is a websocket request. Switch protocol handlers. */
         iobuf_remove(io, req_len);
         nc->callback = websocket_handler;
         nc->flags |= NSF_USER_1;
 
-        // Send handshake
+        /* Send handshake */
         cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, NULL);
         if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           if (nc->send_iobuf.len == 0) {
@@ -265,7 +267,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
           websocket_handler(nc, NS_RECV, ev_data);
         }
       } else if (hm.message.len <= io->len) {
-        // Whole HTTP message is fully buffered, call event handler
+        /* Whole HTTP message is fully buffered, call event handler */
         if (cb) cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
         iobuf_remove(io, hm.message.len);
       }
@@ -365,4 +367,4 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     ns_send_http_file(nc, path, &st);
   }
 }
-#endif  // NS_DISABLE_HTTP_WEBSOCKET
+#endif  /* NS_DISABLE_HTTP_WEBSOCKET */

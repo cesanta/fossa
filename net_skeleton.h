@@ -53,6 +53,14 @@
 #include <time.h>
 #include <signal.h>
 
+#ifndef va_copy
+#ifdef __va_copy
+#define va_copy __va_copy
+#else
+#define va_copy(x,y) (x) = (y)
+#endif
+#endif /* MINGW #defines va_copy */
+
 #ifdef _WIN32
 #ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib")    /* Linking with winsock library */
@@ -70,8 +78,8 @@
 #define STR(x) STRX(x)
 #define __func__ __FILE__ ":" STR(__LINE__)
 #endif
-#ifndef __va_copy
-#define __va_copy(x,y) (x) = (y)
+#ifndef va_copy
+#define va_copy(x,y) (x) = (y)
 #endif /* MINGW #defines va_copy */
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf

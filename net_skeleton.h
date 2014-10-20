@@ -83,11 +83,15 @@ typedef unsigned short uint16_t;
 typedef unsigned __int64 uint64_t;
 typedef __int64   int64_t;
 typedef SOCKET sock_t;
+#ifdef __MINGW32__
+typedef struct stat ns_stat_t;
+#else
 typedef struct _stati64 ns_stat_t;
+#endif
 #ifndef S_ISDIR
 #define S_ISDIR(x) ((x) & _S_IFDIR)
 #endif
-#else
+#else /* not _WIN32 */
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -105,7 +109,7 @@ int64_t strtoll(const char * str, char ** endptr, int base);
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;
-#endif
+#endif /* _WIN32 */
 
 #ifdef NS_ENABLE_DEBUG
 #define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \

@@ -158,7 +158,7 @@ static const char *test_to64(void) {
   ASSERT(to64("") == 0);
   ASSERT(to64("123") == 123);
   ASSERT(to64("-34") == -34);
-  ASSERT(to64("3566626116") == 3566626116);
+  ASSERT(to64("3566626116") == 3566626116U);
   return NULL;
 }
 

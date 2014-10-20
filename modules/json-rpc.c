@@ -13,7 +13,7 @@ int ns_rpc_reply(struct ns_connection *nc, const char *fmt, ...) {
 
   /* Find out how long the message is, without actually making a message */
   va_start(ap, fmt);
-  __va_copy(ap_copy, ap);
+  va_copy(ap_copy, ap);
   len = json_emit_va(NULL, 0, fmt, ap);
   va_end(ap);
 

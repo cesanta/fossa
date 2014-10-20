@@ -143,7 +143,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
 
-  __va_copy(ap_copy, ap);
+  va_copy(ap_copy, ap);
   len = vsnprintf(*buf, size, fmt, ap_copy);
   va_end(ap_copy);
 
@@ -156,7 +156,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
       if (*buf) free(*buf);
       size *= 2;
       if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
-      __va_copy(ap_copy, ap);
+      va_copy(ap_copy, ap);
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
@@ -165,7 +165,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
       len = -1;
     } else {
-      __va_copy(ap_copy, ap);
+      va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
     }

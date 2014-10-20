@@ -436,11 +436,11 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
            (int) hm->uri.len, hm->uri.p);
   remove_double_dots(path);
 
-  if (stat(path, &st) != 0) {
+  if (ns_stat(path, &st) != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
   } else if (S_ISDIR(st.st_mode)) {
     strncat(path, "/index.html", sizeof(path) - (strlen(path) + 1));
-    if (stat(path, &st) == 0) {
+    if (ns_stat(path, &st) == 0) {
       ns_send_http_file(nc, path, &st);
     } else {
       ns_printf(nc, "%s", "HTTP/1.1 403 Access Denied\r\n"

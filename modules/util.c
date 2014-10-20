@@ -1,5 +1,6 @@
-/* Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved 
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
  */
 
 #include "net_skeleton.h"
@@ -37,6 +38,61 @@ int ns_vcasecmp(const struct ns_str *str2, const char *str1) {
 int ns_vcmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? memcmp(str1, str2->p, n2) : n1 > n2 ? 1 : -1;
+}
+
+#ifdef _WIN32
+static void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
+  char buf[MAX_PATH_SIZE * 2], buf2[MAX_PATH_SIZE * 2], *p;
+
+  strncpy(buf, path, sizeof(buf));
+  buf[sizeof(buf) - 1] = '\0';
+
+  // Trim trailing slashes. Leave backslash for paths like "X:\"
+  p = buf + strlen(buf) - 1;
+  while (p > buf && p[-1] != ':' && (p[0] == '\\' || p[0] == '/')) *p-- = '\0';
+
+  // Convert to Unicode and back. If doubly-converted string does not
+  // match the original, something is fishy, reject.
+  memset(wbuf, 0, wbuf_len * sizeof(wchar_t));
+  MultiByteToWideChar(CP_UTF8, 0, buf, -1, wbuf, (int) wbuf_len);
+  WideCharToMultiByte(CP_UTF8, 0, wbuf, (int) wbuf_len, buf2, sizeof(buf2),
+                      NULL, NULL);
+  if (strcmp(buf, buf2) != 0) {
+    wbuf[0] = L'\0';
+  }
+}
+#endif  /* _WIN32 */
+
+int ns_stat(const char *path, ns_stat_t *st) {
+#ifdef _WIN32
+  wchar_t wpath[MAX_PATH_SIZE];
+  to_wchar(path, wpath, ARRAY_SIZE(wpath));
+  DBG(("[%ls] -> %d", wpath, _wstati64(wpath, st)));
+  return _wstati64(wpath, st);
+#else
+  return stat(path, st);
+#endif
+}
+
+FILE *ns_fopen(const char *path, const char *mode) {
+#ifdef _WIN32
+  wchar_t wpath[MAX_PATH_SIZE], wmode[10];
+  to_wchar(path, wpath, ARRAY_SIZE(wpath));
+  to_wchar(mode, wmode, ARRAY_SIZE(wmode));
+  return _wfopen(wpath, wmode);
+#else
+  return fopen(path, mode);
+#endif
+}
+
+int ns_open(const char *path, int flag, int mode) {
+#ifdef _WIN32
+  wchar_t wpath[MAX_PATH_SIZE];
+  to_wchar(path, wpath, ARRAY_SIZE(wpath));
+  return _wopen(wpath, flag, mode);
+#else
+  return open(path, flag, mode);
+#endif
 }
 
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {

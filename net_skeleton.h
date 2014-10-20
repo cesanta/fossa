@@ -262,14 +262,15 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 #endif /* __cplusplus */
 
 #endif /* NS_SKELETON_HEADER_INCLUDED */
-/* Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
+/*
+ * Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
  * Copyright (c) 2013 Cesanta Software Limited
  * All rights reserved
  *
  * This library is dual-licensed: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation. For the terms of this
- * license, see <http://www.gnu.org/licenses/>.
+ * license, see <http: *www.gnu.org/licenses/>.
  *
  * You are free to use this library under the terms of the GNU General
  * Public License, but WITHOUT ANY WARRANTY; without even the implied

@@ -944,14 +944,15 @@ void ns_mgr_free(struct ns_mgr *s) {
     ns_close_conn(conn);
   }
 }
-/* Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
+/*
+ * Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
  * Copyright (c) 2013 Cesanta Software Limited
  * All rights reserved
  *
  * This library is dual-licensed: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation. For the terms of this
- * license, see <http://www.gnu.org/licenses/>.
+ * license, see <http: *www.gnu.org/licenses/>.
  *
  * You are free to use this library under the terms of the GNU General
  * Public License, but WITHOUT ANY WARRANTY; without even the implied
@@ -1099,7 +1100,6 @@ static int parse_string(struct frozen *f) {
   for (; f->cur < f->end; f->cur += len) {
     ch = * (unsigned char *) f->cur;
     len = get_utf8_char_len((unsigned char) ch);
-    /*printf("[%c] [%d]\n", ch, len); */
     EXPECT(ch >= 32 && len > 0, JSON_STRING_INVALID);  /* No control chars */
     EXPECT(len < left(f), JSON_STRING_INCOMPLETE);
     if (ch == '\\') {
@@ -1248,24 +1248,24 @@ static int doit(struct frozen *f) {
 /* json = object */
 int parse_json(const char *s, int s_len, struct json_token *arr, int arr_len) {
   struct frozen frozen;
+
+  memset(&frozen, 0, sizeof(frozen));
   frozen.end = s + s_len;
   frozen.cur = s;
   frozen.tokens = arr;
   frozen.max_tokens = arr_len;
-  frozen.num_tokens = 0;
-  frozen.do_realloc = 0;
 
   TRY(doit(&frozen));
+
   return frozen.cur - s;
 }
 
 struct json_token *parse_json2(const char *s, int s_len) {
   struct frozen frozen;
+
+  memset(&frozen, 0, sizeof(frozen));
   frozen.end = s + s_len;
   frozen.cur = s;
-  frozen.tokens = NULL;
-  frozen.max_tokens = 0;
-  frozen.num_tokens = 0;
   frozen.do_realloc = 1;
 
   if (doit(&frozen) < 0) {

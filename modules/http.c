@@ -173,8 +173,8 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   }
 }
 
-void ns_printf_websocket(struct ns_connection *nc, int op,
-                         const char *fmt, ...) {
+void ns_printf_websocket_frame(struct ns_connection *nc, int op,
+                               const char *fmt, ...) {
   char mem[4192], *buf = mem;
   va_list ap;
   int len;
@@ -204,8 +204,7 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-static void send_websocket_handshake(struct ns_connection *nc,
-                                     const struct ns_str *key) {
+static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
   static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   char buf[500], sha[20], b64_sha[sizeof(sha) * 2];
   SHA1_CTX sha_ctx;
@@ -261,7 +260,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, NULL);
         if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           if (nc->send_iobuf.len == 0) {
-            send_websocket_handshake(nc, vec);
+            ws_handshake(nc, vec);
           }
           cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
           websocket_handler(nc, NS_RECV, ev_data);

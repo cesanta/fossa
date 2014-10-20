@@ -395,7 +395,7 @@ static void cb3(struct ns_connection *nc, int ev, void *ev_data) {
 
   if (ev == NS_WEBSOCKET_FRAME) {
     const char *reply = wm->size == 2 && !memcmp(wm->data, "hi", 2) ? "A": "B";
-    ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", reply);
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", reply);
   }
 }
 
@@ -407,7 +407,7 @@ static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
     ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
     /* Send "hi" to server. server must reply "A". */
-    ns_printf_websocket(nc, WEBSOCKET_OP_TEXT, "%s", "hi");
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", "hi");
   }
 }
 

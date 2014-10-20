@@ -105,7 +105,9 @@ typedef struct _stati64 ns_stat_t;
 #define closesocket(x) close(x)
 #define __cdecl
 #define INVALID_SOCKET (-1)
+#ifdef __APPLE__
 int64_t strtoll(const char * str, char ** endptr, int base);
+#endif
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;

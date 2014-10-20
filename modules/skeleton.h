@@ -239,7 +239,14 @@ void ns_broadcast(struct ns_mgr *, ns_event_handler_t, void *, size_t);
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t, ns_event_handler_t);
 struct ns_connection *ns_bind(struct ns_mgr *, const char *, ns_event_handler_t);
+
+struct ns_connection_opts {
+  void *user_data;
+  unsigned int flags;
+  char **error_string;
+};
 struct ns_connection *ns_connect(struct ns_mgr *, const char *, ns_event_handler_t);
+struct ns_connection *ns_connect_opt(struct ns_mgr *, const char *, ns_event_handler_t, struct ns_connection_opts);
 const char *ns_set_ssl(struct ns_connection *nc, const char *, const char *);
 
 int ns_send(struct ns_connection *, const void *buf, int len);

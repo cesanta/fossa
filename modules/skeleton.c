@@ -853,8 +853,17 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   return current_time;
 }
 
+
+static struct ns_connection_opts ns_connection_default_opts;
+
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
+  return ns_connect_opt(mgr, address, callback, ns_connection_default_opts);
+}
+
+struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
+                                     ns_event_handler_t callback,
+                                     struct ns_connection_opts opts) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
@@ -862,21 +871,26 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
 
   ns_parse_address(address, &sa, &proto);
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
+    ns_set_error_string(opts.error_string, "cannot create socket");
     return NULL;
   }
+
   ns_set_non_blocking_mode(sock);
   rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa.sa, sizeof(sa.sin));
 
   if (rc != 0 && ns_is_error(rc)) {
+    ns_set_error_string(opts.error_string, "cannot connect to socket");
     closesocket(sock);
     return NULL;
   } else if ((nc = ns_add_sock(mgr, sock, callback)) == NULL) {
+    /* opts.error_string set by ns_add_sock_opt */
     closesocket(sock);
     return NULL;
   }
 
   nc->sa = sa;   /* Important, cause UDP conns will use sendto() */
-  nc->flags = (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
+  nc->flags = opts.flags | ((proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING);
+  nc->user_data = opts.user_data;
 
   return nc;
 }

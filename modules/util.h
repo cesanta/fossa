@@ -23,6 +23,8 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
 int ns_stat(const char *path, ns_stat_t *st);
 FILE *ns_fopen(const char *path, const char *mode);
 int ns_open(const char *path, int flag, int mode);
+char *ns_error_string(const char *s);
+void ns_set_error_string(char **e, const char *s);
 
 #ifdef __cplusplus
 }

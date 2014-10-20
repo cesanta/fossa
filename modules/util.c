@@ -164,3 +164,18 @@ void ns_base64_decode(const unsigned char *s, int len, char *dst) {
   }
   *dst = 0;
 }
+
+char *ns_error_string(const char *p) {
+  /* aprintf is not portable */
+  const int errbuf_len = 1024;
+  const int len = strlen(p) + 2 + errbuf_len + 1;
+  char *buf = (char*)malloc(len);
+  snprintf(buf, len, "%s: %.*s", p, errbuf_len, strerror(errno));
+  return buf;
+}
+
+void ns_set_error_string(char **e, const char *s) {
+  if (e) {
+    *e = ns_error_string(s);
+  }
+}

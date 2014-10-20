@@ -1428,14 +1428,16 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 
   return len;
 }
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 
-/* Check whether full request is buffered. Return:
+/*
+ * Check whether full request is buffered. Return:
  *   -1  if request is malformed
  *    0  if request is not yet fully buffered
  *   >0  actual request length, including last \r\n\r\n

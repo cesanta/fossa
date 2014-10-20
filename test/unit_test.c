@@ -1,4 +1,5 @@
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  * This software is dual-licensed: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -16,9 +17,10 @@
  * $Date: 2014-09-28 05:04:41 UTC $
  */
 
-/* Net Skeleton unit test 
+/*
+ * Net Skeleton unit test
  * g++ -x=c++ -W -Wall -pedantic -g unit_test.c -lssl && ./a.out
- * cl unit_test.c /MD 
+ * cl unit_test.c /MD
  */
 
 #ifndef _WIN32

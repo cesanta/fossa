@@ -1,4 +1,5 @@
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  * This software is dual-licensed: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as

@@ -1,4 +1,5 @@
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  * This software is dual-licensed: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -332,7 +333,8 @@ int json_emit_va(char *buf, int buf_len, const char *fmt, va_list);
 #endif /* __cplusplus */
 
 #endif /* FROZEN_HEADER_INCLUDED */
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
@@ -357,7 +359,8 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
 }
 #endif  /* __cplusplus */
 #endif  /* NS_SHA1_HEADER_INCLUDED */
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
@@ -379,7 +382,8 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
 }
 #endif /* __cplusplus */
 #endif  /* NS_UTIL_HEADER_DEFINED */
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
@@ -453,7 +457,8 @@ void ns_serve_http(struct ns_connection *, struct http_message *,
 }
 #endif /* __cplusplus */
 #endif  /* NS_HTTP_HEADER_DEFINED */
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 

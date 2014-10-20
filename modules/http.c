@@ -1,4 +1,5 @@
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
 
@@ -9,7 +10,8 @@
 #include "util.h"
 #include "http.h"
 
-/* Check whether full request is buffered. Return:
+/*
+ * Check whether full request is buffered. Return:
  *   -1  if request is malformed
  *    0  if request is not yet fully buffered
  *   >0  actual request length, including last \r\n\r\n

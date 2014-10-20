@@ -335,8 +335,8 @@ static const char *test_parse_http_message(void) {
   ASSERT(parse_http(d, strlen(d), &req) == (int) strlen(d));
   ASSERT(req.body.len == 21);
   ASSERT(req.message.len == 21 + strlen(d));
-  ASSERT(get_http_header(&req, "foo") == NULL);
-  ASSERT((v = get_http_header(&req, "contENT-Length")) != NULL);
+  ASSERT(ns_get_http_header(&req, "foo") == NULL);
+  ASSERT((v = ns_get_http_header(&req, "contENT-Length")) != NULL);
   ASSERT(v->len == 2 && memcmp(v->p, "21", 2) == 0);
 
   return NULL;

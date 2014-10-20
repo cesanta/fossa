@@ -1508,7 +1508,7 @@ static int parse_http(const char *s, int n, struct http_message *req) {
   return len;
 }
 
-struct ns_str *get_http_header(struct http_message *hm, const char *name) {
+struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   size_t i, len = strlen(name);
 
   for (i = 0; i < ARRAY_SIZE(hm->header_names); i++) {
@@ -1668,7 +1668,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       } else if (req_len == 0) {
         /* Do nothing, request is not yet fully buffered */
       } else if (nc->listener == NULL &&
-                 get_http_header(&hm, "Sec-WebSocket-Accept")) {
+                 ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
         /* We're websocket client, got handshake response from server. */
         /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
         iobuf_remove(io, req_len);
@@ -1677,7 +1677,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
       } else if (nc->listener != NULL &&
-                 (vec = get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
+                 (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
         /* This is a websocket request. Switch protocol handlers. */
         iobuf_remove(io, req_len);
         nc->callback = websocket_handler;

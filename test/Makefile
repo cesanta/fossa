@@ -1,6 +1,7 @@
 PROG = unit_test
 PROF = -fprofile-arcs -ftest-coverage -g -O0
 CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -pthread $(PROF) $(CFLAGS_EXTRA)
+PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 SOURCES = $(PROG).c ../net_skeleton.c
 
 # http://crossgcc.rts-software.org/doku.php?id=compiling_for_win32
@@ -21,12 +22,12 @@ $(PROG): Makefile
 
 $(PROG)_ansi: Makefile
 	$(MAKE) clean_coverage
-	gcc -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
+	gcc $(PEDANTIC) -ansi $(PROG).c -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
 	gcov -b $(PROG).c
 
 $(PROG)_c99: Makefile
 	$(MAKE) clean_coverage
-	gcc -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
+	gcc $(PEDANTIC) -std=c99 $(PROG).c -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
 
 $(PROG)_mingw.exe: Makefile
 	$(MAKE) clean_coverage

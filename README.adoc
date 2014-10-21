@@ -15,20 +15,23 @@ bringing them online.
 
 * Cross-platform: works on Linux/UNIX, QNX, eCos, Windows, Android, iPhone, etc
 * Single-threaded, asynchronous, non-blocking core with simple event-based API
-* Has both client and server functionality
-* Builtin protocols: plain TCP, plain UDP, HTTP, Websocket, JSON-RPC
-* SSL/TLS support, one-way and two-way SSL
+* Builtin protocols:
+  ** plain TCP, plain UDP, SSL/TLS (over TCP, one-way or two-way)
+  ** HTTP / Websocket, client and server
+  ** JSON-RPC, client and server
 * Tiny static and run-time footprint
+* Source code is strict ISO C and strict ISO C++
+* Extensively tested and production-ready, trusted by many blue chip businesses
 
 == Concept
 
 Net Skeleton is a non-blocking, asyncronous event manager described by
 `struct ns_mgr` structure. That structure holds active connections.
-Connections could be either listening, client or accepted connections.
-Client connections are created by means of
+Connections could be either *listening*, *client* or *accepted*.
+Client connections are created by
 `ns_connect()` call. Listening connections are created by `ns_bind()` call.
 Accepted connections are those that incoming on a listening connection.
-A connection is described by `struct ns_connection` structure, which has
+Each connection is described by `struct ns_connection` structure, which has
 a number of fields like socket, event handler function, send/receive buffer,
 flags, et cetera.
 
@@ -331,6 +334,24 @@ int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst, size_
 
 void ns_serve_http(struct ns_connection *nc, struct http_message *request, struct ns_serve_http_opts options)::
   Serve given HTTP request according to the `options`.
+  Example code snippet:
+
+[source,c]
+.web_server.c
+----
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_serve_http_opts opts = { .document_root = "/var/www" };
+
+  switch (ev) {
+    case NS_HTTP_REQUEST:
+      ns_serve_http(nc, hm, opts);
+      break;
+    default:
+      break;
+  }
+}
+----
 
 === JSON-RPC API
 

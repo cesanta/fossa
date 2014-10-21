@@ -399,20 +399,29 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
     sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
-#ifndef _WIN32
   int on = 1;
-#endif
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
-#ifndef _WIN32
-      /* SO_RESUSEADDR is not enabled on Windows because the semantics of
+
+#if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
+      /* http://msdn.microsoft.com/en-us/library/windows/desktop/ms740621(v=vs.85).aspx */
+      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
+                  (void *) &on, sizeof(on)) &&
+#endif
+
+#if 1 || !defined(_WIN32) || defined(SO_EXCLUSIVEADDRUSE)
+      /*
+       * SO_RESUSEADDR is not enabled on Windows because the semantics of
        * SO_REUSEADDR on UNIX and Windows is different. On Windows,
        * SO_REUSEADDR allows to bind a socket to a port without error even if
        * the port is already open by another program. This is not the behavior
        * SO_REUSEADDR was designed for, and leads to hard-to-track failure
-       * scenarios. Therefore, SO_REUSEADDR was disabled on Windows. */
+       * scenarios. Therefore, SO_REUSEADDR was disabled on Windows unless
+       * SO_EXCLUSIVEADDRUSE is supported and set on a socket.
+       */
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
 #endif
+
       !bind(sock, &sa->sa, sa_len) &&
       (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0)) {
     ns_set_non_blocking_mode(sock);
@@ -608,7 +617,6 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     socklen_t len = sizeof(ok);
 
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
-    (void) ret;
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
       int res = SSL_connect(conn->ssl);
@@ -743,12 +751,13 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   struct ns_connection *conn, *tmp_conn;
   struct timeval tv;
-  fd_set read_set, write_set;
+  fd_set read_set, write_set, err_set;
   sock_t max_fd = INVALID_SOCKET;
   time_t current_time = time(NULL);
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
+  FD_ZERO(&err_set);
   ns_add_to_set(mgr->ctl[1], &read_set, &max_fd);
 
   for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
@@ -765,6 +774,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
          !(conn->flags & NSF_BUFFER_BUT_DONT_SEND))) {
       /*DBG(("%p write_set", conn)); */
       ns_add_to_set(conn->sock, &write_set, &max_fd);
+      ns_add_to_set(conn->sock, &err_set, &max_fd);
     }
     if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
       ns_close_conn(conn);
@@ -774,7 +784,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   tv.tv_sec = milli / 1000;
   tv.tv_usec = (milli % 1000) * 1000;
 
-  if (select((int) max_fd + 1, &read_set, &write_set, NULL, &tv) > 0) {
+  if (select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv) > 0) {
     /* select() might have been waiting for a long time, reset current_time
      *  now to prevent last_io_time being set to the past. */
     current_time = time(NULL);
@@ -795,6 +805,12 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
     for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
       tmp_conn = conn->next;
+
+      /* Windows reports failed connect() requests in err_set */
+      if (FD_ISSET(conn->sock, &err_set)) {
+        ns_read_from_socket(conn);
+      }
+
       if (FD_ISSET(conn->sock, &read_set)) {
         if (conn->flags & NSF_LISTENING) {
           if (conn->flags & NSF_UDP) {

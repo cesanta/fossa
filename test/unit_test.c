@@ -93,7 +93,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   int port, port2;
 
   ns_mgr_init(&mgr, NULL);
-  mgr.hexdump_file = "/dev/stdout";
+  /* mgr.hexdump_file = "/dev/stdout"; */
 
   if (use_ssl) {
     snprintf(addr, sizeof(addr), "ssl://%s:0:%s:%s", LOOPBACK_IP, S_PEM, CA_PEM);
@@ -476,7 +476,7 @@ static const char *test_rpc(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7779";
-  char buf[100];
+  char buf[100] = "";
 
   ns_mgr_init(&mgr, NULL);
 
@@ -493,11 +493,39 @@ static const char *test_rpc(void) {
   return NULL;
 }
 
+static void cb5(struct ns_connection *nc, int ev, void *ev_data) {
+  switch (ev) {
+    case NS_CONNECT:
+      sprintf((char *) nc->user_data, "%d", * (int *) ev_data);
+      break;
+    default:
+      break;
+  }
+}
+
+static const char *test_connect_fail(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  char buf[100] = "0";
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33333", cb5)) != NULL);
+  nc->user_data = buf;
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  /* printf("failed connect status: [%s]\n", buf); */
+  ASSERT(strcmp(buf, "0") != 0);
+
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
 #if 0
   RUN_TEST(test_parse_address);
 #endif
+  RUN_TEST(test_connect_fail);
   RUN_TEST(test_to64);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);

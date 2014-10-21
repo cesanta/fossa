@@ -35,7 +35,6 @@
 #define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
 static int static_num_tests = 0;
-static const char *s_local_addr = "127.0.0.1:7777";
 
 static const char *test_iobuf(void) {
   struct iobuf io;
@@ -353,21 +352,22 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
 static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7777";
   char buf[20] = "";
 
   ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_bind(&mgr, s_local_addr, cb1)) != NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
   /* Valid HTTP request. Pass test buffer to the callback. */
-  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_printf(nc, "%s", "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
             "0123456789");
 
   /* Invalid HTTP request */
-  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb2)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   ns_printf(nc, "%s", "bl\x03\n\n");
   poll_mgr(&mgr, 50);
@@ -403,15 +403,16 @@ static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
 static const char *test_websocket(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7778";
   char buf[20] = "";
 
   ns_mgr_init(&mgr, NULL);
   /* mgr.hexdump_file = "/dev/stdout"; */
-  ASSERT((nc = ns_bind(&mgr, s_local_addr, cb3)) != NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb3)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
   /* Websocket request */
-  ASSERT((nc = ns_connect(&mgr, s_local_addr, cb4)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb4)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_send_websocket_handshake(nc, "/ws", NULL);
@@ -474,14 +475,15 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
 static const char *test_rpc(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7779";
   char buf[100];
 
   ns_mgr_init(&mgr, NULL);
 
-  ASSERT((nc = ns_bind(&mgr, s_local_addr, rpc_server)) != NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, rpc_server)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
-  ASSERT((nc = ns_connect(&mgr, s_local_addr, rpc_client)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, local_addr, rpc_client)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
 

@@ -278,32 +278,37 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
   socklen_t len = sizeof(sa.sin);
   int ret = 0;
 
-  sp[0] = sp[1] = INVALID_SOCKET;
+  sock = sp[0] = sp[1] = INVALID_SOCKET;
 
   (void) memset(&sa, 0, sizeof(sa));
   sa.sin.sin_family = AF_INET;
   sa.sin.sin_port = htons(0);
   sa.sin.sin_addr.s_addr = htonl(0x7f000001);
 
-  if ((sock = socket(AF_INET, sock_type, 0)) != INVALID_SOCKET &&
-      !bind(sock, &sa.sa, len) &&
-      (sock_type == SOCK_DGRAM || !listen(sock, 1)) &&
-      !getsockname(sock, &sa.sa, &len) &&
-      (sp[0] = socket(AF_INET, sock_type, 0)) != INVALID_SOCKET &&
-      !connect(sp[0], &sa.sa, len) &&
-      (sock_type == SOCK_STREAM ||
-       (!getsockname(sp[0], &sa.sa, &len) && !connect(sock, &sa.sa, len))) &&
-      (sp[1] = (sock_type == SOCK_DGRAM ? sock :
-                accept(sock, &sa.sa, &len))) != INVALID_SOCKET) {
+  if ((sock = socket(AF_INET, sock_type, 0)) == INVALID_SOCKET) {
+  } else if (bind(sock, &sa.sa, len) != 0) {
+  } else if (sock_type == SOCK_STREAM && listen(sock, 1) != 0) {
+  } else if (getsockname(sock, &sa.sa, &len) != 0) {
+  } else if ((sp[0] = socket(AF_INET, sock_type, 0)) == INVALID_SOCKET) {
+  } else if (connect(sp[0], &sa.sa, len) != 0) {
+  } else if (sock_type == SOCK_DGRAM &&
+             (getsockname(sp[0], &sa.sa, &len) != 0 ||
+              connect(sock, &sa.sa, len) != 0)) {
+  } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
+             accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
+  } else {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
+    if (sock_type == SOCK_STREAM) closesocket(sock);
     ret = 1;
-  } else {
+  }
+
+  if (!ret) {
     if (sp[0] != INVALID_SOCKET) closesocket(sp[0]);
     if (sp[1] != INVALID_SOCKET) closesocket(sp[1]);
-    sp[0] = sp[1] = INVALID_SOCKET;
+    if (sock  != INVALID_SOCKET) closesocket(sock);
+    sock = sp[0] = sp[1] = INVALID_SOCKET;
   }
-  if (sock_type != SOCK_DGRAM) closesocket(sock);
 
   return ret;
 }
@@ -463,7 +468,9 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
   if (use_ssl && cert[0] == '\0') return NULL;
 
   if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
+    DBG(("Failed to open listener: %d", WSAGetLastError()));
   } else if ((nc = ns_add_sock(srv, sock, callback)) == NULL) {
+    DBG(("Failed to ns_add_sock"));
     closesocket(sock);
   } else {
     nc->sa = sa;

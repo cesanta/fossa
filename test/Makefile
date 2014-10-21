@@ -34,7 +34,7 @@ $(PROG)_mingw.exe: Makefile
 	$(MINGW_GCC) $(SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror -I..
 
 $(PROG).exe:
-	wine cl $(SOURCES) /MD /I.. && echo "Compiled OK\n"
+	wine cl $(SOURCES) /MD /I.. /Zi $(CFLAGS_EXTRA) && echo "Compiled OK\n"
 
 win: $(PROG).exe
 	wine $(PROG).exe

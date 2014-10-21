@@ -138,7 +138,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
     /* Remove frame from the iobuf */
-    iobuf_remove(&nc->recv_iobuf, frame_len);
+    iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);
   }
 
   return ok;

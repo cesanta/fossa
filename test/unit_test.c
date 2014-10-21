@@ -260,7 +260,6 @@ static const char *test_thread(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
-  printf("%s [%p]\n", __func__, nc->user_data);
   poll_mgr(&mgr, 50);
   ASSERT(strcmp(buf, ":-)") == 0);
   ns_mgr_free(&mgr);

@@ -1576,7 +1576,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
 
     /* Remove frame from the iobuf */
-    iobuf_remove(&nc->recv_iobuf, frame_len);
+    iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);
   }
 
   return ok;
@@ -1716,7 +1716,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         nc->flags |= NSF_USER_1;
 
         /* Send handshake */
-        cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, NULL);
+        cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
         if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           if (nc->send_iobuf.len == 0) {
             ws_handshake(nc, vec);
@@ -1917,6 +1917,14 @@ static uint32_t blk0(union char64long16 *block, int i) {
   }
   return block->l[i];
 }
+
+/* Avoid redefine warning (ARM /usr/include/sys/ucontext.h define R0~R4) */
+#undef blk
+#undef R0
+#undef R1
+#undef R2
+#undef R3
+#undef R4
 
 #define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
     ^block->l[(i+2)&15]^block->l[i&15],1))

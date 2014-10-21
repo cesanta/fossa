@@ -265,6 +265,17 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len)::
   Converts domain name into IP address. This is a blocking call. Returns 1
   on success, 0 on failure.
 
+int ns_stat(const char *path, ns_stat_t *st)::
+  Perform a 64-bit `stat()` call against given file. `path` should be
+  UTF8 encoded. Return value is the same as for `stat()` syscall.
+
+FILE *ns_fopen(const char *path, const char *mode)::
+  Open given file and return a file stream. `path` and `mode` should be
+  UTF8 encoded. Return value is the same as for `fopen()` call.
+
+int ns_open(const char *path, int flag, int mode)::
+  Open given file and return file descriptor. `path` should be UTF8 encoded.
+  Return value is the same as for `open()` syscall.
 
 === HTTP/Websocket API
 

@@ -34,7 +34,10 @@ $(PROG)_mingw.exe: Makefile
 	$(MINGW_GCC) $(SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror -I..
 
 $(PROG).exe:
-	wine cl $(SOURCES) /MD /I.. && echo "Compiled OK\n" && wine $(PROG).exe
+	wine cl $(SOURCES) /MD /I.. && echo "Compiled OK\n"
+
+win: $(PROG).exe
+	wine $(PROG).exe
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 *.txt *.exe *.obj *.o a.out

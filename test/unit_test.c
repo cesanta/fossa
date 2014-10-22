@@ -69,7 +69,7 @@ static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
       if (nc->listener != NULL) {
         ns_printf(nc, "%d", (int) io->len);
         iobuf_remove(io, io->len);
-      } else if (strcmp(io->buf, "10") == 0) {
+      } else if (io->len == 2 && memcmp(io->buf, "10", 2) == 0) {
         sprintf((char *) nc->user_data, "%s", "ok!");
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
       }

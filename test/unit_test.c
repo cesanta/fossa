@@ -58,23 +58,20 @@ static void poll_mgr(struct ns_mgr *mgr, int num_iterations) {
   }
 }
 
-static void ev_handler(struct ns_connection *nc, int ev, void *p) {
-  (void) p;
+static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
+  struct iobuf *io = &nc->recv_iobuf;
+
   switch (ev) {
     case NS_CONNECT:
-      ns_printf(nc, "%d %s there", 17, "hi");
+      ns_printf(nc, "%d %s there", * (int *) ev_data, "hi");
       break;
     case NS_RECV:
       if (nc->listener != NULL) {
-        struct iobuf *io = &nc->recv_iobuf;
-        ns_send(nc, io->buf, io->len); /* Echo message back */
+        ns_printf(nc, "%d", (int) io->len);
         iobuf_remove(io, io->len);
-      } else {
-        struct iobuf *io = &nc->recv_iobuf;
-        if (io->len == 11 && memcmp(io->buf, "17 hi there", 11) == 0) {
-          sprintf((char *) nc->user_data, "%s", "ok!");
-          nc->flags |= NSF_CLOSE_IMMEDIATELY;
-        }
+      } else if (strcmp(io->buf, "10") == 0) {
+        sprintf((char *) nc->user_data, "%s", "ok!");
+        nc->flags |= NSF_CLOSE_IMMEDIATELY;
       }
       break;
     default:
@@ -87,7 +84,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
 #define CA_PEM "ca.pem"
 
 static const char *test_mgr_with_ssl(int use_ssl) {
-  char addr[100], ip[sizeof(addr)], buf[100] = "";
+  char addr[100] = "127.0.0.1:0", ip[sizeof(addr)], buf[100] = "";
   struct ns_mgr mgr;
   struct ns_connection *nc;
   int port, port2;
@@ -95,30 +92,22 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   ns_mgr_init(&mgr, NULL);
   /* mgr.hexdump_file = "/dev/stdout"; */
 
-  if (use_ssl) {
-    snprintf(addr, sizeof(addr), "ssl://%s:0:%s:%s", LOOPBACK_IP, S_PEM, CA_PEM);
-  } else {
-    snprintf(addr, sizeof(addr), "%s:0", LOOPBACK_IP);
-  }
-
-  ASSERT((nc = ns_bind(&mgr, addr, ev_handler)) != NULL);
-  ASSERT(nc != NULL);
+  ASSERT((nc = ns_bind(&mgr, addr, eh1)) != NULL);
   port2 = htons(nc->sa.sin.sin_port);
   ASSERT(port2 > 0);
+  if (use_ssl) {
+    ASSERT(ns_set_ssl(nc, S_PEM, CA_PEM) == NULL);
+  }
 
   ns_sock_to_str(nc->sock, addr, sizeof(addr), 3);
   ASSERT(sscanf(addr, "%[^:]:%d", ip, &port) == 2);
   ASSERT(strcmp(ip, "127.0.0.1") == 0);
   ASSERT(port == port2);
 
+  ASSERT((nc = ns_connect(&mgr, addr, eh1)) != NULL);
   if (use_ssl) {
-    snprintf(addr, sizeof(addr), "ssl://%s:%d:%s:%s", LOOPBACK_IP, port,
-             C_PEM, CA_PEM);
-  } else {
-    snprintf(addr, sizeof(addr), "tcp://%s:%d", LOOPBACK_IP, port);
+    ASSERT(ns_set_ssl(nc, C_PEM, CA_PEM) == NULL);
   }
-
-  ASSERT((nc = ns_connect(&mgr, addr, ev_handler)) != NULL);
   nc->user_data = buf;
   poll_mgr(&mgr, 50);
 
@@ -509,7 +498,7 @@ static const char *test_connect_fail(void) {
   char buf[100] = "0";
 
   ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33333", cb5)) != NULL);
+  ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33211", cb5)) != NULL);
   nc->user_data = buf;
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);

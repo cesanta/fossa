@@ -338,10 +338,9 @@ int ns_resolve(const char *host, char *buf, size_t n) {
 }
 
 /* Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT] */
-static int ns_parse_address(const char *str, union socket_address *sa,
-                            int *proto, int *use_ssl, char *cert, char *ca) {
+static int ns_parse_address(const char *str, union socket_address *sa, int *p) {
   unsigned int a, b, c, d, port;
-  int n = 0, len = 0;
+  int len = 0;
   char host[200];
 #ifdef NS_ENABLE_IPV6
   char buf[100];
@@ -353,16 +352,11 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   memset(sa, 0, sizeof(*sa));
   sa->sin.sin_family = AF_INET;
 
-  *proto = SOCK_STREAM;
-  *use_ssl = 0;
-  cert[0] = ca[0] = '\0';
+  *p = SOCK_STREAM;
 
-  if (memcmp(str, "ssl://", 6) == 0) {
+  if (memcmp(str, "udp://", 6) == 0) {
     str += 6;
-    *use_ssl = 1;
-  } else if (memcmp(str, "udp://", 6) == 0) {
-    str += 6;
-    *proto = SOCK_DGRAM;
+    *p = SOCK_DGRAM;
   } else if (memcmp(str, "tcp://", 6) == 0) {
     str += 6;
   }
@@ -384,11 +378,6 @@ static int ns_parse_address(const char *str, union socket_address *sa,
   } else if (sscanf(str, "%u%n", &port, &len) == 1) {
     /* If only port is specified, bind to IPv4, INADDR_ANY */
     sa->sin.sin_port = htons((uint16_t) port);
-  }
-
-  if (*use_ssl && (sscanf(str + len, ":%99[^:]:%99[^:]%n", cert, ca, &n) == 2 ||
-                   sscanf(str + len, ":%99[^:]%n", cert, &n) == 1)) {
-    len += n;
   }
 
   return port < 0xffff && str[len] == '\0' ? len : 0;
@@ -463,21 +452,48 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
     return 0;
   }
 }
+
+const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
+                       const char *ca_cert) {
+  const char *result = NULL;
+
+  if ((nc->flags & NSF_LISTENING) &&
+      (nc->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
+    result = "SSL_CTX_new() failed";
+  } else if (!(nc->flags & NSF_LISTENING) &&
+             (nc->ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
+    result = "SSL_CTX_new() failed";
+  } else if (ns_use_cert(nc->ssl_ctx, cert) != 0) {
+    result = "Invalid ssl cert";
+  } else if (ns_use_ca_cert(nc->ssl_ctx, ca_cert) != 0) {
+    result = "Invalid CA cert";
+  } else if (!(nc->flags & NSF_LISTENING) &&
+             (nc->ssl = SSL_new(nc->ssl_ctx)) == NULL) {
+    result = "SSL_new() failed";
+  } else if (!(nc->flags & NSF_LISTENING)) {
+    SSL_set_fd(nc->ssl, nc->sock);
+  }
+  return result;
+}
+
+static int ns_ssl_err(struct ns_connection *conn, int res) {
+  int ssl_err = SSL_get_error(conn->ssl, res);
+  if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
+  if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
+  return ssl_err;
+}
 #endif  /* NS_ENABLE_SSL */
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
                               ns_event_handler_t callback) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
-  int use_ssl, proto;
-  char cert[100], ca_cert[100];
+  int proto;
   sock_t sock;
 
-  ns_parse_address(str, &sa, &proto, &use_ssl, cert, ca_cert);
-  if (use_ssl && cert[0] == '\0') return NULL;
-
+  ns_parse_address(str, &sa, &proto);
   if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
-    DBG(("Failed to open listener: %d", WSAGetLastError()));
+    DBG(("Failed to open listener: %d", errno));
   } else if ((nc = ns_add_sock(srv, sock, callback)) == NULL) {
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
@@ -490,18 +506,7 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
       nc->flags |= NSF_UDP;
     }
 
-#ifdef NS_ENABLE_SSL
-    if (use_ssl) {
-      nc->ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-      if (ns_use_cert(nc->ssl_ctx, cert) != 0 ||
-          ns_use_ca_cert(nc->ssl_ctx, ca_cert) != 0) {
-        ns_close_conn(nc);
-        nc = NULL;
-      }
-    }
-#endif
-
-    DBG(("%p sock %d/%d ssl %p %p", nc, sock, proto, nc->ssl_ctx, nc->ssl));
+    DBG(("%p sock %d/%d", nc, sock, proto));
   }
 
   return nc;
@@ -598,15 +603,6 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
 
   return n;
 }
-
-#ifdef NS_ENABLE_SSL
-static int ns_ssl_err(struct ns_connection *conn, int res) {
-  int ssl_err = SSL_get_error(conn->ssl, res);
-  if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
-  if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
-  return ssl_err;
-}
-#endif
 
 static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[2048];
@@ -749,7 +745,7 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
 }
 
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
-  struct ns_connection *conn, *tmp_conn;
+  struct ns_connection *nc, *tmp;
   struct timeval tv;
   fd_set read_set, write_set, err_set;
   sock_t max_fd = INVALID_SOCKET;
@@ -760,24 +756,24 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   FD_ZERO(&err_set);
   ns_add_to_set(mgr->ctl[1], &read_set, &max_fd);
 
-  for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
-    tmp_conn = conn->next;
-    if (!(conn->flags & (NSF_LISTENING | NSF_CONNECTING))) {
-      ns_call(conn, NS_POLL, &current_time);
+  for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+    tmp = nc->next;
+    if (!(nc->flags & (NSF_LISTENING | NSF_CONNECTING))) {
+      ns_call(nc, NS_POLL, &current_time);
     }
-    if (!(conn->flags & NSF_WANT_WRITE)) {
-      /*DBG(("%p read_set", conn)); */
-      ns_add_to_set(conn->sock, &read_set, &max_fd);
+    if (!(nc->flags & NSF_WANT_WRITE)) {
+      /*DBG(("%p read_set", nc)); */
+      ns_add_to_set(nc->sock, &read_set, &max_fd);
     }
-    if (((conn->flags & NSF_CONNECTING) && !(conn->flags & NSF_WANT_READ)) ||
-        (conn->send_iobuf.len > 0 && !(conn->flags & NSF_CONNECTING) &&
-         !(conn->flags & NSF_BUFFER_BUT_DONT_SEND))) {
-      /*DBG(("%p write_set", conn)); */
-      ns_add_to_set(conn->sock, &write_set, &max_fd);
-      ns_add_to_set(conn->sock, &err_set, &max_fd);
+    if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
+        (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
+         !(nc->flags & NSF_BUFFER_BUT_DONT_SEND))) {
+      /*DBG(("%p write_set", nc)); */
+      ns_add_to_set(nc->sock, &write_set, &max_fd);
+      ns_add_to_set(nc->sock, &err_set, &max_fd);
     }
-    if (conn->flags & NSF_CLOSE_IMMEDIATELY) {
-      ns_close_conn(conn);
+    if (nc->flags & NSF_CLOSE_IMMEDIATELY) {
+      ns_close_conn(nc);
     }
   }
 
@@ -803,47 +799,48 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
       }
     }
 
-    for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
-      tmp_conn = conn->next;
+    for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+      tmp = nc->next;
 
       /* Windows reports failed connect() requests in err_set */
-      if (FD_ISSET(conn->sock, &err_set)) {
-        ns_read_from_socket(conn);
+      if (FD_ISSET(nc->sock, &err_set) && (nc->flags & NSF_CONNECTING)) {
+        nc->last_io_time = current_time;
+        ns_read_from_socket(nc);
       }
 
-      if (FD_ISSET(conn->sock, &read_set)) {
-        if (conn->flags & NSF_LISTENING) {
-          if (conn->flags & NSF_UDP) {
-            ns_handle_udp(conn);
+      if (FD_ISSET(nc->sock, &read_set)) {
+        nc->last_io_time = current_time;
+        if (nc->flags & NSF_LISTENING) {
+          if (nc->flags & NSF_UDP) {
+            ns_handle_udp(nc);
           } else {
             /* We're not looping here, and accepting just one connection at
              * a time. The reason is that eCos does not respect non-blocking
              * flag on a listening socket and hangs in a loop. */
-            accept_conn(conn);
+            accept_conn(nc);
           }
         } else {
-          conn->last_io_time = current_time;
-          ns_read_from_socket(conn);
+          ns_read_from_socket(nc);
         }
       }
 
-      if (FD_ISSET(conn->sock, &write_set)) {
-        if (conn->flags & NSF_CONNECTING) {
-          ns_read_from_socket(conn);
-        } else if (!(conn->flags & NSF_BUFFER_BUT_DONT_SEND)) {
-          conn->last_io_time = current_time;
-          ns_write_to_socket(conn);
+      if (FD_ISSET(nc->sock, &write_set)) {
+        nc->last_io_time = current_time;
+        if (nc->flags & NSF_CONNECTING) {
+          ns_read_from_socket(nc);
+        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND)) {
+          ns_write_to_socket(nc);
         }
       }
     }
   }
 
-  for (conn = mgr->active_connections; conn != NULL; conn = tmp_conn) {
-    tmp_conn = conn->next;
-    if ((conn->flags & NSF_CLOSE_IMMEDIATELY) ||
-        (conn->send_iobuf.len == 0 &&
-          (conn->flags & NSF_FINISHED_SENDING_DATA))) {
-      ns_close_conn(conn);
+  for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+    tmp = nc->next;
+    if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
+        (nc->send_iobuf.len == 0 &&
+          (nc->flags & NSF_FINISHED_SENDING_DATA))) {
+      ns_close_conn(nc);
     }
   }
 
@@ -855,10 +852,9 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
-  char cert[100], ca_cert[100];
-  int rc, use_ssl, proto;
+  int rc, proto;
 
-  ns_parse_address(address, &sa, &proto, &use_ssl, cert, ca_cert);
+  ns_parse_address(address, &sa, &proto);
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     return NULL;
   }
@@ -875,20 +871,6 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
 
   nc->sa = sa;   /* Important, cause UDP conns will use sendto() */
   nc->flags = (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
-
-#ifdef NS_ENABLE_SSL
-  if (use_ssl) {
-    if ((nc->ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL ||
-        ns_use_cert(nc->ssl_ctx, cert) != 0 ||
-        ns_use_ca_cert(nc->ssl_ctx, ca_cert) != 0 ||
-        (nc->ssl = SSL_new(nc->ssl_ctx)) == NULL) {
-      ns_close_conn(nc);
-      return NULL;
-    } else {
-      SSL_set_fd(nc->ssl, sock);
-    }
-  }
-#endif
 
   return nc;
 }

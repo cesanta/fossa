@@ -55,7 +55,7 @@ image::http://cesanta.com/images/net_skeleton/iobuf.png[]
 1. Define an event handler function
 2. Initialize mgr by calling `ns_mgr_init()`
 3. Create a listening socket with `ns_bind()` or client connection with
-  `ns_connect()`
+  `ns_connect()` - more then one connection can be created
 4. Call `ns_mgr_poll()` in a loop
 
 [source,c]
@@ -63,7 +63,7 @@ image::http://cesanta.com/images/net_skeleton/iobuf.png[]
 #include "net_skeleton.h"
 
 // This event handler implements TCP echo server
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <1>
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
   struct iobuf *io = &nc->recv_iobuf;
 
   switch (ev) {
@@ -78,11 +78,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <1>
 
 int main(void) {
   struct ns_mgr mgr;
-  ns_mgr_init(&mgr, NULL);  // <2>
-  ns_bind(&mgr, "1234", ev_handler, NULL);  // <3>
+  ns_mgr_init(&mgr, NULL);  // 2
+  ns_bind(&mgr, "1234", ev_handler, NULL);  // 3
+
+  // 4 - an event loop
   for (;;) {
-    ns_mgr_poll(&mgr, 1000);  // <4>
+    ns_mgr_poll(&mgr, 1000);
   }
+
   ns_mgr_free(&mgr);
   return 0;
 }
@@ -197,27 +200,19 @@ struct ns_connection *ns_connect(struct ns_mgr *server, const char *addr, ns_eve
 
 Connect to a remote host. If successful, `NS_CONNECT` event will be delivered
 to the new connection. `addr` format is the same as for the `ns_bind()` call,
-just an IP address becomes mandatory: `[PROTO://]HOST:PORT[:CERT][:CA_CERT]`.
-`PROTO` could be `tcp://`, `udp://` or `ssl://`. If `HOST` is not an IP
+just an IP address becomes mandatory: `[PROTO://]HOST:PORT`
+`PROTO` could be `tcp://` or `udp://`. If `HOST` is not an IP
 address, Net Skeleton will resolve it - beware that standard blocking resolver
 will be used. It is a good practice to pre-resolve hosts beforehands and
 use only IP addresses to avoid blockin an IO thread.
-For SSL connections, specify `CERT` if server is requiring client auth.
-Specify `CA_CERT` to authenticate server certificate. All certificates
-must be in PEM format.
 Returns: new client connection, or `NULL` on error.
 
 struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_event_handler_t ev_handler)::
 
 Start listening on the given port. `addr` could be a port number,
 e.g. `"3128"`, or IP address with a port number, e.g. `"127.0.0.1:3128"`.
-Also, a protocol prefix could be specified, valid prefixes are `tcp://`,
-`udp://` and `ssl://`. For SSL, server certficate must be specified:
-`ssl://[IP:]PORT:SERVER_CERT.PEM`. Two enable client certificate authentication
-(two-way SSL), a CA certificate should be specified:
-`ssl://[IP:]PORT:SERVER_CERT.PEM:CA_CERT.PEM`. Server certificate must be
-in PEM format. PEM file should contain both certificate and the private key
-concatenated together.
+Also, a protocol prefix could be specified, valid prefixes are `tcp://` or
+`udp://`.
 
 Note that for UDP listening connections, only `NS_RECV` and `NS_CLOSE`
 are triggered.
@@ -226,6 +221,23 @@ If IP address is specified, Net Skeleton binds to a specific interface only.
 Also, port could be `"0"`, in which case a random non-occupied port number
 will be chosen. Return value: a listening connection on success, or
 `NULL` on error.
+
+const char *ns_set_ssl(struct ns_connection *nc, const char *cert, const char *ca_cert)::
+Enable SSL for a given connection. Connection must be TCP. For listening
+connection, `cert` is a path to a server certificate, and is mandatory.
+`ca_cert` if non-NULL, specifies CA certificate for client authentication,
+enables two-way SSL. For client connections, both `cert` and `ca_cert` are
+optional and can be set to NULL. All certificates
+must be in PEM format. PEM file for server certificate should contain
+both certificate and the private key concatenated together.
+Returns: NULL if there is no error, or error string if there was error.
+
+Snippet below shows how to generate self-signed SSL certificate using OpenSSL:
+[source,sh]
+----
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
+cat cert.pem key.pem > my_ssl_cert.pem
+----
 
 === Functions for sending data
 

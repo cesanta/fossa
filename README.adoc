@@ -52,11 +52,13 @@ image::http://cesanta.com/images/net_skeleton/iobuf.png[]
 
 == Using Net Skeleton
 
-1. Define an event handler function
-2. Initialize mgr by calling `ns_mgr_init()`
-3. Create a listening socket with `ns_bind()` or client connection with
-  `ns_connect()` - more then one connection can be created
-4. Call `ns_mgr_poll()` in a loop
+1. Define an event handler function.
+2. Initialize mgr by calling `ns_mgr_init()`.
+3. Create *listening connections* with `ns_bind()` and/or *client connections*
+with `ns_connect()`. Note that many connections can be created within a
+single manager. Connections can be created at any time, including within
+an event handler function.
+4. Call `ns_mgr_poll()` in a loop.
 
 [source,c]
 ----

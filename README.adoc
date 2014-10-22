@@ -355,7 +355,7 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *request, struc
 ----
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
-  struct ns_serve_http_opts opts = { .document_root = "/var/www" };
+  struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
 
   switch (ev) {
     case NS_HTTP_REQUEST:

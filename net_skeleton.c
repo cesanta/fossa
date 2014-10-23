@@ -228,7 +228,7 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
     hexdump(nc, nc->mgr->hexdump_file, len, ev);
   }
 
-  nc->callback(nc, ev, ev_data);
+  nc->handler(nc, ev, ev_data);
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {
@@ -500,7 +500,7 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
   } else {
     nc->sa = sa;
     nc->flags |= NSF_LISTENING;
-    nc->callback = callback;
+    nc->handler = callback;
 
     if (proto == SOCK_DGRAM) {
       nc->flags |= NSF_UDP;
@@ -520,7 +520,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 
   /* NOTE(lsm): on Windows, sock is always > FD_SETSIZE */
   if ((sock = accept(ls->sock, &sa.sa, &len)) == INVALID_SOCKET) {
-  } else if ((c = ns_add_sock(ls->mgr, sock, ls->callback)) == NULL) {
+  } else if ((c = ns_add_sock(ls->mgr, sock, ls->handler)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
   } else if (ls->ssl_ctx != NULL &&
@@ -724,7 +724,7 @@ static void ns_handle_udp(struct ns_connection *ls) {
     nc.recv_iobuf.buf = buf;
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
     nc.sock = ls->sock;
-    nc.callback = ls->callback;
+    nc.handler = ls->handler;
     nc.user_data = ls->user_data;
     nc.proto_data = ls->proto_data;
     nc.mgr = ls->mgr;
@@ -883,7 +883,7 @@ struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
     ns_set_non_blocking_mode(sock);
     ns_set_close_on_exec(sock);
     conn->sock = sock;
-    conn->callback = callback;
+    conn->handler = callback;
     conn->mgr = s;
     conn->last_io_time = time(NULL);
     ns_add_conn(s, conn);
@@ -1709,7 +1709,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         /* We're websocket client, got handshake response from server. */
         /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
         iobuf_remove(io, req_len);
-        nc->callback = websocket_handler;
+        nc->handler = websocket_handler;
         nc->flags |= NSF_USER_1;
         cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
@@ -1717,7 +1717,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
                  (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
         /* This is a websocket request. Switch protocol handlers. */
         iobuf_remove(io, req_len);
-        nc->callback = websocket_handler;
+        nc->handler = websocket_handler;
         nc->flags |= NSF_USER_1;
 
         /* Send handshake */
@@ -1749,8 +1749,8 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 }
 
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
-  nc->proto_data = (void *) nc->callback;
-  nc->callback = http_handler;
+  nc->proto_data = (void *) nc->handler;
+  nc->handler = http_handler;
 }
 
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,

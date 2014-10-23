@@ -266,7 +266,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         /* We're websocket client, got handshake response from server. */
         /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
         iobuf_remove(io, req_len);
-        nc->callback = websocket_handler;
+        nc->handler = websocket_handler;
         nc->flags |= NSF_USER_1;
         cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
@@ -274,7 +274,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
                  (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
         /* This is a websocket request. Switch protocol handlers. */
         iobuf_remove(io, req_len);
-        nc->callback = websocket_handler;
+        nc->handler = websocket_handler;
         nc->flags |= NSF_USER_1;
 
         /* Send handshake */
@@ -306,8 +306,8 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 }
 
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
-  nc->proto_data = (void *) nc->callback;
-  nc->callback = http_handler;
+  nc->proto_data = (void *) nc->handler;
+  nc->handler = http_handler;
 }
 
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,

@@ -186,7 +186,6 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 #define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
 #define NS_CLOSE   5  /* Connection is closed. NULL */
 
-
 struct ns_mgr {
   struct ns_connection *active_connections;
   const char *hexdump_file;         /* Debug hexdump file path */
@@ -208,7 +207,7 @@ struct ns_connection {
   void *user_data;            /* User-specific data */
   void *proto_data;           /* Application protocol-specific data */
   time_t last_io_time;        /* Timestamp of the last socket IO */
-  ns_event_handler_t callback;     /* Event handler function */
+  ns_event_handler_t handler; /* Event handler function */
 
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)

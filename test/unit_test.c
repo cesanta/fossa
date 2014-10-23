@@ -414,50 +414,68 @@ static const char *test_websocket(void) {
   return NULL;
 }
 
-/* This JSON-RPC handler function calculates sum of numeric parameters */
-static void rpc_handler_sum(struct ns_connection *nc, struct json_token *id,
-                            struct json_token *params) {
+static int rpc_sum(char *buf, int len, struct ns_rpc_request *req) {
   double sum = 0;
   int i;
 
-  if (id == NULL) {
-    ns_rpc_reply(nc, "{ s: s, s: N, s: s }",
-                 "jsonrpc", "2.0", "id", "error", "id is expected");
-    return;
+  if (req->params[0].type != JSON_TYPE_ARRAY) {
+    return ns_rpc_create_std_error(buf, len, req,
+                                   JSON_RPC_INVALID_PARAMS_ERROR);
   }
 
-  for (i = 0; i < params->num_desc; i++) {
-    if (params[i].type != JSON_TYPE_NUMBER) {
-      ns_rpc_reply(nc, "{ s: s, s: N, s: s }",
-                   "jsonrpc", "2.0", "id", "error", "List of Numbers expected");
-      return;
+  for (i = 0; i < req->params[0].num_desc; i++) {
+    if (req->params[i + 1].type != JSON_TYPE_NUMBER) {
+      return ns_rpc_create_std_error(buf, len, req,
+                                     JSON_RPC_INVALID_PARAMS_ERROR);
     }
-    sum += strtod(params[i].ptr, NULL);
+    sum += strtod(req->params[i + 1].ptr, NULL);
   }
-
-  ns_rpc_reply(nc, "{ s: s, s: v, s: f }",
-               "jsonrpc", "2.0", "id", id->ptr, id->len, "result", sum);
+  return ns_rpc_create_reply(buf, len, req, "f", sum);
 }
 
 static void rpc_server(struct ns_connection *nc, int ev, void *ev_data) {
-  struct websocket_message *wm = (struct websocket_message *) ev_data;
-  struct json_token *tokens;
+  struct http_message *hm = (struct http_message *) ev_data;
+  static const char *methods[] = { "sum", NULL };
+  static ns_rpc_handler_t handlers[] = { rpc_sum, NULL };
+  char buf[100];
 
-  if (ev == NS_WEBSOCKET_FRAME) {
-    tokens = parse_json2((char *) wm->data, wm->size);
-    rpc_handler_sum(nc, NULL, NULL);
-    free(tokens);
+  switch (ev) {
+    case NS_HTTP_REQUEST:
+      ns_rpc_dispatch(hm->body.p, hm->body.len, buf, sizeof(buf),
+                      methods, handlers);
+      ns_printf(nc, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n"
+                "Content-Type: application/json\r\n\r\n%s",
+                (int) strlen(buf), buf);
+      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      break;
+    default:
+      break;
   }
 }
 
 static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
-  /*struct websocket_message *wm = (struct websocket_message *) ev_data;*/
+  struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_rpc_reply rpc_reply;
+  struct ns_rpc_error rpc_error;
+  struct json_token toks[20];
+  char buf[100];
 
-  (void) nc; (void) ev_data;
-  if (ev == NS_WEBSOCKET_FRAME) {
-    /* handle_rpc_reply(nc, wm->data, wm->size); */
-  } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
-    /* ns_printf_rpc_request(nc, "sum", "[f,f,f]", 1.1, 2.2, 3.3); */
+  switch (ev) {
+    case NS_CONNECT:
+      ns_rpc_create_request(buf, sizeof(buf), "sum", "1", "[f,f,f]",
+                            1.0, 2.0, 13.0);
+      ns_printf(nc, "POST / HTTP/1.0\r\nContent-Type: application/json\r\n"
+                "Content-Length: %d\r\n\r\n%s", (int) strlen(buf), buf);
+    case NS_HTTP_REPLY:
+      ns_rpc_parse_reply(hm->body.p, hm->body.len,
+                         toks, sizeof(toks) / sizeof(toks[0]),
+                         &rpc_reply, &rpc_error);
+      sprintf((char *) nc->user_data, "%.*s",
+              rpc_reply.result == NULL ? 1 : rpc_reply.result->len,
+              rpc_reply.result == NULL ? "?" : rpc_reply.result->ptr);
+      break;
+    default:
+      break;
   }
 }
 
@@ -478,6 +496,8 @@ static const char *test_rpc(void) {
 
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
+
+  ASSERT(strcmp(buf, "16") == 0);
 
   return NULL;
 }

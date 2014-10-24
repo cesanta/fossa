@@ -251,57 +251,55 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct ns_str *vec;
   int req_len;
 
+  /*
+   * For HTTP messages without Content-Length, always send HTTP message
+   * before NS_CLOSE message.
+   */
+  if (ev == NS_CLOSE &&
+      io->len > 0 &&
+      ns_parse_http(io->buf, io->len, &hm) > 0 && cb) {
+    hm.body.len = io->buf + io->len - hm.body.p;
+    cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+  }
+
   cb(nc, ev, ev_data);
 
-  switch (ev) {
+  if (ev == NS_RECV) {
+    req_len = ns_parse_http(io->buf, io->len, &hm);
+    if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
+      nc->flags |= NSF_CLOSE_IMMEDIATELY;
+    } else if (req_len == 0) {
+      /* Do nothing, request is not yet fully buffered */
+    } else if (nc->listener == NULL &&
+               ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
+      /* We're websocket client, got handshake response from server. */
+      /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
+      iobuf_remove(io, req_len);
+      nc->handler = websocket_handler;
+      nc->flags |= NSF_USER_1;
+      cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
+      websocket_handler(nc, NS_RECV, ev_data);
+    } else if (nc->listener != NULL &&
+               (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
+      /* This is a websocket request. Switch protocol handlers. */
+      iobuf_remove(io, req_len);
+      nc->handler = websocket_handler;
+      nc->flags |= NSF_USER_1;
 
-    case NS_RECV:
-      req_len = ns_parse_http(io->buf, io->len, &hm);
-      if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
-        nc->flags |= NSF_CLOSE_IMMEDIATELY;
-      } else if (req_len == 0) {
-        /* Do nothing, request is not yet fully buffered */
-      } else if (nc->listener == NULL &&
-                 ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
-        /* We're websocket client, got handshake response from server. */
-        /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
-        iobuf_remove(io, req_len);
-        nc->handler = websocket_handler;
-        nc->flags |= NSF_USER_1;
+      /* Send handshake */
+      cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
+      if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
+        if (nc->send_iobuf.len == 0) {
+          ws_handshake(nc, vec);
+        }
         cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
-      } else if (nc->listener != NULL &&
-                 (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
-        /* This is a websocket request. Switch protocol handlers. */
-        iobuf_remove(io, req_len);
-        nc->handler = websocket_handler;
-        nc->flags |= NSF_USER_1;
-
-        /* Send handshake */
-        cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
-        if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-          if (nc->send_iobuf.len == 0) {
-            ws_handshake(nc, vec);
-          }
-          cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
-          websocket_handler(nc, NS_RECV, ev_data);
-        }
-      } else if (hm.message.len <= io->len) {
-        /* Whole HTTP message is fully buffered, call event handler */
-        if (cb) cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
-        iobuf_remove(io, hm.message.len);
       }
-      break;
-
-    case NS_CLOSE:
-      if (io->len > 0 && ns_parse_http(io->buf, io->len, &hm) > 0 && cb) {
-        hm.body.len = io->buf + io->len - hm.body.p;
-        cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
-      }
-      break;
-
-    default:
-      break;
+    } else if (hm.message.len <= io->len) {
+      /* Whole HTTP message is fully buffered, call event handler */
+      if (cb) cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+      iobuf_remove(io, hm.message.len);
+    }
   }
 }
 

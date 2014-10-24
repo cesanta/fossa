@@ -10,7 +10,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#ifndef MAX_PATH_SIZE
 #define MAX_PATH_SIZE 500
+#endif
 
 const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
 int ns_ncasecmp(const char *s1, const char *s2, size_t len);

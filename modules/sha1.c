@@ -1,7 +1,7 @@
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-#ifndef NS_DISABLE_HTTP_WEBSOCKET
+#ifndef NS_DISABLE_SHA1
 
 #include <string.h>
 #include "sha1.h"
@@ -138,4 +138,4 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   memset(context, '\0', sizeof(*context));
   memset(&finalcount, '\0', sizeof(finalcount));
 }
-#endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+#endif  /* NS_DISABLE_SHA1 */

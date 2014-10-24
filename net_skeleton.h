@@ -331,7 +331,7 @@ int json_emit_va(char *buf, int buf_len, const char *fmt, va_list);
  * All rights reserved
  */
 
-#ifndef NS_SHA1_HEADER_INCLUDED
+#if !defined(NS_SHA1_HEADER_INCLUDED) && !defined(NS_DISABLE_SHA1)
 #define NS_SHA1_HEADER_INCLUDED
 
 #ifdef __cplusplus
@@ -364,7 +364,9 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
 extern "C" {
 #endif /* __cplusplus */
 
+#ifndef MAX_PATH_SIZE
 #define MAX_PATH_SIZE 500
+#endif
 
 const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
 int ns_ncasecmp(const char *s1, const char *s2, size_t len);

@@ -56,7 +56,7 @@ void iobuf_init(struct iobuf *iobuf, size_t initial_size) {
 
 void iobuf_free(struct iobuf *iobuf) {
   if (iobuf != NULL) {
-    if (iobuf->buf != NULL) NS_FREE(iobuf->buf);
+    NS_FREE(iobuf->buf);
     iobuf_init(iobuf, 0);
   }
 }
@@ -153,7 +153,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
      * succeed or out of memory. */
     *buf = NULL;
     while (len < 0) {
-      if (*buf) free(*buf);
+      NS_FREE(*buf);
       size *= 2;
       if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
       va_copy(ap_copy, ap);
@@ -182,7 +182,7 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
     ns_out(nc, buf, len);
   }
   if (buf != mem && buf != NULL) {
-    free(buf);
+    NS_FREE(buf);
   }
 
   return len;
@@ -216,7 +216,7 @@ static void hexdump(struct ns_connection *nc, const char *path,
       ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
         (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
       fprintf(fp, "%s", buf);
-      free(buf);
+      NS_FREE(buf);
     }
     fclose(fp);
   }

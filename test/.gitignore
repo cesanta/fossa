@@ -6,3 +6,5 @@ unit_test.gcno
 unit_test.gcda
 *.gcov
 unit_test.dSYM
+net_skeleton.gcno
+net_skeleton.gcda

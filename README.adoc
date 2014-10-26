@@ -17,8 +17,9 @@ bringing them online.
 * Single-threaded, asynchronous, non-blocking core with simple event-based API
 * Builtin protocols:
   ** plain TCP, plain UDP, SSL/TLS (over TCP, one-way or two-way)
-  ** HTTP / Websocket, client and server
-  ** JSON-RPC, client and server
+  ** HTTP client, HTTP server
+  ** Websocket client, Websocket server
+  ** JSON-RPC client, JSON-RPC server
 * Tiny static and run-time footprint
 * Source code is strict ISO C and strict ISO C++
 * Extensively tested and production-ready, trusted by many blue chip businesses

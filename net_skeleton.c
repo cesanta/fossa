@@ -339,7 +339,7 @@ int ns_resolve(const char *host, char *buf, size_t n) {
 
 /* Address format: [PROTO://][IP_ADDRESS:]PORT[:CERT][:CA_CERT] */
 static int ns_parse_address(const char *str, union socket_address *sa, int *p) {
-  unsigned int a, b, c, d, port;
+  unsigned int a, b, c, d, port = 0;
   int len = 0;
   char host[200];
 #ifdef NS_ENABLE_IPV6

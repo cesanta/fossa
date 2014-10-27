@@ -28,7 +28,7 @@ bringing them online.
   ** Websocket client, Websocket server
   ** JSON-RPC client, JSON-RPC server
 * Tiny static and run-time footprint
-* Source code is strict ISO C and strict ISO C++
+* Source code is both ISO C and ISO C++ compliant
 * Extensively tested and production-ready, trusted by many blue chip businesses
 
 == Concept
@@ -245,7 +245,7 @@ Returns: NULL if there is no error, or error string if there was error.
 Snippet below shows how to generate self-signed SSL certificate using OpenSSL:
 [source,sh]
 ----
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
+openssl req -x509 -nodes -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
 cat cert.pem key.pem > my_ssl_cert.pem
 ----
 

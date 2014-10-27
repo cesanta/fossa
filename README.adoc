@@ -1,5 +1,12 @@
 = Networking library for C/C++
 
+:buildstatus-uri: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8
+:buildstatus-badge: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8/status?branch=master
+
+ifdef::env-github[]
+image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
+endif::[]
+
 Net Skeleton is a networking library written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.

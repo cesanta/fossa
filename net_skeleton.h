@@ -204,10 +204,11 @@ struct ns_connection {
   struct iobuf send_iobuf;    /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  void *user_data;            /* User-specific data */
-  void *proto_data;           /* Application protocol-specific data */
   time_t last_io_time;        /* Timestamp of the last socket IO */
+  ns_event_handler_t proto_handler;   /* Protocol-specific event handler */
+  void *proto_data;                   /* Protocol-specific data */
   ns_event_handler_t handler; /* Event handler function */
+  void *user_data;            /* User-specific data */
 
   unsigned int flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)

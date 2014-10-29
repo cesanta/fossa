@@ -135,7 +135,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     }
 
     /* Call event handler */
-    ((ns_event_handler_t) nc->proto_data)(nc, NS_WEBSOCKET_FRAME, &wsm);
+    nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);
 
     /* Remove frame from the iobuf */
     iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);
@@ -212,9 +212,7 @@ void ns_printf_websocket_frame(struct ns_connection *nc, int op,
 }
 
 static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
-
-  cb(nc, ev, ev_data);
+  nc->handler(nc, ev, ev_data);
 
   switch (ev) {
     case NS_RECV:
@@ -246,7 +244,6 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct iobuf *io = &nc->recv_iobuf;
-  ns_event_handler_t cb = (ns_event_handler_t) nc->proto_data;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
@@ -255,14 +252,13 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
    * For HTTP messages without Content-Length, always send HTTP message
    * before NS_CLOSE message.
    */
-  if (ev == NS_CLOSE &&
-      io->len > 0 &&
-      ns_parse_http(io->buf, io->len, &hm) > 0 && cb) {
+  if (ev == NS_CLOSE && io->len > 0 &&
+      ns_parse_http(io->buf, io->len, &hm) > 0) {
     hm.body.len = io->buf + io->len - hm.body.p;
-    cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+    nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
   }
 
-  cb(nc, ev, ev_data);
+  nc->handler(nc, ev, ev_data);
 
   if (ev == NS_RECV) {
     req_len = ns_parse_http(io->buf, io->len, &hm);
@@ -275,37 +271,36 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
       iobuf_remove(io, req_len);
-      nc->handler = websocket_handler;
+      nc->proto_handler = websocket_handler;
       nc->flags |= NSF_USER_1;
-      cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
+      nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
       websocket_handler(nc, NS_RECV, ev_data);
     } else if (nc->listener != NULL &&
                (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
       /* This is a websocket request. Switch protocol handlers. */
       iobuf_remove(io, req_len);
-      nc->handler = websocket_handler;
+      nc->proto_handler = websocket_handler;
       nc->flags |= NSF_USER_1;
 
       /* Send handshake */
-      cb(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
+      nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
       if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
         if (nc->send_iobuf.len == 0) {
           ws_handshake(nc, vec);
         }
-        cb(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
+        nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
       }
     } else if (hm.message.len <= io->len) {
       /* Whole HTTP message is fully buffered, call event handler */
-      if (cb) cb(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+      nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       iobuf_remove(io, hm.message.len);
     }
   }
 }
 
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
-  nc->proto_data = (void *) nc->handler;
-  nc->handler = http_handler;
+  nc->proto_handler = http_handler;
 }
 
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
@@ -322,7 +317,6 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             "%s\r\n",
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
-
 
 void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {

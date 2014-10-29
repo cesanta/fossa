@@ -228,7 +228,11 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
     hexdump(nc, nc->mgr->hexdump_file, len, ev);
   }
 
-  nc->handler(nc, ev, ev_data);
+  /*
+   * If protocol handler is specified, call it. Otherwise, call user-specified
+   * event handler.
+   */
+  (nc->proto_handler ? nc->proto_handler : nc->handler)(nc, ev, ev_data);
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {
@@ -533,6 +537,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   } else {
     c->listener = ls;
     c->proto_data = ls->proto_data;
+    c->proto_handler = ls->proto_handler;
     c->user_data = ls->user_data;
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
@@ -727,6 +732,7 @@ static void ns_handle_udp(struct ns_connection *ls) {
     nc.handler = ls->handler;
     nc.user_data = ls->user_data;
     nc.proto_data = ls->proto_data;
+    nc.proto_handler = ls->proto_handler;
     nc.mgr = ls->mgr;
     nc.listener = ls;
     nc.flags = NSF_UDP;

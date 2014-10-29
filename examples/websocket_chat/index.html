@@ -51,6 +51,11 @@
       document.getElementById('send_input').value = '';
       ws.send(msg);
     };
+    document.getElementById('send_input').onkeypress = function(ev) {
+      if (ev.keyCode == 13 || ev.which == 13) {
+        document.getElementById('send_button').click();
+      }
+    };
   };
 </script>
 </head>

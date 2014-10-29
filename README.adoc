@@ -7,7 +7,7 @@ ifdef::env-github[]
 image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
 endif::[]
 
-Net Skeleton is a networking library written in C.
+Net Skeleton is a multi-protocol networking library written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.
 Net Skeleton releives developers from the burden of network programming

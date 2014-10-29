@@ -272,7 +272,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
       iobuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
-      nc->flags |= NSF_USER_1;
+      nc->flags |= NSF_IS_WEBSOCKET;
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
       websocket_handler(nc, NS_RECV, ev_data);
     } else if (nc->listener != NULL &&
@@ -280,7 +280,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* This is a websocket request. Switch protocol handlers. */
       iobuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
-      nc->flags |= NSF_USER_1;
+      nc->flags |= NSF_IS_WEBSOCKET;
 
       /* Send handshake */
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);

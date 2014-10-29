@@ -217,9 +217,11 @@ struct ns_connection {
 #define NSF_CONNECTING              (1 << 3)
 #define NSF_CLOSE_IMMEDIATELY       (1 << 4)
 #define NSF_WANT_READ               (1 << 5)
-#define NSF_WANT_WRITE              (1 << 6)
-#define NSF_LISTENING               (1 << 7)
+#define NSF_WANT_WRITE              (1 << 6)  /* NOTE(lsm): proto-specific */
+#define NSF_LISTENING               (1 << 7)  /* NOTE(lsm): proto-specific */
 #define NSF_UDP                     (1 << 8)
+#define NSF_IS_WEBSOCKET            (1 << 9)  /* NOTE(lsm): proto-specific */
+#define NSF_WEBSOCKET_NO_REASSEMBLY (1 << 10) /* NOTE(lsm): proto-specific */
 
 #define NSF_USER_1                  (1 << 20)
 #define NSF_USER_2                  (1 << 21)

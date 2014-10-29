@@ -15,7 +15,7 @@ static void signal_handler(int sig_num) {
 }
 
 static int is_websocket(const struct ns_connection *nc) {
-  return nc->flags & NSF_USER_1;
+  return nc->flags & NSF_IS_WEBSOCKET;
 }
 
 static void broadcast(struct ns_connection *nc, const char *msg, size_t len) {

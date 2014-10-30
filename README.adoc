@@ -6,6 +6,8 @@
 ifdef::env-github[]
 image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
 endif::[]
+image::https://drone.io/github.com/cesanta/net_skeleton/status.png[Build Status,link=https://drone.io/github.com/cesanta/net_skeleton/latest]
+
 
 Net Skeleton is a multi-protocol networking library written in C.
 It provides easy to use event-driven interface that allows to implement

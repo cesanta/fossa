@@ -210,7 +210,7 @@ struct ns_connection {
   ns_event_handler_t handler; /* Event handler function */
   void *user_data;            /* User-specific data */
 
-  unsigned int flags;
+  unsigned long flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
 #define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)
 #define NSF_SSL_HANDSHAKE_DONE      (1 << 2)

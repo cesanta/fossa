@@ -221,7 +221,7 @@ struct ns_connection {
 #define NSF_LISTENING               (1 << 7)  /* NOTE(lsm): proto-specific */
 #define NSF_UDP                     (1 << 8)
 #define NSF_IS_WEBSOCKET            (1 << 9)  /* NOTE(lsm): proto-specific */
-#define NSF_WEBSOCKET_NO_REASSEMBLY (1 << 10) /* NOTE(lsm): proto-specific */
+#define NSF_WEBSOCKET_NO_DEFRAG     (1 << 10) /* NOTE(lsm): proto-specific */
 
 #define NSF_USER_1                  (1 << 20)
 #define NSF_USER_2                  (1 << 21)
@@ -420,7 +420,7 @@ struct http_message {
 struct websocket_message {
   unsigned char *data;
   size_t size;
-  unsigned flags;
+  unsigned char flags;
 };
 
 /* HTTP and websocket events. void *ev_data is described in a comment. */

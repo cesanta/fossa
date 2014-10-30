@@ -1544,11 +1544,30 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   return NULL;
 }
 
+static int is_ws_fragment(unsigned char flags) {
+  return (flags & 0x80) == 0 || (flags & 0x0f) == 0;
+}
+
+static int is_ws_first_fragment(unsigned char flags) {
+  return (flags & 0x80) == 0 && (flags & 0x0f) != 0;
+}
+
 static int deliver_websocket_data(struct ns_connection *nc) {
-  /* Having buf unsigned char * is important, as it is used below in arithmetic */
-  unsigned char *buf = (unsigned char *) nc->recv_iobuf.buf;
+  /* Using unsigned char *, cause of integer arithmetic below */
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
-  len, mask_len = 0, header_len = 0, ok;
+  len, mask_len = 0, header_len = 0;
+  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf,
+    *buf = p, *e = p + buf_len;
+  unsigned *sizep = (unsigned *) &p[1];  /* Size ptr for defragmented frames */
+  int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
+    !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
+
+  /* If that's a continuation frame that must be reassembled, handle it */
+  if (reass && !is_ws_first_fragment(p[0]) && buf_len >= 1 + sizeof(*sizep) &&
+      buf_len >= 1 + sizeof(*sizep) + *sizep) {
+    buf += 1 + sizeof(*sizep) + *sizep;
+    buf_len -= 1 + sizeof(*sizep) + *sizep;
+  }
 
   if (buf_len >= 2) {
     len = buf[1] & 127;
@@ -1583,11 +1602,32 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       }
     }
 
-    /* Call event handler */
-    nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);
+    if (reass) {
+      /* On first fragmented frame, nullify size */
+      if (is_ws_first_fragment(wsm.flags)) {
+        iobuf_resize(&nc->recv_iobuf, nc->recv_iobuf.size + sizeof(*sizep));
+        p[0] &= ~0x0f;  /* Next frames will be treated as continuation */
+        buf = p + 1 + sizeof(*sizep);
+        *sizep = 0;  /* TODO(lsm): fix. this can stomp over frame data */
+      }
 
-    /* Remove frame from the iobuf */
-    iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);
+      /* Append this frame to the reassembled buffer */
+      memmove(buf, wsm.data, e - wsm.data);
+      (*sizep) += wsm.size;
+      nc->recv_iobuf.len -= wsm.data - buf;
+
+      /* On last fragmented frame - call user handler and remove data */
+      if (wsm.flags & 0x80) {
+        wsm.data = p + 1 + sizeof(*sizep);
+        wsm.size = *sizep;
+        nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);
+        iobuf_remove(&nc->recv_iobuf, 1 + sizeof(*sizep) + *sizep);
+      }
+    } else {
+      /* TODO(lsm): properly handle OOB control frames during defragmentation */
+      nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);          /* Call handler */
+      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);  /* Cleanup frame */
+    }
   }
 
   return ok;

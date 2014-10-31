@@ -302,7 +302,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   if (ev == NS_RECV) {
     req_len = ns_parse_http(io->buf, io->len, &hm);
-    if (req_len < 0 || io->len >= NS_MAX_HTTP_REQUEST_SIZE) {
+    if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
       /* Do nothing, request is not yet fully buffered */

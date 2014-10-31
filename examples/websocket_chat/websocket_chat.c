@@ -5,7 +5,7 @@
 
 #include "net_skeleton.h"
 
-static int s_signal_received = 0;
+static sig_atomic_t s_signal_received = 0;
 static const char *s_http_port = "8000";
 static struct ns_serve_http_opts s_http_server_opts = { "." };
 

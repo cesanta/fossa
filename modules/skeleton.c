@@ -869,7 +869,11 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   union socket_address sa;
   int rc, proto;
 
-  ns_parse_address(address, &sa, &proto);
+  if (ns_parse_address(address, &sa, &proto) == 0) {
+    errno = 0;
+    ns_set_error_string(opts.error_string, "cannot parse address");
+    return NULL;
+  }
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     ns_set_error_string(opts.error_string, "cannot create socket");
     return NULL;

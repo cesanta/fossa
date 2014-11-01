@@ -18,12 +18,12 @@ ismerged:
 $(PROG): Makefile
 	$(MAKE) clean_coverage
 	g++ -x c++ $(SOURCES) -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)
-	gcov -b $(PROG).c
+	gcov -p $(PROG).c net_skeleton.c
 
 $(PROG)_ansi: Makefile
 	$(MAKE) clean_coverage
 	gcc $(PEDANTIC) -ansi $(SOURCES) -o $(PROG)_ansi $(CFLAGS) -lssl && ./$(PROG)_ansi
-	gcov -b $(PROG).c
+	gcov -p $(PROG).c net_skeleton.c
 
 $(PROG)_c99: Makefile
 	$(MAKE) clean_coverage

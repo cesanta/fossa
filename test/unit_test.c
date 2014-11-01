@@ -529,12 +529,52 @@ static const char *test_connect_fail(void) {
   return NULL;
 }
 
+static void cb6(struct ns_connection *nc, int ev, void *ev_data) {
+  (void)nc;
+  (void)ev;
+  (void)ev_data;
+}
+
+static const char *test_connect_opts(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  struct ns_connect_opts opts;
+
+  opts.user_data = (void*)0xdeadbeef;
+  opts.flags = NSF_USER_6;
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:33211", cb6, opts)) != NULL);
+  ASSERT(nc->user_data == (void*)0xdeadbeef);
+  ASSERT(nc->flags & NSF_USER_6);
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
+static const char *test_connect_opts_error_string(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  struct ns_connect_opts opts;
+  char *error_string = NULL;
+
+  opts.error_string = &error_string;
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
+  ASSERT(error_string != NULL);
+  ASSERT(strcmp(error_string, "cannot parse address") == 0);
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
 #if 0
   RUN_TEST(test_parse_address);
 #endif
   RUN_TEST(test_connect_fail);
+  RUN_TEST(test_connect_opts);
+  RUN_TEST(test_connect_opts_error_string);
   RUN_TEST(test_to64);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);

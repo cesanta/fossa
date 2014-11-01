@@ -26,7 +26,6 @@ $(PROG)_c99: Makefile
 	gcc $(PEDANTIC) -std=c99 $(AMALGAMATED_SOURCES) -o $(PROG)_c99 $(CFLAGS) -lssl && ./$(PROG)_c99
 
 $(PROG)_mingw.exe: Makefile
-	$(MAKE) clean_coverage
 	$(MINGW_GCC) $(AMALGAMATED_SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror -I..
 
 $(PROG).exe:
@@ -37,7 +36,7 @@ win: $(PROG).exe
 
 $(PROG)_coverage: Makefile
 	$(MAKE) clean_coverage
-	gcc $(PEDANTIC) -std=c99 -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
+	gcc $(PEDANTIC) -std=c99 -fprofile-arcs -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
 	gcov -p $(PROG).c $(notdir $(SOURCES)) >/dev/null
 
 clean: clean_coverage

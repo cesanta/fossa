@@ -490,15 +490,29 @@ static int ns_ssl_err(struct ns_connection *conn, int res) {
 
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
                               ns_event_handler_t callback) {
+  static struct ns_bind_opts opts;
+  return ns_bind_opt(srv, str, callback, opts);
+}
+
+struct ns_connection *ns_bind_opt(struct ns_mgr *srv, const char *str,
+                              ns_event_handler_t callback,
+                              struct ns_bind_opts opts) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int proto;
   sock_t sock;
+  struct ns_add_sock_opts add_sock_opts;
 
-  ns_parse_address(str, &sa, &proto);
-  if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
+  NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
+
+  if (ns_parse_address(str, &sa, &proto) == 0) {
+    errno = 0;
+    ns_set_error_string(opts.error_string, "cannot parse address");
+  } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
     DBG(("Failed to open listener: %d", errno));
-  } else if ((nc = ns_add_sock(srv, sock, callback)) == NULL) {
+    ns_set_error_string(opts.error_string, "failed to open listener");
+  } else if ((nc = ns_add_sock_opt(srv, sock, callback, add_sock_opts)) == NULL) {
+    /* opts.error_string set by ns_add_sock_opt */
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
   } else {
@@ -853,23 +867,26 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   return current_time;
 }
 
-
-static struct ns_connection_opts ns_connection_default_opts;
-
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
-  return ns_connect_opt(mgr, address, callback, ns_connection_default_opts);
+  static struct ns_connect_opts opts;
+  return ns_connect_opt(mgr, address, callback, opts);
 }
 
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
-                                     struct ns_connection_opts opts) {
+                                     struct ns_connect_opts opts) {
   sock_t sock = INVALID_SOCKET;
   struct ns_connection *nc = NULL;
   union socket_address sa;
   int rc, proto;
+  struct ns_add_sock_opts add_sock_opts;
 
-  ns_parse_address(address, &sa, &proto);
+  if (ns_parse_address(address, &sa, &proto) == 0) {
+    errno = 0;
+    ns_set_error_string(opts.error_string, "cannot parse address");
+    return NULL;
+  }
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     ns_set_error_string(opts.error_string, "cannot create socket");
     return NULL;
@@ -878,25 +895,33 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   ns_set_non_blocking_mode(sock);
   rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa.sa, sizeof(sa.sin));
 
+  NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
+
   if (rc != 0 && ns_is_error(rc)) {
     ns_set_error_string(opts.error_string, "cannot connect to socket");
     closesocket(sock);
     return NULL;
-  } else if ((nc = ns_add_sock(mgr, sock, callback)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback, add_sock_opts)) == NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     closesocket(sock);
     return NULL;
   }
 
   nc->sa = sa;   /* Important, cause UDP conns will use sendto() */
-  nc->flags = opts.flags | ((proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING);
-  nc->user_data = opts.user_data;
+  nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
 
   return nc;
 }
 
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
                                   ns_event_handler_t callback) {
+  static struct ns_add_sock_opts opts;
+  return ns_add_sock_opt(s, sock, callback, opts);
+}
+
+struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
+                                      ns_event_handler_t callback,
+                                      struct ns_add_sock_opts opts) {
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
@@ -906,6 +931,8 @@ struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
     conn->handler = callback;
     conn->mgr = s;
     conn->last_io_time = time(NULL);
+    conn->flags = opts.flags;
+    conn->user_data = opts.user_data;
     ns_add_conn(s, conn);
     DBG(("%p %d", conn, sock));
   }
@@ -2253,8 +2280,17 @@ void ns_base64_decode(const unsigned char *s, int len, char *dst) {
 char *ns_error_string(const char *p) {
   /* aprintf is not portable */
   const int errbuf_len = 1024;
-  const int len = strlen(p) + 2 + errbuf_len + 1;
-  char *buf = (char*)malloc(len);
+  int len;
+  char *buf;
+
+  if (!errno) {
+    len = strlen(p) + 1;
+    buf = (char*)malloc(len);
+    strncpy(buf, p, len);
+    return buf;
+  }
+  len = strlen(p) + 2 + errbuf_len + 1;
+  buf = (char*)malloc(len);
   snprintf(buf, len, "%s: %.*s", p, errbuf_len, strerror(errno));
   return buf;
 }

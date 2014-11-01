@@ -41,7 +41,7 @@ $(PROG)_coverage: Makefile
 	gcov -p $(PROG).c $(notdir $(SOURCES)) >/dev/null
 
 clean: clean_coverage
-	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 *.txt *.exe *.obj *.o a.out *.pdb *.opt
+	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt
 
 clean_coverage:
 	rm -rf *.gc* *.dSYM

@@ -8,7 +8,7 @@ image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
 endif::[]
 
 image::https://drone.io/github.com/cesanta/net_skeleton/status.png[Build Status,link=https://drone.io/github.com/cesanta/net_skeleton/latest]
-image::https://coveralls.io/repos/cesanta/net_skeleton/badge.png?branch=master[Coverage Status,link=https://coveralls.io/r/cesanta/net_skeleton?branch=master]
+image::https://coveralls.io/repos/cesanta/net_skeleton/badge.png?branch=head[Coverage Status,link=https://coveralls.io/r/cesanta/net_skeleton?branch=head]
 
 
 Net Skeleton is a multi-protocol networking library written in C.

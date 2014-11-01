@@ -2,8 +2,8 @@ PROG = unit_test
 CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 AMALGAMATED_SOURCES = $(PROG).c ../net_skeleton.c
-FR=../../frozen
-SOURCES = $(PROG).c $(wildcard ../modules/*.c) $(FR)/frozen.c
+
+include ../modules/modules.mk
 
 # http://crossgcc.rts-software.org/doku.php?id=compiling_for_win32
 MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-gcc
@@ -37,7 +37,7 @@ win: $(PROG).exe
 
 $(PROG)_coverage: Makefile
 	$(MAKE) clean_coverage
-	gcc $(PEDANTIC) -std=c99 -ftest-coverage $(SOURCES) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
+	gcc $(PEDANTIC) -std=c99 -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
 	gcov -p $(PROG).c $(notdir $(SOURCES)) >/dev/null
 
 clean: clean_coverage

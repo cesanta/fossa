@@ -319,6 +319,30 @@ static const char *test_parse_http_message(void) {
   return NULL;
 }
 
+static const char *test_get_http_var(void) {
+  char buf[256];
+  struct ns_str body;
+  body.p = "key1=value1&key2=value2&key3=value%203&key4=value+4";
+  body.len = strlen(body.p);
+
+  ASSERT(ns_get_http_var(&body, "key1", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "value1") == 0);
+  ASSERT(ns_get_http_var(&body, "KEY1", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "value1") == 0);
+  ASSERT(ns_get_http_var(&body, "key2", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "value2") == 0);
+  ASSERT(ns_get_http_var(&body, "key3", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "value 3") == 0);
+  ASSERT(ns_get_http_var(&body, "key4", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "value 4") == 0);
+
+  ASSERT(ns_get_http_var(&body, "key", NULL, sizeof(buf)) == -2);
+  ASSERT(ns_get_http_var(&body, "key", buf, 0) == -2);
+  ASSERT(ns_get_http_var(&body, NULL, buf, sizeof(buf)) == -1);
+
+  return NULL;
+}
+
 static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
@@ -581,6 +605,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
   RUN_TEST(test_parse_http_message);
+  RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);
   RUN_TEST(test_websocket);
   RUN_TEST(test_rpc);

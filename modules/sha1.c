@@ -3,6 +3,7 @@
 
 #ifndef NS_DISABLE_SHA1
 
+#include <stdint.h>
 #include <string.h>
 #include "sha1.h"
 

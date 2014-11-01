@@ -1978,6 +1978,7 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
 
 #ifndef NS_DISABLE_SHA1
 
+#include <stdint.h>
 #include <string.h>
 
 static int is_big_endian(void) {

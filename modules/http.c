@@ -610,13 +610,17 @@ static int ns_url_decode(const char *src, int src_len, char *dst,
 #define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
 
   for (i = j = 0; i < src_len && j < dst_len - 1; i++, j++) {
-    if (src[i] == '%' && i < src_len - 2 &&
-        isxdigit(* (const unsigned char *) (src + i + 1)) &&
-        isxdigit(* (const unsigned char *) (src + i + 2))) {
-      a = tolower(* (const unsigned char *) (src + i + 1));
-      b = tolower(* (const unsigned char *) (src + i + 2));
-      dst[j] = (char) ((HEXTOI(a) << 4) | HEXTOI(b));
-      i += 2;
+    if (src[i] == '%') {
+      if (i < src_len - 2 &&
+          isxdigit(* (const unsigned char *) (src + i + 1)) &&
+          isxdigit(* (const unsigned char *) (src + i + 2))) {
+        a = tolower(* (const unsigned char *) (src + i + 1));
+        b = tolower(* (const unsigned char *) (src + i + 2));
+        dst[j] = (char) ((HEXTOI(a) << 4) | HEXTOI(b));
+        i += 2;
+      } else {
+        return -1;
+      }
     } else if (is_form_url_encoded && src[i] == '+') {
       dst[j] = ' ';
     } else {

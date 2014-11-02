@@ -20,7 +20,7 @@
 
 #include "net_skeleton.h"
 
-static int s_received_signal = 0;
+static sig_atomic_t s_received_signal = 0;
 
 static void signal_handler(int sig_num) {
   signal(sig_num, signal_handler);

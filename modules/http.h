@@ -13,6 +13,7 @@ extern "C" {
 #define NS_MAX_HTTP_HEADERS 40
 #define NS_MAX_HTTP_REQUEST_SIZE 8192
 #define NS_MAX_PATH 1024
+#define NS_MAX_HTTP_SEND_IOBUF 4096
 
 struct http_message {
   struct ns_str message;    /* Whole message: request line + headers + body */

@@ -645,6 +645,8 @@ static void ns_read_from_socket(struct ns_connection *conn) {
         ok = 1;
       }
     }
+#else
+    (void)ret;
 #endif
     conn->flags &= ~NSF_CONNECTING;
     DBG(("%p ok=%d", conn, ok));

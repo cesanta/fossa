@@ -35,6 +35,20 @@
 #define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
 static int static_num_tests = 0;
+static const char *s_argv_0 = NULL;
+
+static char *read_file(const char *path, size_t *size) {
+  FILE *fp;
+  ns_stat_t st;
+  char *data = NULL;
+  if ((fp = ns_fopen(path, "rb")) != NULL && !fstat(fileno(fp), &st)) {
+    *size = st.st_size;
+    data = (char *) malloc(*size);
+    fread(data, 1, *size, fp);
+    fclose(fp);
+  }
+  return data;
+}
 
 static const char *test_iobuf(void) {
   struct iobuf io;
@@ -347,9 +361,15 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REQUEST) {
-    ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]",
-              (int) hm->uri.len, hm->uri.p, (int) hm->body.len);
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    if (ns_vcmp(&hm->uri, "/foo") == 0) {
+      ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]",
+                (int) hm->uri.len, hm->uri.p, (int) hm->body.len);
+      nc->flags |= NSF_FINISHED_SENDING_DATA;
+    } else {
+      static struct ns_serve_http_opts opts;
+      opts.document_root = ".";
+      ns_serve_http(nc, hm, opts);
+    }
   }
 }
 
@@ -362,11 +382,26 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+  size_t size;
+  char *data;
+
+  if (ev == NS_HTTP_REPLY) {
+    /* Make sure that we've downloaded this executable, byte-to-byte */
+    data = read_file(s_argv_0, &size);
+    strcpy((char *) nc->user_data, data == NULL || size != hm->body.len ||
+           memcmp(hm->body.p, data, size) != 0 ? "fail" : "success");
+    free(data);
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
 static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "";
+  char buf[20] = "", status[20] = "";
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -383,11 +418,20 @@ static const char *test_http(void) {
   ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   ns_printf(nc, "%s", "bl\x03\n\n");
-  poll_mgr(&mgr, 50);
+
+  /* Test static file download by downloading this executable, argv[0] */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb7)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = status;
+  ns_printf(nc, "GET /%s HTTP/1.0\n\n", s_argv_0);
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 200);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10]") == 0);
+  ASSERT(strcmp(status, "success") == 0);
 
   return NULL;
 }
@@ -490,6 +534,7 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
                             1.0, 2.0, 13.0);
       ns_printf(nc, "POST / HTTP/1.0\r\nContent-Type: application/json\r\n"
                 "Content-Length: %d\r\n\r\n%s", (int) strlen(buf), buf);
+      break;
     case NS_HTTP_REPLY:
       ns_rpc_parse_reply(hm->body.p, hm->body.len,
                          toks, sizeof(toks) / sizeof(toks[0]),
@@ -616,8 +661,13 @@ static const char *run_all_tests(void) {
   return NULL;
 }
 
-int __cdecl main(void) {
-  const char *fail_msg = run_all_tests();
+int __cdecl main(int argc, char *argv[]) {
+  const char *fail_msg;
+
+  (void) argc;
+  s_argv_0 = argv[0];
+  fail_msg = run_all_tests();
   printf("%s, tests run: %d\n", fail_msg ? "FAIL" : "PASS", static_num_tests);
+
   return fail_msg == NULL ? EXIT_SUCCESS : EXIT_FAILURE;
 }

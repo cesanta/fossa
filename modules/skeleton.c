@@ -848,7 +848,8 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
         nc->last_io_time = current_time;
         if (nc->flags & NSF_CONNECTING) {
           ns_read_from_socket(nc);
-        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND)) {
+        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND) &&
+                   !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           ns_write_to_socket(nc);
         }
       }

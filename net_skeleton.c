@@ -848,7 +848,8 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
         nc->last_io_time = current_time;
         if (nc->flags & NSF_CONNECTING) {
           ns_read_from_socket(nc);
-        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND)) {
+        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND) &&
+                   !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           ns_write_to_socket(nc);
         }
       }
@@ -1500,6 +1501,10 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 
+struct proto_data_http {
+  FILE *fp;   /* Opened file */
+};
+
 /*
  * Check whether full request is buffered. Return:
  *   -1  if request is malformed
@@ -1772,6 +1777,23 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             "Sec-WebSocket-Accept: ", b64_sha, "\r\n\r\n");
 }
 
+static void transfer_file_data(struct ns_connection *nc) {
+  struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
+  struct iobuf *io = &nc->send_iobuf;
+  char buf[NS_MAX_HTTP_SEND_IOBUF];
+  size_t n;
+
+  if (nc->send_iobuf.len >= NS_MAX_HTTP_SEND_IOBUF) {
+    /* If output buffer is too big, do nothing until it's drained */
+  } else if ((n = fread(buf, 1, sizeof(buf) - io->len, dp->fp)) > 0) {
+    ns_send(nc, buf, n);
+  } else {
+    fclose(dp->fp);
+    free(dp);
+    nc->proto_data = NULL;
+  }
+}
+
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct iobuf *io = &nc->recv_iobuf;
   struct http_message hm;
@@ -1786,6 +1808,10 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       ns_parse_http(io->buf, io->len, &hm) > 0) {
     hm.body.len = io->buf + io->len - hm.body.p;
     nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+  }
+
+  if (nc->proto_data != NULL) {
+    transfer_file_data(nc);
   }
 
   nc->handler(nc, ev, ev_data);
@@ -1848,22 +1874,25 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
 
+static void send_http_error(struct ns_connection *nc, int code,
+                            const char *reason) {
+  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
+}
+
 void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {
-  char buf[BUFSIZ];
-  size_t n;
-  FILE *fp;
+  struct proto_data_http *dp;
 
-  if ((fp = fopen(path, "rb")) != NULL) {
+  if ((dp = (struct proto_data_http *) calloc(1, sizeof(*dp))) == NULL) {
+    send_http_error(nc, 500, "Server Error");
+  } else if ((dp->fp = fopen(path, "rb")) == NULL) {
+    free(dp);
+    send_http_error(nc, 500, "Server Error");
+  } else {
     ns_printf(nc, "HTTP/1.1 200 OK\r\n"
               "Content-Length: %lu\r\n\r\n", (unsigned long) st->st_size);
-    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
-      ns_send(nc, buf, n);
-    }
-    fclose(fp);
-  } else {
-    ns_printf(nc, "%s", "HTTP/1.1 500 Server Error\r\n"
-              "Content-Length: 0\r\n\r\n");
+    nc->proto_data = (void *) dp;
+    transfer_file_data(nc);
   }
 }
 

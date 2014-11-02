@@ -1753,6 +1753,16 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_RECV:
       do { } while (deliver_websocket_data(nc));
       break;
+    case NS_POLL:
+      /* Ping idle websocket connections */
+      do {
+        time_t now = * (time_t *) ev_data;
+        if (nc->flags & NSF_IS_WEBSOCKET &&
+            now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
+          ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
+        }
+      } while(0);
+      break;
     default:
       break;
   }
@@ -1851,13 +1861,6 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       iobuf_remove(io, hm.message.len);
-    }
-  } else if (ev == NS_POLL) {
-    /* Ping idle websocket connections */
-    time_t now = * (time_t *) ev_data;
-    if (nc->flags & NSF_IS_WEBSOCKET &&
-        now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
-      ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
     }
   }
 }

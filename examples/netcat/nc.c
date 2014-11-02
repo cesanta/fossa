@@ -19,6 +19,7 @@
 // This file implements "netcat" utility with SSL and traffic hexdump.
 
 #include "net_skeleton.h"
+#include <signal.h>
 
 static sig_atomic_t s_received_signal = 0;
 

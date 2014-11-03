@@ -453,7 +453,12 @@ static void cb4(struct ns_connection *nc, int ev, void *ev_data) {
     ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
     /* Send "hi" to server. server must reply "A". */
-    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", "hi");
+    struct ns_str h[2];
+    h[0].p = "h";
+    h[0].len = 1;
+    h[1].p = "i";
+    h[1].len = 1;
+    ns_send_websocket_framev(nc, WEBSOCKET_OP_TEXT, h, 2);
   }
 }
 
@@ -478,6 +483,47 @@ static const char *test_websocket(void) {
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "A") == 0);
+
+  return NULL;
+}
+
+static void cb4_big(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+    memcpy(nc->user_data, wm->data, wm->size);
+    ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
+  } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
+    /* Send large payload to server. server must reply "B". */
+    char *payload = (char*)malloc(8192);
+    memset(payload, 'x', 8192);
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", payload);
+  }
+}
+
+/* Big payloads follow a different code path because it will use the extended
+ * length field and possibly ns_avprintf will need to reallocate the buffer. */
+static const char *test_websocket_big(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7778";
+  char buf[20] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  /* mgr.hexdump_file = "/dev/stdout"; */
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb3)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+
+  /* Websocket request */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb4_big)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf;
+  ns_send_websocket_handshake(nc, "/ws", NULL);
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  /* Check that test buffer has been filled by the callback properly. */
+  ASSERT(strcmp(buf, "B") == 0);
 
   return NULL;
 }
@@ -653,6 +699,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);
   RUN_TEST(test_websocket);
+  RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);

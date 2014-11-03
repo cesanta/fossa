@@ -868,13 +868,19 @@ static const char *test_hexdump(void) {
 
 static const char *test_hexdump_file(void) {
   const char *path = "test_hexdump";
-  const char *want =  "0x0 :0 -> :0 3\n"
+  const char *want =  "0xbeef :0 -> :0 3\n"
                       "0000  66 6f 6f   "
                       "                                      foo\n\n";
   char *data, *got;
   size_t size;
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
 
+  /* "In the GNU system, non-null pointers are printed as unsigned integers,
+   * as if a `%#x' conversion were used. Null pointers print as `(nil)'.
+   * (Pointers might print differently in other systems.)"
+   * indeed it prints 0x0 on apple.
+   */
+  nc->user_data = (void *)0xbeef;
   truncate(path, 0);
 
   iobuf_append(&nc->send_iobuf, "foo", 3);

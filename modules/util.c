@@ -3,7 +3,7 @@
  * All rights reserved
  */
 
-#include "net_skeleton.h"
+#include "fossa.h"
 #include "util.h"
 
 const char *ns_skip(const char *s, const char *end,

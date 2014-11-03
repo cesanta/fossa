@@ -3,7 +3,7 @@
  * All rights reserved
  */
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static const char *s_target_address = "ajax.googleapis.com:80";
 static int s_exit = 0;

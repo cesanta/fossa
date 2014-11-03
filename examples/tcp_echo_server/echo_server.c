@@ -16,7 +16,7 @@
 //
 // $Date: 2014-09-28 05:04:41 UTC $
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static void ev_handler(struct ns_connection *nc, int ev, void *p) {
   struct iobuf *io = &nc->recv_iobuf;

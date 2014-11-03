@@ -1,15 +1,15 @@
 include modules.mk
 
-all: ../net_skeleton.c ../net_skeleton.h
+all: ../fossa.c ../fossa.h
 
-../net_skeleton.h: Makefile $(HEADERS)
-	$(MAKE) -s --no-print-directory merge_net_skeleton.h >$@
+../fossa.h: Makefile $(HEADERS)
+	$(MAKE) -s --no-print-directory merge_fossa.h >$@
 
-../net_skeleton.c: Makefile $(SOURCES)
-	$(MAKE) -s --no-print-directory merge_net_skeleton.c >$@
+../fossa.c: Makefile $(SOURCES)
+	$(MAKE) -s --no-print-directory merge_fossa.c >$@
 
-merge_net_skeleton.h: Makefile $(HEADERS)
+merge_fossa.h: Makefile $(HEADERS)
 	@cat $(HEADERS)
 
-merge_net_skeleton.c: Makefile $(SOURCES)
-	@(echo '#include "net_skeleton.h"'; (cat $(SOURCES) | sed '/^#include "/d'))
+merge_fossa.c: Makefile $(SOURCES)
+	@(echo '#include "fossa.h"'; (cat $(SOURCES) | sed '/^#include "/d'))

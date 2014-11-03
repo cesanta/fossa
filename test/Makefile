@@ -2,7 +2,7 @@ PROG = unit_test
 SSL=-DNS_ENABLE_SSL
 CFLAGS = -W -Wall -Werror -I.. $(SSL) -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
-AMALGAMATED_SOURCES = $(PROG).c ../net_skeleton.c
+AMALGAMATED_SOURCES = $(PROG).c ../fossa.c
 
 include ../modules/modules.mk
 
@@ -14,8 +14,8 @@ all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 .PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
 
 ismerged:
-	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.c | diff ../net_skeleton.c -
-	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.h | diff ../net_skeleton.h -
+	$(MAKE) -C ../modules -s --no-print-directory merge_fossa.c | diff ../fossa.c -
+	$(MAKE) -C ../modules -s --no-print-directory merge_fossa.h | diff ../fossa.h -
 
 $(PROG): Makefile
 	g++ -x c++ $(AMALGAMATED_SOURCES) -o $(PROG) $(CFLAGS) -lssl && ./$(PROG)

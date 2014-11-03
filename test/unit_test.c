@@ -15,7 +15,7 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \

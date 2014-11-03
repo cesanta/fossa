@@ -16,7 +16,7 @@
 //
 // $Date: 2014-09-28 05:04:41 UTC $
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static void *stdin_thread(void *param) {
   int ch, sock = * (int *) param;

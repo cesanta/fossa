@@ -1,5 +1,5 @@
 PROG = restful_server
-SOURCES = $(PROG).c ../../net_skeleton.c
+SOURCES = $(PROG).c ../../fossa.c
 CFLAGS = -W -Wall -I../.. -pthread $(CFLAGS_EXTRA)
 
 all: $(PROG)

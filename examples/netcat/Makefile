@@ -1,5 +1,5 @@
 PROG = nc
-SOURCES = $(PROG).c ../../net_skeleton.c
+SOURCES = $(PROG).c ../../fossa.c
 CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -lssl $(CFLAGS_EXTRA)
 
 all: $(PROG)

@@ -6,7 +6,7 @@
  *   $ curl -d '{"id":1,method:"sum",params:[22,33]}' 127.0.0.1:8000
  */
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static const char *s_http_port = "8000";
 

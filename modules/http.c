@@ -5,7 +5,7 @@
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
-#include "net_skeleton.h"
+#include "fossa.h"
 #include "sha1.h"
 #include "util.h"
 #include "http.h"

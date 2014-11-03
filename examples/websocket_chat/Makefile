@@ -3,7 +3,7 @@
 
 PROG = websocket_chat
 CFLAGS = -W -Wall -I../.. -pthread -g -O0 $(CFLAGS_EXTRA)
-SOURCES = $(PROG).c ../../net_skeleton.c
+SOURCES = $(PROG).c ../../fossa.c
 
 $(PROG): $(SOURCES)
 	$(CC) -o $(PROG) $(SOURCES) $(CFLAGS)

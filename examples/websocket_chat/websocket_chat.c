@@ -3,7 +3,7 @@
  * All rights reserved
  */
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static sig_atomic_t s_signal_received = 0;
 static const char *s_http_port = "8000";

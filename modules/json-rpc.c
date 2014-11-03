@@ -3,7 +3,7 @@
 
 #ifndef NS_DISABLE_JSON_RPC
 
-#include "net_skeleton.h"
+#include "fossa.h"
 #include "json-rpc.h"
 
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,

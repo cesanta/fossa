@@ -197,8 +197,8 @@ int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   return len;
 }
 
-static void hexdump(struct ns_connection *nc, const char *path,
-                    int num_bytes, int ev) {
+void ns_hexdump_connection(struct ns_connection *nc, const char *path,
+                           int num_bytes, int ev) {
   const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
   FILE *fp;
   char *buf, src[60], dst[60];
@@ -225,7 +225,7 @@ static void hexdump(struct ns_connection *nc, const char *path,
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
-    hexdump(nc, nc->mgr->hexdump_file, len, ev);
+    ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
 
   /*

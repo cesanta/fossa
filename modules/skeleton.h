@@ -280,6 +280,8 @@ int ns_socketpair2(sock_t [2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
+void ns_hexdump_connection(struct ns_connection *nc, const char *path,
+                           int num_bytes, int ev);
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
 int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 

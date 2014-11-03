@@ -1,0 +1,47 @@
+<div class="sect1">
+<h2 id="_overview">Overview</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <a href="/">demo</a> consists of web app providing access to a webcam and a LED attached to a RaspberryPi.
+The device is assumed to have a limited bandwidth towards the server hosting the web app.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_objective">Objective</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The demo shows how to use websockets to communicate bidirectionally with an embedded device using standard protocols.</p>
+</div>
+<div class="paragraph">
+<p>It also shows that it&#8217;s possible to use Smart.c to develop also the cloud endpoint and expose WebSocket and RESTful APIs
+easy to integreate with modern web stacks.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_it_works">How it works</h2>
+<div class="sectionbody">
+<div class="imageblock">
+<div class="content">
+<img src="arch.png" alt="arch">
+</div>
+</div>
+<div class="paragraph">
+<p>There are two components, once with runs on the device (<code>device_side</code>) and one that runs on a stronger machine
+and with more bandwidth (<code>cloud_side</code>).</p>
+</div>
+<div class="paragraph">
+<p>The device app connects to the cloud app via websocket and sends a new jpeg frame as fast as the underlying <code>raspistill</code> camera
+grabbing application can handle. The device automatically attempts reconnecting.</p>
+</div>
+<div class="paragraph">
+<p>The cloud side serves the webapp static pages and serves an MPJEG image on <code>/mpjg</code>.
+The MPJEG image handler blocks all the clients until a JPEG frame arrives via websocket
+and then every client will recieve a copy of the frame.</p>
+</div>
+<div class="paragraph">
+<p>The web app can turn on and off the LED via a RESTful api accessible via the <code>/api</code> handler.</p>
+</div>
+</div>
+</div>

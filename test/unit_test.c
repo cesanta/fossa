@@ -102,6 +102,9 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   int port, port2;
+#ifndef NS_ENABLE_SSL
+  (void)use_ssl;
+#endif
 
   ns_mgr_init(&mgr, NULL);
   /* mgr.hexdump_file = "/dev/stdout"; */
@@ -109,9 +112,11 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   ASSERT((nc = ns_bind(&mgr, addr, eh1)) != NULL);
   port2 = htons(nc->sa.sin.sin_port);
   ASSERT(port2 > 0);
+#ifdef NS_ENABLE_SSL
   if (use_ssl) {
     ASSERT(ns_set_ssl(nc, S_PEM, CA_PEM) == NULL);
   }
+#endif
 
   ns_sock_to_str(nc->sock, addr, sizeof(addr), 3);
   ASSERT(sscanf(addr, "%[^:]:%d", ip, &port) == 2);
@@ -119,9 +124,11 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   ASSERT(port == port2);
 
   ASSERT((nc = ns_connect(&mgr, addr, eh1)) != NULL);
+#ifdef NS_ENABLE_SSL
   if (use_ssl) {
     ASSERT(ns_set_ssl(nc, C_PEM, CA_PEM) == NULL);
   }
+#endif
   nc->user_data = buf;
   poll_mgr(&mgr, 50);
 

@@ -1,5 +1,5 @@
-NS=../../net_skeleton.c
-FLAGS = ../../net_skeleton.c -I../..
+NS=../../fossa.c
+FLAGS = ../../fossa.c -I../..
 CFLAGS=-W -Wall -pthread $(CFLAGS_EXTRA)
 PROGS = device_side cloud_side
 

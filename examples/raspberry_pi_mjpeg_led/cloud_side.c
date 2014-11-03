@@ -4,7 +4,7 @@
 // This program listens for the mpjpg stream over websocket, and streams it
 // to the connected HTTP clients.
 
-#include "net_skeleton.h"
+#include "fossa.h"
 
 #define HEADER_SIZE sizeof(uint32_t)
 

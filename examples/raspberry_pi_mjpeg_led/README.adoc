@@ -33,8 +33,8 @@ The web app can turn on and off the LED via a RESTful api accessible via the `/a
 === Server side
 
 ----
-git clone https://github.com/cesanta/net_skeleton
-cd net_skeleton/examples/web_demo
+git clone https://github.com/cesanta/fossa
+cd fossa/examples/web_demo
 make cloud_side && ./cloud_side 0.0.0.0:8080
 ----
 
@@ -66,7 +66,7 @@ done
 ==== Build and run
 
 ----
-git clone https://github.com/cesanta/net_skeleton
-cd net_skeleton/examples/web_demo
+git clone https://github.com/cesanta/fossa
+cd fossa/examples/web_demo
 make device_side && ./device_side yourserver:8080
 ----

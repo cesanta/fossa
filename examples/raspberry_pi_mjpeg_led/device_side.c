@@ -5,7 +5,7 @@
 // over the websocket connection to the specified server.
 
 #include <unistd.h>
-#include "net_skeleton.h"
+#include "fossa.h"
 
 static int s_received_signal = 0;
 static int s_connected = 0;

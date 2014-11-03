@@ -1,11 +1,11 @@
 {
-  "name": "net_skeleton_web_demo",
+  "name": "fossa_web_demo",
   "version": "0.0.1",
-  "homepage": "https://github.com/cesanta/net_skeleton",
+  "homepage": "https://github.com/cesanta/fossa",
   "authors": [
     "Marko Mikulicic <mmikulicic@gmail.com>"
   ],
-  "description": "net_skeleton websocket demo",
+  "description": "fossa websocket demo",
   "license": "GPL 2.0",
   "private": true,
   "ignore": [

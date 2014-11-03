@@ -1,152 +1,108 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <!-- Required meta tags-->
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <head>
+    <!-- Required meta tags-->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
-  <link rel="stylesheet" href="framework7.min.css">
+    <link rel="stylesheet" href="framework7.min.css">
 
-  <title>Smart.c mjpg example</title>
-  <style type="text/css">
-  </style>
-</head>
-<body>
+    <title>Smart.c mjpg example</title>
+    <style type="text/css">
+     .image img {
+       display: block;
+       margin-left: auto;
+       margin-right: auto;
+     }
+    </style>
+  </head>
+  <body>
 
-  <!-- Status bar overlay for full screen mode (PhoneGap) -->
-  <div class="statusbar-overlay"></div>
+    <!-- Status bar overlay for full screen mode (PhoneGap) -->
+    <div class="statusbar-overlay"></div>
 
-
-  <!-- Views -->
-  <div class="views">
-    <!-- Your main view, should have "view-main" class -->
-    <div class="view view-main">
-      <!-- Top Navbar-->
-      <div class="navbar">
-        <div class="navbar-inner">
-          <!-- We need cool sliding animation on title element, so we have additional "sliding" class -->
-          <div class="center sliding">Remote Camera</div>
-        </div>
-      </div>
-      <!-- Pages container, because we use fixed-through navbar and toolbar, it has additional appropriate classes-->
-      <div class="pages navbar-through toolbar-through">
-        <!-- Page, "data-page" contains page name -->
-        <div data-page="index" class="page">
-          <!-- Scrollable page content -->
-          <div class="page-content">
-            <!--
-            <iframe src="/stream" width="300" height="200"></iframe>
-            -->
-            <div class="content-block-title">Camera View</div>
-            <div class="content-block">
-              <img src="/mjpg">
+    <!-- Views -->
+    <div class="views">
+      <!-- Your main view, should have "view-main" class -->
+      <div class="view view-main">
+        <!-- Top Navbar-->
+        <div class="navbar">
+          <div class="navbar-inner">
+            <!-- We need cool sliding animation on title element, so we have additional "sliding" class -->
+            <div class="left">
+              <a href="docs/doc.html" class="link" onclick="location='docs/doc.html'">
+                <span>About</span>
+              </a>
             </div>
-
-            <div class="content-block-title">Camera Control</div>
-            <div class="list-block">
-
-            <form action="/api" method="GET" enctype="application/json"
-              id="form-control">
-            <ul>
-
-    <!-- Switch (Checkbox) -->
-    <li>
-      <div class="item-content">
-        <div class="item-inner">
-          <div class="item-title label">Camera on/off</div>
-          <div class="item-input">
-            <label class="label-switch">
-              <input type="checkbox" name="onoff">
-              <div class="checkbox"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-    </li>
-
-    <li>
-      <div class="item-content">
-        <div class="item-inner">
-          <div class="item-title label">Image Width</div>
-          <div class="item-input">
-            <select name="width">
-              <option>800</option>
-              <option>600</option>
-              <option selected>400</option>
-              <option>200</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </li>
-
-
-    <li>
-      <div class="item-content">
-        <div class="item-inner">
-          <div class="item-title label">Image Height</div>
-          <div class="item-input">
-            <select name="height">
-              <option>600</option>
-              <option>480</option>
-              <option selected>200</option>
-              <option>100</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </li>
-
-            </ul>
-            </form>
-
+            <div class="center sliding">Remote Camera</div>
+            <div class="right sliding">
+              <a href="https://github.com/cesanta/fossa/tree/master/examples/raspberry_pi_mjpeg_led" class="link" onclick="location='https://github.com/cesanta/fossa/tree/master/examples/raspberry_pi_mjpeg_led'">
+                <span>Github</span>
+                <i class="icon icon-next"></i>
+              </a>
             </div>
-
-            <!-- Link to another page -->
-            <!--
-            <a href="about.html">About app</a>
-            -->
           </div>
         </div>
-      </div>
-      <!-- Bottom Toolbar-->
-      <div class="toolbar">
-        <div class="toolbar-inner">
-          <!-- Toolbar links -->
-          <!--
-          <a href="#" class="link">Link 1</a>
-          <a href="#" class="link">Link 2</a>
-          -->
+        <!-- Pages container, because we use fixed-through navbar and toolbar, it has additional appropriate classes-->
+        <div class="pages navbar-through toolbar-through">
+          <!-- Page, "data-page" contains page name -->
+          <div data-page="index" class="page">
+            <!-- Scrollable page content -->
+            <div class="page-content">
+              <div class="content-block-title">Camera View</div>
+              <div class="content-block image">
+                <img src="/mjpg">
+              </div>
+
+              <div class="content-block-title">Device Control</div>
+              <div class="list-block">
+
+                <form action="/api" method="GET" enctype="application/json"
+                      id="form-control">
+                  <ul>
+
+                    <!-- Switch (Checkbox) -->
+                    <li>
+                      <div class="item-content">
+                        <div class="item-inner">
+                          <div class="item-title label">LED on/off</div>
+                          <div class="item-input">
+                            <label class="label-switch">
+                              <input type="checkbox" name="onoff">
+                              <div class="checkbox"></div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                </form>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <script type="text/javascript" src="framework7.min.js"></script>
-  <script type="text/javascript">
-    var myApp = new Framework7({
-      pushState: true,
-      swipePanel: 'left',
-      // ... other parameters
-    });
-    Dom7(document).on('change', '#form-control', function(ev) {
-      var data = myApp.formToJSON('#form-control');
-      var json = JSON.stringify(data);
-      /*
-      myApp.addNotification({
-        title: 'RESTful request sent',
-        message: json
+    <script type="text/javascript" src="framework7.min.js"></script>
+    <script type="text/javascript">
+      var myApp = new Framework7({
+        pushState: true,
+        swipePanel: 'left',
+        // ... other parameters
       });
-      */
-      Dom7.ajax({
-        url: '/api',
-        method: 'POST',
-        contentType: 'application/json',
-        data: json
+      Dom7(document).on('change', '#form-control', function(ev) {
+        var data = myApp.formToJSON('#form-control');
+        var json = JSON.stringify(data);
+        Dom7.ajax({
+          url: '/api',
+          method: 'POST',
+          contentType: 'application/json',
+          data: json
+        });
       });
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>

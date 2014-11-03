@@ -1,5 +1,6 @@
 PROG = unit_test
-CFLAGS = -W -Wall -Werror -I.. -DNS_ENABLE_SSL -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
+SSL=-DNS_ENABLE_SSL
+CFLAGS = -W -Wall -Werror -I.. $(SSL) -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 AMALGAMATED_SOURCES = $(PROG).c ../net_skeleton.c
 
@@ -10,7 +11,7 @@ MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-g
 
 all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
-.PHONY: clean clean_coverage lcov $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
+.PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
 
 ismerged:
 	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.c | diff ../net_skeleton.c -
@@ -42,6 +43,10 @@ $(PROG)_coverage: Makefile
 lcov: clean $(PROG)_coverage
 	lcov -o lcov.info -c -d .
 	genhtml -o lcov lcov.info
+
+valgrind:
+	$(MAKE) $(PROG) SSL="" CFLAGS_EXTRA=-DNO_DNS_TEST
+	valgrind --leak-check=full ./unit_test
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt

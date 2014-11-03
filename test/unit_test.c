@@ -824,6 +824,7 @@ static const char *test_connect_opts_error_string(void) {
   ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
   ASSERT(error_string != NULL);
   ASSERT(strcmp(error_string, "cannot parse address") == 0);
+  free(error_string);
   return NULL;
 }
 

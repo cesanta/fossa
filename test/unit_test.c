@@ -827,6 +827,18 @@ static const char *test_connect_opts_error_string(void) {
   return NULL;
 }
 
+#ifndef NO_DNS_TEST
+static const char *test_resolve(void) {
+  char buf[20];
+
+  ASSERT(ns_resolve("localhost", buf, sizeof(buf)) > 0);
+  ASSERT(strcmp(buf, "127.0.0.1") == 0);
+
+  ASSERT(ns_resolve("please_dont_name_a_host_like_ths", buf, sizeof(buf)) == 0);
+  return NULL;
+}
+#endif
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -848,6 +860,9 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
+#ifndef NO_DNS_TEST
+  RUN_TEST(test_resolve);
+#endif
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

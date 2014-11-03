@@ -16,7 +16,7 @@
 #include "fossa.h"
 
 static int s_poll_interval_ms = 100;
-static int s_still_period = 1000;
+static int s_still_period = 100;
 static int s_vertical_flip = 0;
 static int s_width = 320;
 static int s_height = 180;

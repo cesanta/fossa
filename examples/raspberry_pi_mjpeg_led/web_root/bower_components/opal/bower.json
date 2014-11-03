@@ -1,0 +1,28 @@
+{
+  "name": "opal",
+  "version": "0.6.2",
+  "homepage": "http://opalrb.org",
+  "authors": [
+    "Adam Beynon <adam.beynon@gmail.com>",
+    "Meh",
+    "Elia Schito <elia@schito.me>"
+  ],
+  "description": "Ruby runtime and core library for javascript",
+  "main": "opal/current/opal.js",
+  "moduleType": [
+    "globals"
+  ],
+  "keywords": [
+    "Ruby",
+    "Javascript",
+    "Compiler"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}

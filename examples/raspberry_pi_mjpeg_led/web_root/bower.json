@@ -1,0 +1,38 @@
+{
+  "name": "fossa_web_demo",
+  "version": "0.0.1",
+  "homepage": "https://github.com/cesanta/fossa",
+  "authors": [
+    "Marko Mikulicic <mmikulicic@gmail.com>"
+  ],
+  "description": "fossa websocket demo",
+  "license": "GPL 2.0",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "core-icon-button": "Polymer/core-icon-button#~0.4.2",
+    "core-menu": "Polymer/core-menu#~0.4.2",
+    "core-item": "Polymer/core-item#~0.4.2",
+    "core-ajax": "Polymer/core-ajax#~0.4.2",
+    "font-roboto": "Polymer/font-roboto#~0.4.2",
+    "core-scaffold": "Polymer/core-scaffold#~0.4.2",
+    "core-header-panel": "Polymer/core-header-panel#~0.4.2",
+    "core-drawer-panel": "Polymer/core-drawer-panel#~0.4.2",
+    "core-toolbar": "Polymer/core-toolbar#~0.4.2",
+    "paper-tabs": "Polymer/paper-tabs#~0.4.2",
+    "paper-fab": "Polymer/paper-fab#~0.4.2",
+    "paper-toggle-button": "Polymer/paper-toggle-button#~0.4.2",
+    "paper-checkbox": "Polymer/paper-checkbox#~0.4.2",
+    "core-ajax": "Polymer/core-ajax#~0.4.2",
+    "app-router": "git://github.com/erikringsmuth/app-router.git#~2.0.2",
+
+    "asciidoctor": "git://github.com/asciidoctor/asciidoctor.js.git#~1.5.1"
+  }
+}

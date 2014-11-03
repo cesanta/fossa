@@ -855,6 +855,54 @@ static const char *test_base64(void) {
   return NULL;
 }
 
+static const char *test_hexdump(void) {
+  const char *src = "\1\2\3\4abcd";
+  char got[256];
+
+  const char *want ="0000  01 02 03 04 61 62 63 64"
+                    "                          ....abcd\n\n";
+  ASSERT(ns_hexdump(src, strlen(src), got, sizeof(got)) == (int)strlen(want));
+  ASSERT(strcmp(got, want) == 0);
+  return NULL;
+}
+
+static const char *test_hexdump_file(void) {
+  const char *path = "test_hexdump";
+  const char *want =  "0xbeef :0 -> :0 3\n"
+                      "0000  66 6f 6f   "
+                      "                                      foo\n\n";
+  char *data, *got;
+  size_t size;
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+
+  /* "In the GNU system, non-null pointers are printed as unsigned integers,
+   * as if a `%#x' conversion were used. Null pointers print as `(nil)'.
+   * (Pointers might print differently in other systems.)"
+   * indeed it prints 0x0 on apple.
+   */
+  nc->user_data = (void *)0xbeef;
+  truncate(path, 0);
+
+  iobuf_append(&nc->send_iobuf, "foo", 3);
+  iobuf_append(&nc->recv_iobuf, "bar", 3);
+  ns_hexdump_connection(nc, path, 3, NS_SEND);
+
+  iobuf_free(&nc->send_iobuf);
+  iobuf_free(&nc->recv_iobuf);
+  free(nc);
+
+  ASSERT((data = read_file(path, &size)) != NULL);
+  unlink(path);
+
+  got = data;
+  while(got-data < (int)size && *got++ != ' ');
+  size -= got-data;
+  ASSERT(strncmp(got, want, size) == 0);
+
+  free(data);
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -880,6 +928,8 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_resolve);
 #endif
   RUN_TEST(test_base64);
+  RUN_TEST(test_hexdump);
+  RUN_TEST(test_hexdump_file);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

@@ -1598,6 +1598,14 @@ static int is_ws_first_fragment(unsigned char flags) {
   return (flags & 0x80) == 0 && (flags & 0x0f) != 0;
 }
 
+static void handle_incoming_websocket_frame(struct ns_connection *nc, struct websocket_message *wsm) {
+  if (wsm->flags & 0x8) {
+    nc->handler(nc, NS_WEBSOCKET_CONTROL_FRAME, wsm);
+  } else {
+    nc->handler(nc, NS_WEBSOCKET_FRAME, wsm);
+  }
+}
+
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
@@ -1666,12 +1674,12 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       if (wsm.flags & 0x80) {
         wsm.data = p + 1 + sizeof(*sizep);
         wsm.size = *sizep;
-        nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);
+        handle_incoming_websocket_frame(nc, &wsm);
         iobuf_remove(&nc->recv_iobuf, 1 + sizeof(*sizep) + *sizep);
       }
     } else {
       /* TODO(lsm): properly handle OOB control frames during defragmentation */
-      nc->handler(nc, NS_WEBSOCKET_FRAME, &wsm);          /* Call handler */
+      handle_incoming_websocket_frame(nc, &wsm);
       iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);  /* Cleanup frame */
     }
   }
@@ -1752,6 +1760,16 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_RECV:
       do { } while (deliver_websocket_data(nc));
+      break;
+    case NS_POLL:
+      /* Ping idle websocket connections */
+      do {
+        time_t now = * (time_t *) ev_data;
+        if (nc->flags & NSF_IS_WEBSOCKET &&
+            now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
+          ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
+        }
+      } while(0);
       break;
     default:
       break;
@@ -1851,13 +1869,6 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       iobuf_remove(io, hm.message.len);
-    }
-  } else if (ev == NS_POLL) {
-    /* Ping idle websocket connections */
-    time_t now = * (time_t *) ev_data;
-    if (nc->flags & NSF_IS_WEBSOCKET &&
-        now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
-      ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
     }
   }
 }

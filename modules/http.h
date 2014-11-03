@@ -45,6 +45,7 @@ struct websocket_message {
 #define NS_WEBSOCKET_HANDSHAKE_REQUEST  111   /* NULL */
 #define NS_WEBSOCKET_HANDSHAKE_DONE     112   /* NULL */
 #define NS_WEBSOCKET_FRAME              113   /* struct websocket_message * */
+#define NS_WEBSOCKET_CONTROL_FRAME      114   /* struct websocket_message * */
 
 void ns_set_protocol_http_websocket(struct ns_connection *);
 void ns_send_websocket_handshake(struct ns_connection *, const char *,

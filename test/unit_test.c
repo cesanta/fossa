@@ -436,6 +436,69 @@ static const char *test_http(void) {
   return NULL;
 }
 
+static void cb8(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REPLY) {
+    snprintf((char *) nc->user_data, 40, "%.*s", (int)hm->message.len, hm->message.p);
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
+static const char *test_http_errors(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7777";
+  char status[40] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+
+  /* Test file which exists but cannot be opened */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = status;
+  system("touch test_unreadable; chmod 000 test_unreadable");
+  ns_printf(nc, "GET /%s HTTP/1.0\n\n", "../test_unreadable");
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 200);
+  system("rm -f test_unreadable");
+
+  /* Check that it failed */
+  ASSERT(strncmp(status, "HTTP/1.1 500", strlen("HTTP/1.1 500")) == 0);
+
+  /* Test non existing file */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = status;
+  ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/please_dont_create_this_file_srsly");
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 200);
+
+  /* Check that it failed */
+  ASSERT(strncmp(status, "HTTP/1.1 404", strlen("HTTP/1.1 404")) == 0);
+
+  /* Test directory without index.html */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = status;
+  ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/");
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 200);
+
+  /* Check that it failed */
+  ASSERT(strncmp(status, "HTTP/1.1 403", strlen("HTTP/1.1 403")) == 0);
+
+  /* Cleanup */
+  ns_mgr_free(&mgr);
+
+  return NULL;
+}
+
 static void cb3(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
 
@@ -698,6 +761,7 @@ static const char *run_all_tests(void) {
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);
+  RUN_TEST(test_http_errors);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);

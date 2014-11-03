@@ -839,6 +839,21 @@ static const char *test_resolve(void) {
 }
 #endif
 
+static const char *test_base64(void) {
+  const char *cases[] = {"test", "longer string"};
+  unsigned long i;
+  char enc[8192];
+  char dec[8192];
+
+  for (i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+    ns_base64_encode((unsigned char *)cases[i], strlen(cases[i]), enc);
+    ns_base64_decode((unsigned char *)enc, strlen(enc), dec);
+
+    ASSERT(strcmp(cases[i], dec) == 0);
+  }
+  return NULL;
+}
+
 static const char *run_all_tests(void) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -863,6 +878,7 @@ static const char *run_all_tests(void) {
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif
+  RUN_TEST(test_base64);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
 #endif

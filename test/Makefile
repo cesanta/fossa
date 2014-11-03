@@ -10,7 +10,7 @@ MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-g
 
 all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
-.PHONY: clean clean_coverage $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
+.PHONY: clean clean_coverage lcov $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
 
 ismerged:
 	$(MAKE) -C ../modules -s --no-print-directory merge_net_skeleton.c | diff ../net_skeleton.c -
@@ -38,6 +38,10 @@ $(PROG)_coverage: Makefile
 	$(MAKE) clean_coverage
 	gcc $(PEDANTIC) -std=c99 -fprofile-arcs -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
 	gcov -p $(PROG).c $(notdir $(SOURCES)) >/dev/null
+
+lcov: clean $(PROG)_coverage
+	lcov -o lcov.info -c -d .
+	genhtml -o lcov lcov.info
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt

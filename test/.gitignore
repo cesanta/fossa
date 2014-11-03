@@ -7,3 +7,5 @@ unit_test_coverage
 *.gcda
 *.gcov
 *.dSYM
+lcov.info
+lcov

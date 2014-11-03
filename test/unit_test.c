@@ -588,17 +588,40 @@ static const char *test_websocket(void) {
   return NULL;
 }
 
-static void cb4_big(struct ns_connection *nc, int ev, void *ev_data) {
+struct big_payload_params {
+  size_t size;
+  char *buf;
+};
+
+static void cb3_big(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
 
   if (ev == NS_WEBSOCKET_FRAME) {
-    memcpy(nc->user_data, wm->data, wm->size);
+    int success = 1;
+    size_t i;
+    for (i = 0; i < wm->size; i++) {
+      if (wm->data[i] != 'x') {
+        success = 0;
+        break;
+      }
+    }
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", success ? "success": "fail");
+  }
+}
+
+static void cb4_big(struct ns_connection *nc, int ev, void *ev_data) {
+  struct websocket_message *wm = (struct websocket_message *) ev_data;
+  struct big_payload_params *params = (struct big_payload_params *)nc->user_data;
+
+  if (ev == NS_WEBSOCKET_FRAME) {
+    memcpy(params->buf, wm->data, wm->size);
     ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
-    /* Send large payload to server. server must reply "B". */
-    char *payload = (char*)malloc(8192);
-    memset(payload, 'x', 8192);
-    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", payload);
+    /* Send large payload to server. server must reply "success". */
+    char *payload = (char *)malloc(params->size);
+    memset(payload, 'x', params->size);
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%.*s", params->size, payload);
+    free(payload);
   }
 }
 
@@ -609,22 +632,36 @@ static const char *test_websocket_big(void) {
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7778";
   char buf[20] = "";
+  struct big_payload_params params;
+  params.buf = buf;
 
   ns_mgr_init(&mgr, NULL);
   /* mgr.hexdump_file = "/dev/stdout"; */
-  ASSERT((nc = ns_bind(&mgr, local_addr, cb3)) != NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb3_big)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
   /* Websocket request */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb4_big)) != NULL);
   ns_set_protocol_http_websocket(nc);
-  nc->user_data = buf;
+  params.size = 8192;
+  nc->user_data = &params;
+  ns_send_websocket_handshake(nc, "/ws", NULL);
+  poll_mgr(&mgr, 50);
+
+  /* Check that test buffer has been filled by the callback properly. */
+  ASSERT(strcmp(buf, "success") == 0);
+
+  /* Websocket request */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb4_big)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  params.size = 65535;
+  nc->user_data = &params;
   ns_send_websocket_handshake(nc, "/ws", NULL);
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "B") == 0);
+  ASSERT(strcmp(buf, "success") == 0);
 
   return NULL;
 }

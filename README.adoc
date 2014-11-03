@@ -3,9 +3,7 @@
 :buildstatus-uri: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8
 :buildstatus-badge: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8/status?branch=master
 
-ifdef::env-github[]
 image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
-endif::[]
 
 image::https://drone.io/github.com/cesanta/net_skeleton/status.png[Build Status,link=https://drone.io/github.com/cesanta/net_skeleton/latest]
 image::https://coveralls.io/repos/cesanta/net_skeleton/badge.png?branch=master[Coverage Status,link=https://coveralls.io/r/cesanta/net_skeleton?branch=master]

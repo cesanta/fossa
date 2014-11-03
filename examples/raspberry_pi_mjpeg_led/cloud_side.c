@@ -1,8 +1,9 @@
-// Copyright (c) 2014 Cesanta Software Limited
-// All rights reserved
-//
-// This program listens for the mpjpg stream over websocket, and streams it
-// to the connected HTTP clients.
+/* Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ *
+ * This program polls given file, and if it is modified, it sends it
+ * over the websocket connection to the specified server.
+ */
 
 #include "fossa.h"
 
@@ -11,12 +12,27 @@
 static int s_received_signal = 0;
 static struct ns_serve_http_opts web_root_opts = { "./web_root" };
 
+/* Graceful shutdown on signal. */
 static void signal_handler(int sig_num) {
   signal(sig_num, signal_handler);
   s_received_signal = sig_num;
 }
 
 static time_t last_frame_timestamp;
+
+/* Forwards the jpeg frame data to all open mjpeg connections.
+ *
+ * mjpeg connections are tagged with the NSF_USER_2 flag so we can find them
+ * my scanning the connection list provided by the fossa manager.
+ *
+ * Incoming messages follow a very simple binary frame format:
+ * 4 bytes: timestamp (in network byte order)
+ * n bytes: jpeg payload
+ *
+ * The timestamp is used to compute a lag.
+ * It's done in a quite stupid way as it requires the device
+ * clock to be synchronized with the cloud endpoint.
+ */
 static void push_frame_to_clients(struct ns_mgr *mgr,
                                   const struct websocket_message *wm) {
   if (wm->size < HEADER_SIZE) {
@@ -42,6 +58,8 @@ static void push_frame_to_clients(struct ns_mgr *mgr,
   }
 }
 
+/* Forwards API payload to the device, by scanning through
+ * all the connections to find those that are tagged as WebSocket .*/
 static void send_command_to_the_device(struct ns_mgr *mgr,
                                        const struct ns_str *cmd) {
   struct ns_connection *nc;
@@ -52,7 +70,16 @@ static void send_command_to_the_device(struct ns_mgr *mgr,
   }
 }
 
-static void cb(struct ns_connection *nc, int ev, void *ev_data) {
+/* Main event handler. Receives data events and dispatches to
+ * the appropriate handler function.
+ *
+ * 1. RESTful API requests are handled by send_command_to_the_device.
+ * 2. requests to /mpeg are established and left open waiting for data to arrive
+ *    from WebSocket.
+ * 3. WebSocket frames are handled by push_frame_to_clients.
+ * 4. All other connections are passed to the ns_serve_http handler
+ *    which serves static files. */
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
   struct http_message *hm = (struct http_message *) ev_data;
 
@@ -104,7 +131,7 @@ int main(int argc, char *argv[]) {
   ns_mgr_init(&mgr, NULL);
 
   struct ns_connection* nc;
-  if ((nc = ns_bind(&mgr, argv[1], cb)) == NULL) {
+  if ((nc = ns_bind(&mgr, argv[1], ev_handler)) == NULL) {
     fprintf(stderr, "Error binding to %s\n", argv[1]);
     exit(EXIT_FAILURE);
   }

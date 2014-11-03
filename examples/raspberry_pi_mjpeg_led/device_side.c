@@ -20,14 +20,9 @@ static const char *s_mjpg_file = "/var/run/shm/cam.jpg";
 static const char *s_mjpg_opti_file = "/var/run/shm/cam-opti.jpg";
 static int s_led_state = 0;
 
-/* Graceful shutdown on signal. */
-static void signal_handler(int sig_num) {
-  signal(sig_num, signal_handler);
-  s_received_signal = sig_num;
-}
-
 /* Set RaspberryPi GPIO pins.
- * They have to be exported before calling this function */
+ * They have to be exported before calling this function.
+ */
 static void set_gpio(int pin, int v) {
   char gpio_file[200];
   snprintf(gpio_file, sizeof(gpio_file), "/sys/class/gpio/gpio%d/value", pin);
@@ -42,7 +37,8 @@ static void set_gpio(int pin, int v) {
 }
 
 /* Turn on or off the LED.
- * The LED in this example is an RGB led, so all the colors have to be set. */
+ * The LED in this example is an RGB led, so all the colors have to be set.
+ */
 static void set_led(int v) {
   printf("Setting led to %d\n", v);
   set_gpio(22, v);
@@ -52,7 +48,7 @@ static void set_led(int v) {
   s_led_state = v;
 }
 
-/* Helper function that runs a shell command and swallows its output */
+/* Helper function that runs a shell command and swallows its output. */
 static int run_command(char *fmt, ...) {
   FILE *fp;
   char cmd[400], line[500];
@@ -66,7 +62,9 @@ static int run_command(char *fmt, ...) {
   }
 
   while (fgets(line, sizeof(line), fp) != NULL) {
-    //printf("==> %s", line);
+#if 0
+    printf("==> %s", line);
+#endif
   }
   fclose(fp);
 
@@ -90,20 +88,18 @@ static const char* optimize_jpeg(const char *file_path) {
  * This example shows a very simple binary frame format:
  * 4 bytes: timestamp (in network byte order)
  * n bytes: jpeg payload
- *
- **/
+ */
 static void send_mjpg_frame(struct ns_connection *nc, const char *file_path) {
   static int skipped_frames = 0;
   struct stat st;
   FILE *fp;
 
-  // Check file modification time.
-  // Send if there is not too much data enqueued.
+  /* Check file modification time. */
   if (stat(file_path, &st) == 0) {
-    // Don't queue to
+    /* Send if there is not too much data enqueued. */
     if (nc->send_iobuf.len > 256) {
       skipped_frames++;
-      // Store new modification time
+      /* Store new modification time */
       nc->user_data = (void *) st.st_mtime;
       return;
     }
@@ -117,31 +113,30 @@ static void send_mjpg_frame(struct ns_connection *nc, const char *file_path) {
     }
     stat(optimized_file, &st);
 
-    // Timestamp
     uint32_t time_stamp = htonl(st.st_mtime);
 
-    // Read new mjpg frame into a buffer
+    /* Read new mjpg frame into a buffer */
     char buf[st.st_size];
-    fread(buf, 1, sizeof(buf), fp);  // TODO (lsm): check error
+    fread(buf, 1, sizeof(buf), fp);
     fclose(fp);
 
-    // Send timestamp as header and then the image as payload.
+    /* Send timestamp as header and then the image as payload. */
     struct ns_str buffers[] = {
       {(const char*)&time_stamp, sizeof(time_stamp)},
       {buf, sizeof(buf)}
     };
 
-    // Send those buffers to a websocket connection
+    /* Send those buffers through the websocket connection */
     ns_send_websocket_framev(nc, WEBSOCKET_OP_BINARY, buffers, 2);
     printf("Sent mjpg frame, %lu bytes after skippping %d frames\n", (unsigned long) sizeof(buf), skipped_frames);
     skipped_frames = 0;
-    // Store new modification time
+    /* and store new modification time */
     nc->user_data = (void *) st.st_mtime;
   }
 }
 
 /* Parse control JSON and perform command:
- * for now only LED on/off is supported */
+ * for now only LED on/off is supported. */
 static void perform_control_command(const char* data, size_t len) {
   struct json_token toks[200], *onoff;
   int n = parse_json(data, len, toks, sizeof(toks));
@@ -247,6 +242,15 @@ void parse_flags(int argc, char *argv[]) {
   }
 }
 
+/* Intercepts signals in order to gracefully terminate the connections.
+ * We simply set a global flag so that our poll loop will be interrupted
+ * the next time ns_poll returns.
+ */
+static void signal_handler(int sig_num) {
+  signal(sig_num, signal_handler);
+  s_received_signal = sig_num;
+}
+
 int main(int argc, char *argv[]) {
   parse_flags(argc, argv);
 
@@ -263,7 +267,7 @@ int main(int argc, char *argv[]) {
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, SIG_IGN);
 
-  // Start separate thread that generates MJPG data
+  /* Start separate thread that generates MJPG data */
   ns_start_thread(generate_mjpg_data_thread_func, NULL);
 
   printf("Streaming [%s] to [%s]\n", s_mjpg_file, addr);
@@ -277,11 +281,11 @@ int main(int argc, char *argv[]) {
   while (s_received_signal == 0) {
     now = ns_mgr_poll(&mgr, s_poll_interval_ms);
     if (s_connected == 0 && now - last_reconnect_time > 0) {
-      // Reconnect if disconnected
+      /* Reconnect if disconnected */
       printf("Reconnecting to %s...\n", addr);
       struct ns_connection *nc = ns_connect_opt(&mgr, addr, ev_handler, connect_opts);
 
-      last_reconnect_time = now;  // Rate-limit reconnections to 1 per second
+      last_reconnect_time = now;  /* Rate-limit reconnections to 1 per second */
       if (nc) {
         ns_set_protocol_http_websocket(nc);
         s_connected = 1;

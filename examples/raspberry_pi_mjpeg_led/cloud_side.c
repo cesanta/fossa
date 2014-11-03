@@ -5,6 +5,11 @@
  * over the websocket connection to the specified server.
  */
 
+/* This is the cloud endpoint of the Raspberry Pi camera/LED example
+ * of the Fossa networking library.
+ * It is a simple web server, serving both static files
+ * a REST api handler and a WebSocket handler.
+ */
 #include "fossa.h"
 
 #define HEADER_SIZE sizeof(uint32_t)
@@ -12,26 +17,17 @@
 static int s_received_signal = 0;
 static struct ns_serve_http_opts web_root_opts = { "./web_root" };
 
-/* Graceful shutdown on signal. */
-static void signal_handler(int sig_num) {
-  signal(sig_num, signal_handler);
-  s_received_signal = sig_num;
-}
-
 static time_t last_frame_timestamp;
 
 /* Forwards the jpeg frame data to all open mjpeg connections.
- *
- * mjpeg connections are tagged with the NSF_USER_2 flag so we can find them
- * my scanning the connection list provided by the fossa manager.
  *
  * Incoming messages follow a very simple binary frame format:
  * 4 bytes: timestamp (in network byte order)
  * n bytes: jpeg payload
  *
  * The timestamp is used to compute a lag.
- * It's done in a quite stupid way as it requires the device
- * clock to be synchronized with the cloud endpoint.
+ * It's done in a quite stupid way as it requires the device clock
+ * to be synchronized with the cloud endpoint.
  */
 static void push_frame_to_clients(struct ns_mgr *mgr,
                                   const struct websocket_message *wm) {
@@ -47,6 +43,8 @@ static void push_frame_to_clients(struct ns_mgr *mgr,
   last_frame_timestamp = ts;
 
   struct ns_connection *nc;
+  /** mjpeg connections are tagged with the NSF_USER_2 flag so we can find them
+   * my scanning the connection list provided by the fossa manager. */
   for (nc = ns_next(mgr, NULL); nc != NULL; nc = ns_next(mgr, nc)) {
     if (!(nc->flags & NSF_USER_2)) continue;  // Ignore un-marked requests
 
@@ -59,7 +57,8 @@ static void push_frame_to_clients(struct ns_mgr *mgr,
 }
 
 /* Forwards API payload to the device, by scanning through
- * all the connections to find those that are tagged as WebSocket .*/
+ * all the connections to find those that are tagged as WebSocket.
+ */
 static void send_command_to_the_device(struct ns_mgr *mgr,
                                        const struct ns_str *cmd) {
   struct ns_connection *nc;
@@ -78,7 +77,8 @@ static void send_command_to_the_device(struct ns_mgr *mgr,
  *    from WebSocket.
  * 3. WebSocket frames are handled by push_frame_to_clients.
  * 4. All other connections are passed to the ns_serve_http handler
- *    which serves static files. */
+ *    which serves static files.
+ */
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
   struct http_message *hm = (struct http_message *) ev_data;
@@ -96,14 +96,15 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
                 "Content-Type: multipart/x-mixed-replace; "
                 "boundary=--w00t\r\n\r\n");
       } else if (ns_vcmp(&hm->uri, "/api") == 0 && hm->body.len > 0) {
-        // RESTful API call. HTTP message body should be a JSON message.
-        // We should parse it and take appropriate action.
-        // In our case, simply forward that call to the device.
+        /** RESTful API call. HTTP message body should be a JSON message.
+         * We should parse it and take appropriate action.
+         * In our case, simply forward that call to the device. */
         printf("API CALL: [%.*s] [%.*s]\n", (int) hm->method.len, hm->method.p,
                (int) hm->body.len, hm->body.p);
         send_command_to_the_device(nc->mgr, &hm->body);
         ns_printf(nc, "HTTP/1.0 200 OK\nContent-Length: 0\n\n");
       } else {
+        /** Delegate to the static web server handler for all other paths. */
         ns_serve_http(nc, hm, web_root_opts);
       }
       break;
@@ -112,6 +113,15 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       push_frame_to_clients(nc->mgr, wm);
       break;
   }
+}
+
+/* Intercepts signals in order to gracefully terminate the connections.
+ * We simply set a global flag so that our poll loop will be interrupted
+ * the next time ns_poll returns.
+ */
+static void signal_handler(int sig_num) {
+  signal(sig_num, signal_handler);
+  s_received_signal = sig_num;
 }
 
 int main(int argc, char *argv[]) {
@@ -130,6 +140,11 @@ int main(int argc, char *argv[]) {
 
   ns_mgr_init(&mgr, NULL);
 
+  /** ns_bind creates a listening connection listening
+   * to a given ip:port and with an attached event handler.
+   * The event handler will only TCP events until the http
+   * protocol handler is installed.
+   */
   struct ns_connection* nc;
   if ((nc = ns_bind(&mgr, argv[1], ev_handler)) == NULL) {
     fprintf(stderr, "Error binding to %s\n", argv[1]);
@@ -137,6 +152,9 @@ int main(int argc, char *argv[]) {
   }
   ns_set_protocol_http_websocket(nc);
 
+  /** We explicitly hand over control to the Fossa manager
+   * in this event loop and we can easily multiplex other activities.
+   */
   while (s_received_signal == 0) {
     ns_mgr_poll(&mgr, 1000);
   }

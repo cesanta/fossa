@@ -1,15 +1,13 @@
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
- *
- * This program polls given file, and if it is modified, it sends it
- * over the websocket connection to the specified server.
  */
 
-/* This is the device endpoint of the Raspberry Pi camera/LED example
+/*
+ * This is the device endpoint of the Raspberry Pi camera/LED example
  * of the Fossa networking library.
- * It is a simple websocket client, sending jpeg frames obtained
- * from the RPi camera and receiving JSON commands through the same
- * WebSocket channel
+ * It is a simple websocket client, sending jpeg frames obtained from the
+ * RPi camera and receiving JSON commands through the same WebSocket channel
  */
 
 #include <unistd.h>
@@ -24,7 +22,8 @@ static const char *s_mjpg_file = "/var/run/shm/cam.jpg";
 
 static struct ns_connection *client;
 
-/* Check if there is a new image available and
+/*
+ * Check if there is a new image available and
  * send it to the cloud endpoint if the send buffer is not too full.
  * The image is moved in a new file by the jpeg optimizer function;
  * this ensures that we will detect a new frame when raspistill writes
@@ -46,8 +45,10 @@ static void send_mjpg_frame(struct ns_connection *nc, const char *file_path) {
     fread(buf, 1, sizeof(buf), fp);
     fclose(fp);
 
-    /* Delete the file so we can detect when raspistill creates a new one.
-     * mtime granularity is only 1s. */
+    /*
+     * Delete the file so we can detect when raspistill creates a new one.
+     * mtime granularity is only 1s.
+     */
     unlink(file_path);
 
     /* Send those buffer through the websocket connection */
@@ -57,7 +58,8 @@ static void send_mjpg_frame(struct ns_connection *nc, const char *file_path) {
   }
 }
 
-/* Turn on or off the LED.
+/*
+ * Turn on or off the LED.
  * The LED in this example is an RGB led, so all the colors have to be set.
  */
 static void set_led(int v) {
@@ -67,8 +69,10 @@ static void set_led(int v) {
   system(cmd);
 }
 
-/* Parse control JSON and perform command:
- * for now only LED on/off is supported. */
+/*
+ * Parse control JSON and perform command:
+ * for now only LED on/off is supported.
+ */
 static void perform_control_command(const char* data, size_t len) {
   struct json_token toks[200], *onoff;
   parse_json(data, len, toks, sizeof(toks));
@@ -84,9 +88,11 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_CONNECT:
       printf("Reconnect: %s\n", * (int *) ev_data == 0 ? "ok" : "failed");
       if (* (int *) ev_data == 0) {
-        /* tune the tcp send buffer size, so that we can skip frames
+        /*
+         * Tune the tcp send buffer size, so that we can skip frames
          * when the connection is congested. This helps maintaining a
-         * reasonable latency. */
+         * reasonable latency.
+         */
         int sndbuf_size = 512;
         if(setsockopt(nc->sock, SOL_SOCKET, SO_SNDBUF,
                       (void *) &sndbuf_size, sizeof(int)) == -1) {
@@ -110,8 +116,10 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-/* This thread regenerates s_mjpg_file every s_poll_interval_ms milliseconds.
- * It is Raspberry PI specific, change this function on other systems. */
+/*
+ * This thread regenerates s_mjpg_file every s_poll_interval_ms milliseconds.
+ * It is Raspberry PI specific, change this function on other systems.
+ */
 static void *generate_mjpg_data_thread_func(void *param) {
   char cmd[400];
   (void) param;
@@ -128,18 +136,14 @@ static void *generate_mjpg_data_thread_func(void *param) {
   return NULL;
 }
 
-void usage(char *argv[]) {
-  fprintf(stderr, "Usage: %s <server_address>\n", argv[0]);
-  exit(EXIT_FAILURE);
-}
-
 int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
-
-  if (argc < 1) {
-    usage(argv);
-  }
   char *addr = argv[1];
+
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s <server_address>\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
 
   /* Start separate thread that generates MJPG data */
   ns_start_thread(generate_mjpg_data_thread_func, NULL);
@@ -150,14 +154,15 @@ int main(int argc, char *argv[]) {
 
   for(;;) {
     ns_mgr_poll(&mgr, s_poll_interval_ms);
-    
+
     /* Reconnect if disconnected */
     if (!client) {
       sleep(1); /* limit reconnections frequency */
       printf("Reconnecting to %s...\n", addr);
-      
       client = ns_connect(&mgr, addr, ev_handler);
       if (client) ns_set_protocol_http_websocket(client);
     }
   }
+
+  return EXIT_SUCCESS;
 }

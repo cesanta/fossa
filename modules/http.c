@@ -272,13 +272,13 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
     case NS_POLL:
       /* Ping idle websocket connections */
-      do {
+      {
         time_t now = * (time_t *) ev_data;
         if (nc->flags & NSF_IS_WEBSOCKET &&
             now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
           ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
         }
-      } while(0);
+      }
       break;
     default:
       break;

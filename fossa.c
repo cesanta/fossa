@@ -1763,13 +1763,13 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
     case NS_POLL:
       /* Ping idle websocket connections */
-      do {
+      {
         time_t now = * (time_t *) ev_data;
         if (nc->flags & NSF_IS_WEBSOCKET &&
             now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
           ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
         }
-      } while(0);
+      }
       break;
     default:
       break;
@@ -2535,7 +2535,8 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
 
-        /* TODO(mkm) it's not clear if this can happen
+        /*
+         * TODO(mkm) it's not clear if this can happen
          * The PUBLISH cmd is used for both client->server
          * and server->client, but the message id seems to be only
          * legal client->server while here we are parsing server->client.
@@ -2544,7 +2545,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
           mm->message_id = ntohs(*(uint16_t*)io->buf);
           var_len += 2;
         }
-      } while(0);
+      }
       break;
     default:
       printf("TODO: UNHANDLED COMMAND %d\n", cmd);
@@ -2556,9 +2557,9 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 }
 
 static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct ns_mqtt_message mm;
   struct iobuf *io = &nc->recv_iobuf;
-  (void) ev_data;
+  struct ns_mqtt_message mm;
+  memset(&mm, 0, sizeof(mm));
 
   nc->handler(nc, ev, ev_data);
 
@@ -2569,7 +2570,7 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
-      if (mm.cmd == NS_MQTT_CMD_PUBLISH)
+      if (mm.topic)
         free(mm.topic);
       iobuf_remove(io, mm.payload_len);
       break;

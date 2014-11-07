@@ -41,7 +41,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
         exit(1);
       }
       printf("Subscribing to '/stuff'\n");
-      ns_mqtt_subscribe(nc, topic_expressions, sizeof(topic_expressions)/sizeof(struct ns_mqtt_topic_expression), 42);
+      ns_mqtt_subscribe(nc, topic_expressions, sizeof(topic_expressions)/sizeof(*topic_expressions), 42);
       break;
     case NS_MQTT_PUBACK:
       printf("Message publishing acknowledged (msg_id: %d)\n", msg->message_id);
@@ -69,11 +69,9 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(void) {
   struct ns_mgr mgr;
   const char *address = "localhost:1883";
-  (void)argc;
-  (void)argv;
 
   ns_mgr_init(&mgr, NULL);
 

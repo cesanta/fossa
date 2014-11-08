@@ -391,6 +391,7 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
 
 static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_str *s;
   size_t size;
   char *data;
 
@@ -398,6 +399,8 @@ static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
     /* Make sure that we've downloaded this executable, byte-to-byte */
     data = read_file(s_argv_0, &size);
     strcpy((char *) nc->user_data, data == NULL || size != hm->body.len ||
+           (s = ns_get_http_header(hm, "Content-Type")) == NULL ||
+           (ns_vcmp(s, "text/plain")) != 0 ||
            memcmp(hm->body.p, data, size) != 0 ? "fail" : "success");
     free(data);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;

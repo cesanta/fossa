@@ -1505,59 +1505,61 @@ struct proto_data_http {
   FILE *fp;   /* Opened file */
 };
 
+#define MIME_ENTRY(_ext, _type) { _ext, sizeof(_ext) - 1, _type }
 static const struct {
   const char *extension;
   size_t ext_len;
   const char *mime_type;
 } static_builtin_mime_types[] = {
-  {".html", 5, "text/html"},
-  {".htm", 4, "text/html"},
-  {".shtm", 5, "text/html"},
-  {".shtml", 6, "text/html"},
-  {".css", 4, "text/css"},
-  {".js",  3, "application/x-javascript"},
-  {".ico", 4, "image/x-icon"},
-  {".gif", 4, "image/gif"},
-  {".jpg", 4, "image/jpeg"},
-  {".jpeg", 5, "image/jpeg"},
-  {".png", 4, "image/png"},
-  {".svg", 4, "image/svg+xml"},
-  {".txt", 4, "text/plain"},
-  {".torrent", 8, "application/x-bittorrent"},
-  {".wav", 4, "audio/x-wav"},
-  {".mp3", 4, "audio/x-mp3"},
-  {".mid", 4, "audio/mid"},
-  {".m3u", 4, "audio/x-mpegurl"},
-  {".ogg", 4, "application/ogg"},
-  {".ram", 4, "audio/x-pn-realaudio"},
-  {".xml", 4, "text/xml"},
-  {".ttf", 4, "application/x-font-ttf"},
-  {".json",  5, "application/json"},
-  {".xslt", 5, "application/xml"},
-  {".xsl", 4, "application/xml"},
-  {".ra",  3, "audio/x-pn-realaudio"},
-  {".doc", 4, "application/msword"},
-  {".exe", 4, "application/octet-stream"},
-  {".zip", 4, "application/x-zip-compressed"},
-  {".xls", 4, "application/excel"},
-  {".tgz", 4, "application/x-tar-gz"},
-  {".tar", 4, "application/x-tar"},
-  {".gz",  3, "application/x-gunzip"},
-  {".arj", 4, "application/x-arj-compressed"},
-  {".rar", 4, "application/x-rar-compressed"},
-  {".rtf", 4, "application/rtf"},
-  {".pdf", 4, "application/pdf"},
-  {".swf", 4, "application/x-shockwave-flash"},
-  {".mpg", 4, "video/mpeg"},
-  {".webm", 5, "video/webm"},
-  {".mpeg", 5, "video/mpeg"},
-  {".mov", 4, "video/quicktime"},
-  {".mp4", 4, "video/mp4"},
-  {".m4v", 4, "video/x-m4v"},
-  {".asf", 4, "video/x-ms-asf"},
-  {".avi", 4, "video/x-msvideo"},
-  {".bmp", 4, "image/bmp"},
-  {NULL,  0, NULL}
+  MIME_ENTRY("html", "text/html"),
+  MIME_ENTRY("html", "text/html"),
+  MIME_ENTRY("htm", "text/html"),
+  MIME_ENTRY("shtm", "text/html"),
+  MIME_ENTRY("shtml", "text/html"),
+  MIME_ENTRY("css", "text/css"),
+  MIME_ENTRY("js", "application/x-javascript"),
+  MIME_ENTRY("ico", "image/x-icon"),
+  MIME_ENTRY("gif", "image/gif"),
+  MIME_ENTRY("jpg", "image/jpeg"),
+  MIME_ENTRY("jpeg", "image/jpeg"),
+  MIME_ENTRY("png", "image/png"),
+  MIME_ENTRY("svg", "image/svg+xml"),
+  MIME_ENTRY("txt", "text/plain"),
+  MIME_ENTRY("torrent", "application/x-bittorrent"),
+  MIME_ENTRY("wav", "audio/x-wav"),
+  MIME_ENTRY("mp3", "audio/x-mp3"),
+  MIME_ENTRY("mid", "audio/mid"),
+  MIME_ENTRY("m3u", "audio/x-mpegurl"),
+  MIME_ENTRY("ogg", "application/ogg"),
+  MIME_ENTRY("ram", "audio/x-pn-realaudio"),
+  MIME_ENTRY("xml", "text/xml"),
+  MIME_ENTRY("ttf", "application/x-font-ttf"),
+  MIME_ENTRY("json",  "application/json"),
+  MIME_ENTRY("xslt", "application/xml"),
+  MIME_ENTRY("xsl", "application/xml"),
+  MIME_ENTRY("ra", "audio/x-pn-realaudio"),
+  MIME_ENTRY("doc", "application/msword"),
+  MIME_ENTRY("exe", "application/octet-stream"),
+  MIME_ENTRY("zip", "application/x-zip-compressed"),
+  MIME_ENTRY("xls", "application/excel"),
+  MIME_ENTRY("tgz", "application/x-tar-gz"),
+  MIME_ENTRY("tar", "application/x-tar"),
+  MIME_ENTRY("gz", "application/x-gunzip"),
+  MIME_ENTRY("arj", "application/x-arj-compressed"),
+  MIME_ENTRY("rar", "application/x-rar-compressed"),
+  MIME_ENTRY("rtf", "application/rtf"),
+  MIME_ENTRY("pdf", "application/pdf"),
+  MIME_ENTRY("swf", "application/x-shockwave-flash"),
+  MIME_ENTRY("mpg", "video/mpeg"),
+  MIME_ENTRY("webm", "video/webm"),
+  MIME_ENTRY("mpeg", "video/mpeg"),
+  MIME_ENTRY("mov", "video/quicktime"),
+  MIME_ENTRY("mp4", "video/mp4"),
+  MIME_ENTRY("m4v", "video/x-m4v"),
+  MIME_ENTRY("asf", "video/x-ms-asf"),
+  MIME_ENTRY("avi", "video/x-msvideo"),
+  MIME_ENTRY("bmp", "image/bmp"),
+  {NULL, 0, NULL}
 };
 
 static const char *get_mime_type(const char *path, const char *dflt) {
@@ -1569,6 +1571,7 @@ static const char *get_mime_type(const char *path, const char *dflt) {
   for (i = 0; static_builtin_mime_types[i].extension != NULL; i++) {
     ext = path + (path_len - static_builtin_mime_types[i].ext_len);
     if (path_len > static_builtin_mime_types[i].ext_len &&
+        ext[-1] == '.' &&
         ns_casecmp(ext, static_builtin_mime_types[i].extension) == 0) {
       return static_builtin_mime_types[i].mime_type;
     }

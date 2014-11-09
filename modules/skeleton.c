@@ -790,19 +790,22 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
      * trigger any other events on that connection, but close it right away.
      */
     if (nc->flags & NSF_CLOSE_IMMEDIATELY) {
+      /* NOTE(lsm): this call removes nc from the mgr->active_connections */
       ns_close_conn(nc);
-    } else {
-      if (!(nc->flags & NSF_WANT_WRITE)) {
-        /*DBG(("%p read_set", nc)); */
-        ns_add_to_set(nc->sock, &read_set, &max_fd);
-      }
-      if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
-          (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
-           !(nc->flags & NSF_BUFFER_BUT_DONT_SEND))) {
-        /*DBG(("%p write_set", nc)); */
-        ns_add_to_set(nc->sock, &write_set, &max_fd);
-        ns_add_to_set(nc->sock, &err_set, &max_fd);
-      }
+      continue;
+    }
+
+    if (!(nc->flags & NSF_WANT_WRITE)) {
+      /*DBG(("%p read_set", nc)); */
+      ns_add_to_set(nc->sock, &read_set, &max_fd);
+    }
+
+    if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
+        (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
+         !(nc->flags & NSF_BUFFER_BUT_DONT_SEND))) {
+      /*DBG(("%p write_set", nc)); */
+      ns_add_to_set(nc->sock, &write_set, &max_fd);
+      ns_add_to_set(nc->sock, &err_set, &max_fd);
     }
   }
 

@@ -4,7 +4,7 @@
  */
 
 #include "fossa.h"
-#include "util.h"
+#include "internal.h"
 
 const char *ns_skip(const char *s, const char *end,
                     const char *delims, struct ns_str *v) {
@@ -173,12 +173,12 @@ char *ns_error_string(const char *p) {
 
   if (!errno) {
     len = strlen(p) + 1;
-    buf = (char*)malloc(len);
+    buf = (char *) NS_MALLOC(len);
     strncpy(buf, p, len);
     return buf;
   }
   len = strlen(p) + 2 + errbuf_len + 1;
-  buf = (char*)malloc(len);
+  buf = (char *) NS_MALLOC(len);
   snprintf(buf, len, "%s: %.*s", p, errbuf_len, strerror(errno));
   return buf;
 }

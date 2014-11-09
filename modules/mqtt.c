@@ -6,7 +6,7 @@
 #ifndef NS_DISABLE_MQTT
 
 #include "fossa.h"
-#include "mqtt.h"
+#include "internal.h"
 
 static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
@@ -43,7 +43,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
     case NS_MQTT_CMD_PUBLISH:
       {
         uint16_t topic_len = ntohs(*(uint16_t*)io->buf);
-        mm->topic = (char *)malloc(topic_len + 1);
+        mm->topic = (char *) NS_MALLOC(topic_len + 1);
         mm->topic[topic_len] = 0;
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
@@ -83,8 +83,9 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
-      if (mm.topic)
-        free(mm.topic);
+      if (mm.topic) {
+        NS_FREE(mm.topic);
+      }
       iobuf_remove(io, mm.payload_len);
       break;
     default:

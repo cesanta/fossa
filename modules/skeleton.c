@@ -13,23 +13,10 @@
 *
 * Alternatively, you can license this software under a commercial
 * license, as set out in <http://cesanta.com/>.
-*
-* $Date: 2014-09-28 05:04:41 UTC $
 */
 
 #include "fossa.h"
-
-#ifndef NS_MALLOC
-#define NS_MALLOC malloc
-#endif
-
-#ifndef NS_REALLOC
-#define NS_REALLOC realloc
-#endif
-
-#ifndef NS_FREE
-#define NS_FREE free
-#endif
+#include "internal.h"
 
 #define NS_UDP_RECEIVE_BUFFER_SIZE  2000
 #define NS_VPRINTF_BUFFER_SIZE      500

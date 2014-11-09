@@ -31,12 +31,14 @@
 #define NS_FREE free
 #endif
 
+#define NS_CTL_MSG_MESSAGE_SIZE     8192
+#define NS_READ_BUFFER_SIZE         2048
 #define NS_UDP_RECEIVE_BUFFER_SIZE  2000
 #define NS_VPRINTF_BUFFER_SIZE      500
 
 struct ctl_msg {
   ns_event_handler_t callback;
-  char message[1024 * 8];
+  char message[NS_CTL_MSG_MESSAGE_SIZE];
 };
 
 void iobuf_resize(struct iobuf *io, size_t new_size) {
@@ -624,7 +626,7 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
 }
 
 static void ns_read_from_socket(struct ns_connection *conn) {
-  char buf[2048];
+  char buf[NS_READ_BUFFER_SIZE];
   int n = 0;
 
   if (conn->flags & NSF_CONNECTING) {

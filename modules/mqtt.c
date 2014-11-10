@@ -15,15 +15,19 @@
 static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
   int cmd;
-  uint8_t len;
-  int var_len;
+  size_t len = 0;
+  int var_len = 0;
+  char *vlen = &io->buf[1];
 
   if (io->len < 2) return -1;
 
   header = io->buf[0];
   cmd = header >> 4;
-  len = io->buf[1];  /* TODO(mkm) implement variable length decoding */
-  var_len = 0;
+
+  /* decode mqtt variable length */
+  do {
+    len += (*vlen & 127) << 7 * (vlen - &io->buf[1]);
+  } while ((*vlen++ & 128) != 0 && ((size_t)(vlen - io->buf) <= io->len));
 
   if (io->len < (size_t)(len - 1)) return -1;
 
@@ -150,52 +154,72 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
   ns_send(nc, client_id, strlen(client_id));
 }
 
+static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
+                                 uint8_t flags, size_t len) {
+  uint8_t header = cmd << 4 | (uint8_t)flags;
+
+  uint8_t buf[1 + sizeof(size_t)];
+  uint8_t *vlen = &buf[1];
+
+  buf[0] = header;
+
+  /* mqtt variable length encoding */
+  do {
+    *vlen = len % 0x80;
+    len /= 0x80;
+    if (len > 0)
+      *vlen |= 0x80;
+    vlen++;
+  } while (len > 0);
+
+  iobuf_prepend(&nc->send_iobuf, buf, vlen - buf);
+}
+
 /* Publish a message to a given channel. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags,
                      const void *data, size_t len) {
-  uint8_t header = NS_MQTT_CMD_PUBLISH << 4 | (uint8_t)flags;
-  uint8_t rem_len = len + strlen(topic) + 2;
+  size_t old_len = nc->send_iobuf.len;
+
   uint16_t topic_len = htons(strlen(topic));
-  uint16_t message_id_n = htons(message_id);
+  uint16_t message_id_net = htons(message_id);
 
-  uint8_t qos = NS_MQTT_GET_QOS(flags);
-  if (qos > 0) rem_len += 2;
-
-  ns_send(nc, &header, 1);
-  ns_send(nc, &rem_len, 1); /* TODO(mkm) implement variable length encoding */
   ns_send(nc, &topic_len, 2);
   ns_send(nc, topic, strlen(topic));
-
-  if (qos > 0)
-    ns_send(nc, &message_id_n, 2);
-
+  if (NS_MQTT_GET_QOS(flags) > 0) {
+    ns_send(nc, &message_id_net, 2);
+  }
   ns_send(nc, data, len);
+
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PUBLISH, flags,
+                       nc->send_iobuf.len - old_len);
 }
 
 /* Subscribe to a given channel. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
-  uint8_t header = NS_MQTT_CMD_SUBSCRIBE << 4 | NS_MQTT_QOS(1);
-  uint8_t rem_len = 2;
+  size_t old_len = nc->send_iobuf.len;
+
   uint16_t message_id_n = htons(message_id);
-  uint16_t topic_len_n;
-
   size_t i;
-  for (i = 0; i < topics_len; i++)
-    rem_len += 2 + strlen(topics[i].topic) + 1;
 
-  ns_send(nc, &header, 1);
-  ns_send(nc, &rem_len, 1); /* TODO(mkm) implement variable length encoding */
-  ns_send(nc, &message_id_n, 2);
-
+  ns_send(nc, (char *) &message_id_n, 2);
   for (i = 0; i < topics_len; i++) {
-    topic_len_n = htons(strlen(topics[i].topic));
+    uint16_t topic_len_n = htons(strlen(topics[i].topic));
     ns_send(nc, &topic_len_n, 2);
     ns_send(nc, topics[i].topic, strlen(topics[i].topic));
     ns_send(nc, &topics[i].qos, 1);
   }
+
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, NS_MQTT_QOS(1),
+                       nc->send_iobuf.len - old_len);
+}
+
+void ns_mqtt_suback(struct ns_connection *nc, uint16_t message_id) {
+  uint16_t message_id_net = htons(message_id);
+  ns_send(nc, &message_id_net, 2);
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, 0, 2);
 }
 
 #endif  /* NS_DISABLE_MQTT */

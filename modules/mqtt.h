@@ -104,6 +104,8 @@ void ns_mqtt_subscribe(struct ns_connection *,
                        const struct ns_mqtt_topic_expression *, size_t,
                        uint16_t);
 
+void ns_mqtt_suback(struct ns_connection *, uint16_t);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

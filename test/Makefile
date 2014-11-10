@@ -11,7 +11,7 @@ MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-g
 
 all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
-.PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG).exe $(PROG)_mingw.exe
+.PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
 
 ismerged:
 	$(MAKE) -C ../modules -s --no-print-directory merge_fossa.c | diff ../fossa.c -

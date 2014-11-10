@@ -1,10 +1,5 @@
 = Networking library for C/C++
 
-:buildstatus-uri: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8
-:buildstatus-badge: https://www.codeship.io/projects/72674aa0-1cbd-0132-0050-4a361eed21f8/status?branch=master
-
-image:{buildstatus-badge}[Build Status,link={buildstatus-uri}]
-
 image::https://drone.io/github.com/cesanta/fossa/status.png[Build Status,link=https://drone.io/github.com/cesanta/fossa/latest]
 image::https://coveralls.io/repos/cesanta/fossa/badge.png?branch=master[Coverage Status,link=https://coveralls.io/r/cesanta/fossa?branch=master]
 

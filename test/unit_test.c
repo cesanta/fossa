@@ -27,8 +27,11 @@
   if (!(expr)) FAIL(#expr, __LINE__); \
 } while (0)
 
-#define RUN_TEST(test) do { const char *msg = test(); \
-  if (msg) return msg; } while (0)
+#define RUN_TEST(test) do {                 \
+  const char *msg = NULL;                   \
+  if (strstr(# test, filter)) msg = test(); \
+  if (msg) return msg;                      \
+} while (0)
 
 #define HTTP_PORT "45772"
 #define LOOPBACK_IP  "127.0.0.1"
@@ -923,7 +926,7 @@ static const char *test_hexdump_file(void) {
   return NULL;
 }
 
-static const char *run_all_tests(void) {
+static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
 #if 0
   RUN_TEST(test_parse_address);
@@ -959,10 +962,10 @@ static const char *run_all_tests(void) {
 
 int __cdecl main(int argc, char *argv[]) {
   const char *fail_msg;
+  const char *filter = argc > 1 ? argv[1] : "";
 
-  (void) argc;
   s_argv_0 = argv[0];
-  fail_msg = run_all_tests();
+  fail_msg = run_tests(filter);
   printf("%s, tests run: %d\n", fail_msg ? "FAIL" : "PASS", static_num_tests);
 
   return fail_msg == NULL ? EXIT_SUCCESS : EXIT_FAILURE;

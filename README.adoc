@@ -29,6 +29,7 @@ bringing them online.
   ** HTTP client, HTTP server
   ** Websocket client, Websocket server
   ** JSON-RPC client, JSON-RPC server
+  ** MQTT client
 * Tiny static and run-time footprint
 * Source code is both ISO C and ISO C++ compliant
 * Extensively tested and production-ready, trusted by many blue chip businesses
@@ -438,6 +439,26 @@ to the correct handler method. Valid method names should be specified in NULL
 terminated array `methods`, and corresponding handlers in `handlers`.
 Result is put in `dst`, `dst_len`. Return: length of the result, which
 can be larger then `dst_len` that indicates an overflow.
+
+=== MQTT API
+
+void ns_set_protocol_mqtt(struct ns_connection *)::
+  Attach built-in MQTT event handler to the given connection. User-defined
+  event handler will receive following extra events:
+  - NS_MQTT_CONNACK
+  - NS_MQTT_PUBLISH
+  - NS_MQTT_PUBACK
+  - NS_MQTT_PUBREC
+  - NS_MQTT_PUBREL
+  - NS_MQTT_PUBCOMP
+  - NS_MQTT_SUBACK
+
+void ns_send_mqtt_handshake(struct ns_connection *, const char *)::
+  Send MQTT handshake
+
+void ns_mqtt_publish(struct ns_connection *, const char *, uint16_t, int, const void *, size_t):: Publish message to a given channel
+
+void ns_mqtt_subscribe(struct ns_connection *, const struct ns_mqtt_topic_expression *, size_t, uint16_t):: Subscribe to a given channel
 
 == Examples
 

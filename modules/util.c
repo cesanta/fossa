@@ -30,6 +30,10 @@ int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   return diff;
 }
 
+int ns_casecmp(const char *s1, const char *s2) {
+  return ns_ncasecmp(s1, s2, (size_t) ~0);
+}
+
 int ns_vcasecmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? ns_ncasecmp(str1, str2->p, n1) : n1 > n2 ? 1 : -1;

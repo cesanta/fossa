@@ -391,6 +391,7 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
 
 static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_str *s;
   size_t size;
   char *data;
 
@@ -398,9 +399,21 @@ static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
     /* Make sure that we've downloaded this executable, byte-to-byte */
     data = read_file(s_argv_0, &size);
     strcpy((char *) nc->user_data, data == NULL || size != hm->body.len ||
+           (s = ns_get_http_header(hm, "Content-Type")) == NULL ||
+           (ns_vcmp(s, "text/plain")) != 0 ||
            memcmp(hm->body.p, data, size) != 0 ? "fail" : "success");
     free(data);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
+static void cb10(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_str *s;
+
+  if (ev == NS_HTTP_REPLY &&
+      (s = ns_get_http_header(hm, "Content-Type")) != NULL) {
+    sprintf((char *) nc->user_data, "%.*s", (int) s->len, s->p);
   }
 }
 
@@ -408,7 +421,7 @@ static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[20] = "";
+  char buf[20] = "", status[20] = "", mime[20] = "";
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -432,6 +445,12 @@ static const char *test_http(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", s_argv_0);
 
+  /* Test mime type for static file */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb10)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = mime;
+  ns_printf(nc, "%s", "GET /data/dummy.xml HTTP/1.0\n\n");
+
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 200);
   ns_mgr_free(&mgr);
@@ -439,6 +458,7 @@ static const char *test_http(void) {
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10]") == 0);
   ASSERT(strcmp(status, "success") == 0);
+  ASSERT(strcmp(mime, "text/xml") == 0);
 
   return NULL;
 }

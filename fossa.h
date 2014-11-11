@@ -403,6 +403,7 @@ extern "C" {
 
 const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
 int ns_ncasecmp(const char *s1, const char *s2, size_t len);
+int ns_casecmp(const char *s1, const char *s2);
 int ns_vcmp(const struct ns_str *str2, const char *str1);
 int ns_vcasecmp(const struct ns_str *str2, const char *str1);
 void ns_base64_decode(const unsigned char *s, int len, char *dst);

@@ -1,4 +1,29 @@
 #include "fossa.h"
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef NS_INTERNAL_HEADER_INCLUDED
+#define NS_INTERNAL_HEADER_INCLUDED
+
+#ifndef NS_MALLOC
+#define NS_MALLOC malloc
+#endif
+
+#ifndef NS_CALLOC
+#define NS_CALLOC calloc
+#endif
+
+#ifndef NS_REALLOC
+#define NS_REALLOC realloc
+#endif
+
+#ifndef NS_FREE
+#define NS_FREE free
+#endif
+
+#endif  /* NS_INTERNAL_HEADER_INCLUDED */
 /* Copyright (c) 2014 Cesanta Software Limited
 * All rights reserved
 *
@@ -14,22 +39,8 @@
 *
 * Alternatively, you can license this software under a commercial
 * license, as set out in <http://cesanta.com/>.
-*
-* $Date: 2014-09-28 05:04:41 UTC $
 */
 
-
-#ifndef NS_MALLOC
-#define NS_MALLOC malloc
-#endif
-
-#ifndef NS_REALLOC
-#define NS_REALLOC realloc
-#endif
-
-#ifndef NS_FREE
-#define NS_FREE free
-#endif
 
 #define NS_CTL_MSG_MESSAGE_SIZE     8192
 #define NS_READ_BUFFER_SIZE         2048
@@ -1837,7 +1848,7 @@ void ns_printf_websocket_frame(struct ns_connection *nc, int op,
   va_end(ap);
 
   if (buf != mem && buf != NULL) {
-    free(buf);
+    NS_FREE(buf);
   }
 }
 
@@ -1894,7 +1905,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     ns_send(nc, buf, n);
   } else {
     fclose(dp->fp);
-    free(dp);
+    NS_FREE(dp);
     nc->proto_data = NULL;
   }
 }
@@ -1988,10 +1999,10 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {
   struct proto_data_http *dp;
 
-  if ((dp = (struct proto_data_http *) calloc(1, sizeof(*dp))) == NULL) {
+  if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
     send_http_error(nc, 500, "Server Error");
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
-    free(dp);
+    NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
   } else {
     ns_printf(nc, "HTTP/1.1 200 OK\r\n"
@@ -2427,12 +2438,12 @@ char *ns_error_string(const char *p) {
 
   if (!errno) {
     len = strlen(p) + 1;
-    buf = (char*)malloc(len);
+    buf = (char *) NS_MALLOC(len);
     strncpy(buf, p, len);
     return buf;
   }
   len = strlen(p) + 2 + errbuf_len + 1;
-  buf = (char*)malloc(len);
+  buf = (char *) NS_MALLOC(len);
   snprintf(buf, len, "%s: %.*s", p, errbuf_len, strerror(errno));
   return buf;
 }
@@ -2624,7 +2635,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
     case NS_MQTT_CMD_PUBLISH:
       {
         uint16_t topic_len = ntohs(*(uint16_t*)io->buf);
-        mm->topic = (char *)malloc(topic_len + 1);
+        mm->topic = (char *) NS_MALLOC(topic_len + 1);
         mm->topic[topic_len] = 0;
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
@@ -2664,8 +2675,9 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
-      if (mm.topic)
-        free(mm.topic);
+      if (mm.topic) {
+        NS_FREE(mm.topic);
+      }
       iobuf_remove(io, mm.payload_len);
       break;
     default:

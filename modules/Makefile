@@ -12,4 +12,4 @@ merge_fossa.h: Makefile $(HEADERS)
 	@cat $(HEADERS)
 
 merge_fossa.c: Makefile $(SOURCES)
-	@(echo '#include "fossa.h"'; (cat $(SOURCES) | sed '/^#include "/d'))
+	@(echo '#include "fossa.h"'; cat internal.h; (cat $(SOURCES) | sed '/^#include "/d'))

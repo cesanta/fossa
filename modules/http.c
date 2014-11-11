@@ -6,9 +6,7 @@
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 #include "fossa.h"
-#include "sha1.h"
-#include "util.h"
-#include "http.h"
+#include "internal.h"
 
 struct proto_data_http {
   FILE *fp;   /* Opened file */
@@ -334,7 +332,7 @@ void ns_printf_websocket_frame(struct ns_connection *nc, int op,
   va_end(ap);
 
   if (buf != mem && buf != NULL) {
-    free(buf);
+    NS_FREE(buf);
   }
 }
 
@@ -391,7 +389,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     ns_send(nc, buf, n);
   } else {
     fclose(dp->fp);
-    free(dp);
+    NS_FREE(dp);
     nc->proto_data = NULL;
   }
 }
@@ -485,10 +483,10 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {
   struct proto_data_http *dp;
 
-  if ((dp = (struct proto_data_http *) calloc(1, sizeof(*dp))) == NULL) {
+  if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
     send_http_error(nc, 500, "Server Error");
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
-    free(dp);
+    NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
   } else {
     ns_printf(nc, "HTTP/1.1 200 OK\r\n"

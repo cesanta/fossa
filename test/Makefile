@@ -37,7 +37,8 @@ win: $(PROG).exe
 
 $(PROG)_coverage: Makefile
 	$(MAKE) clean_coverage
-	gcc $(PEDANTIC) -std=c99 -fprofile-arcs -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl && ./$(PROG)_coverage
+	gcc $(PEDANTIC) -std=c99 -fprofile-arcs -ftest-coverage $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_coverage $(CFLAGS) -lssl
+	./$(PROG)_coverage
 	gcov -p $(PROG).c $(notdir $(SOURCES)) >/dev/null
 
 lcov: clean $(PROG)_coverage

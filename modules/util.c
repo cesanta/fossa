@@ -3,6 +3,10 @@
  * All rights reserved
  */
 
+/*
+ * == Utilities
+ */
+
 #include "fossa.h"
 #include "internal.h"
 
@@ -69,6 +73,13 @@ static void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 }
 #endif  /* _WIN32 */
 
+/*
+ * Perform a 64-bit `stat()` call against given file.
+ *
+ * `path` should be UTF8 encoded.
+ *
+ * Return value is the same as for `stat()` syscall.
+ */
 int ns_stat(const char *path, ns_stat_t *st) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -80,6 +91,13 @@ int ns_stat(const char *path, ns_stat_t *st) {
 #endif
 }
 
+/*
+ * Open the given file and return a file stream.
+ *
+ * `path` and `mode` should be UTF8 encoded.
+ *
+ * Return value is the same as for the `fopen()` call.
+ */
 FILE *ns_fopen(const char *path, const char *mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE], wmode[10];
@@ -91,6 +109,13 @@ FILE *ns_fopen(const char *path, const char *mode) {
 #endif
 }
 
+/*
+ * Open the given file and return a file stream.
+ *
+ * `path` should be UTF8 encoded.
+ *
+ * Return value is the same as for the `open()` syscall.
+ */
 int ns_open(const char *path, int flag, int mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];

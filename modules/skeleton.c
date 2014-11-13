@@ -15,6 +15,22 @@
 * license, as set out in <http://cesanta.com/>.
 */
 
+/*
+ * == Plain TCP/UDP/SSL API
+ *
+ * CAUTION: Fossa manager instance is single threaded. It does not protect
+ * it's data structures by mutexes, therefore all functions that are dealing
+ * with particular event manager should be called from the same thread,
+ * with exception of `mg_broadcast()` function. It is fine to have different
+ * event managers handled by different threads.
+ *
+ * === Core structures
+ *
+ * - `struct ns_connection` Describes a connection between two peers
+ * - `struct ns_mgr` Container for a bunch of connections
+ * - `struct iobuf` Describes piece of data
+ */
+
 #include "fossa.h"
 #include "internal.h"
 
@@ -90,6 +106,7 @@ static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
 }
 
 #ifndef NS_DISABLE_THREADS
+/* Starts a new thread. */
 void *ns_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
   return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
@@ -163,6 +180,11 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
+/*
+ * Send `printf`-style formatted data to the connection.
+ *
+ * See `ns_send` for more details on send semantics.
+ */
 int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   char mem[NS_VPRINTF_BUFFER_SIZE], *buf = mem;
   int len;
@@ -177,6 +199,11 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   return len;
 }
 
+/*
+ * Send `printf`-style formatted data to the connection.
+ *
+ * See `ns_send` for more details on send semantics.
+ */
 int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   int len;
   va_list ap;
@@ -246,6 +273,7 @@ static void ns_close_conn(struct ns_connection *conn) {
   ns_destroy_conn(conn);
 }
 
+/* Set close-on-exec bit for a given socket. */
 void ns_set_close_on_exec(sock_t sock) {
 #ifdef _WIN32
   (void) SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0);
@@ -265,6 +293,11 @@ static void ns_set_non_blocking_mode(sock_t sock) {
 }
 
 #ifndef NS_DISABLE_SOCKETPAIR
+/*
+ * Create a socket pair.
+ * `proto` can be either `SOCK_STREAM` or `SOCK_DGRAM`.
+ * Return 0 on failure, 1 on success.
+ */
 int ns_socketpair2(sock_t sp[2], int sock_type) {
   union socket_address sa;
   sock_t sock;
@@ -323,8 +356,11 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   return 0;
 }
 
-/* Resolve FDQN "host", store IP address in the "ip".
- * Return > 0 (IP address length) on success. */
+/*
+ * Converts domain name into IP address.
+ *
+ * This is a blocking call. Returns 1 on success, 0 on failure.
+ */
 int ns_resolve(const char *host, char *buf, size_t n) {
   struct in_addr ad;
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
@@ -559,6 +595,15 @@ static int ns_is_error(int n) {
     );
 }
 
+/*
+ * Converts socket's local or remote address into string.
+ *
+ * The `flags` parameter is a bit mask that controls the behavior.
+ * If bit 2 is set (`flags & 4`) then the remote address is stringified,
+ * otherwise local address is stringified. If bit 0 is set, then IP
+ * address is printed. If bit 1 is set, then port number is printed. If both
+ * port number and IP address are printed, they are separated by `:`.
+*/
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
@@ -590,6 +635,12 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   }
 }
 
+/*
+ * Generates a hexdump.
+ *
+ * Takes a memory buffer `buf` of length `len` and creates a hex dump of that
+ * buffer in `dst`.
+ */
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
   const unsigned char *p = (const unsigned char *) buf;
   char ascii[17] = "";
@@ -713,6 +764,15 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   }
 }
 
+/*
+ * Send data to the connection.
+ *
+ * Number of written bytes is returned. Note that these sending
+ * functions do not actually push data to the sockets, they just append data
+ * to the output buffer. The exception is UDP connections. For UDP, data is
+ * sent immediately, and returned value indicates an actual number of bytes
+ * sent to the socket.
+ */
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return (int) ns_out(conn, buf, len);
 }
@@ -753,6 +813,10 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   }
 }
 
+/*
+ * This function performs the actual IO, and must be called in a loop
+ * (an event loop). Returns the current timestamp.
+ */
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   struct ns_connection *nc, *tmp;
   struct timeval tv;
@@ -867,12 +931,34 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   return current_time;
 }
 
+/*
+ * Connect to a remote host.
+ *
+ * See `ns_connect_opt` for full documentation.
+ */
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
   static struct ns_connect_opts opts;
   return ns_connect_opt(mgr, address, callback, opts);
 }
 
+/*
+ * Connect to a remote host.
+ *
+ * If successful, `NS_CONNECT` event will be delivered
+ * to the new connection. `addr` format is the same as for the `ns_bind()` call,
+ * just an IP address becomes mandatory: `[PROTO://]HOST:PORT`.
+ *
+ * `PROTO` could be `tcp://` or `udp://`. If `HOST` is not an IP
+ * address, Fossa will resolve it - beware that standard blocking resolver
+ * will be used. It is a good practice to pre-resolve hosts beforehands and
+ * use only IP addresses to avoid blockin an IO thread.
+ *
+ * See the `ns_connect_opts` structure for a description of the optional
+ * parameters.
+ *
+ * Returns a new outbound connection, or `NULL` on error.
+*/
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {
@@ -913,12 +999,24 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   return nc;
 }
 
+/*
+ * Create a connection, associate it with the given socket and event handler, and
+ * add to the manager.
+ *
+ * For more options see the `ns_add_sock_opt` variant.
+ */
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
                                   ns_event_handler_t callback) {
   static struct ns_add_sock_opts opts;
   return ns_add_sock_opt(s, sock, callback, opts);
 }
 
+/*
+ * Create a connection, associate it with the given socket and event handler,
+ * and add to the manager.
+ *
+ * See the `ns_add_sock_opts` structure for a description of the options.
+ */
 struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
                                       ns_event_handler_t callback,
                                       struct ns_add_sock_opts opts) {
@@ -939,10 +1037,36 @@ struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
   return conn;
 }
 
+/*
+ * Iterates over all active connections.
+ *
+ * Returns next connection from the list
+ * of active connections, or `NULL` if there is no more connections. Below
+ * is the iteration idiom:
+ *
+ * [source,c]
+ * ----
+ * for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
+ *   // Do something with connection `c`
+ * }
+ * ----
+ */
 struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
+/*
+ * Passes a message of a given length to all connections.
+ *
+ * Must be called from a different thread.
+ *
+ * Skeleton manager has a socketpair, `struct ns_mgr::ctl`,
+ * where `ns_broadcast()` pushes the message.
+ * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
+ * specified callback for each connection. Thus the callback function executes
+ * in event manager thread. Note that `ns_broadcast()` is the only function
+ * that can be, and must be, called from a different thread.
+ */
 void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
@@ -955,6 +1079,7 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t l
   }
 }
 
+/* Initializes Fossa manager. */
 void ns_mgr_init(struct ns_mgr *s, void *user_data) {
   memset(s, 0, sizeof(*s));
   s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
@@ -979,6 +1104,11 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #endif
 }
 
+/*
+ * De-initializes skeleton manager.
+ *
+ * Closes and deallocates all active connections.
+ */
 void ns_mgr_free(struct ns_mgr *s) {
   struct ns_connection *conn, *tmp_conn;
 

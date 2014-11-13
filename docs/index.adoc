@@ -1,5 +1,6 @@
 :toc2:
-:source-highlighter: highlightjs
+:source-highlighter: pygments
+:pygments-style: xcode
 
 = Multi-Protocol Networking Library For C/C++
 

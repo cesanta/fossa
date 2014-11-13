@@ -40,3 +40,8 @@ pre {  border: 1px solid #ccc;  }
 }
 
 #footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
+
+pre > code {
+  padding: 0.5em;
+  display:block;
+}

@@ -49,10 +49,71 @@ pre {  border: 1px solid #ccc;  }
 }
 
 #footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
+
+pre > code {
+  padding: 0.5em;
+  display:block;
+}
 </style>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.1/styles/github.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.1/highlight.min.js"></script>
-<script>hljs.initHighlightingOnLoad()</script>
+<style>
+.listingblock .pygments .hll { background-color: #ffffcc }
+.listingblock .pygments  { background: #ffffff; }
+.listingblock .pygments .tok-c { color: #177500 } /* Comment */
+.listingblock .pygments .tok-err { color: #000000 } /* Error */
+.listingblock .pygments .tok-k { color: #A90D91 } /* Keyword */
+.listingblock .pygments .tok-l { color: #1C01CE } /* Literal */
+.listingblock .pygments .tok-n { color: #000000 } /* Name */
+.listingblock .pygments .tok-o { color: #000000 } /* Operator */
+.listingblock .pygments .tok-cm { color: #177500 } /* Comment.Multiline */
+.listingblock .pygments .tok-cp { color: #633820 } /* Comment.Preproc */
+.listingblock .pygments .tok-c1 { color: #177500 } /* Comment.Single */
+.listingblock .pygments .tok-cs { color: #177500 } /* Comment.Special */
+.listingblock .pygments .tok-kc { color: #A90D91 } /* Keyword.Constant */
+.listingblock .pygments .tok-kd { color: #A90D91 } /* Keyword.Declaration */
+.listingblock .pygments .tok-kn { color: #A90D91 } /* Keyword.Namespace */
+.listingblock .pygments .tok-kp { color: #A90D91 } /* Keyword.Pseudo */
+.listingblock .pygments .tok-kr { color: #A90D91 } /* Keyword.Reserved */
+.listingblock .pygments .tok-kt { color: #A90D91 } /* Keyword.Type */
+.listingblock .pygments .tok-ld { color: #1C01CE } /* Literal.Date */
+.listingblock .pygments .tok-m { color: #1C01CE } /* Literal.Number */
+.listingblock .pygments .tok-s { color: #C41A16 } /* Literal.String */
+.listingblock .pygments .tok-na { color: #836C28 } /* Name.Attribute */
+.listingblock .pygments .tok-nb { color: #A90D91 } /* Name.Builtin */
+.listingblock .pygments .tok-nc { color: #3F6E75 } /* Name.Class */
+.listingblock .pygments .tok-no { color: #000000 } /* Name.Constant */
+.listingblock .pygments .tok-nd { color: #000000 } /* Name.Decorator */
+.listingblock .pygments .tok-ni { color: #000000 } /* Name.Entity */
+.listingblock .pygments .tok-ne { color: #000000 } /* Name.Exception */
+.listingblock .pygments .tok-nf { color: #000000 } /* Name.Function */
+.listingblock .pygments .tok-nl { color: #000000 } /* Name.Label */
+.listingblock .pygments .tok-nn { color: #000000 } /* Name.Namespace */
+.listingblock .pygments .tok-nx { color: #000000 } /* Name.Other */
+.listingblock .pygments .tok-py { color: #000000 } /* Name.Property */
+.listingblock .pygments .tok-nt { color: #000000 } /* Name.Tag */
+.listingblock .pygments .tok-nv { color: #000000 } /* Name.Variable */
+.listingblock .pygments .tok-ow { color: #000000 } /* Operator.Word */
+.listingblock .pygments .tok-mb { color: #1C01CE } /* Literal.Number.Bin */
+.listingblock .pygments .tok-mf { color: #1C01CE } /* Literal.Number.Float */
+.listingblock .pygments .tok-mh { color: #1C01CE } /* Literal.Number.Hex */
+.listingblock .pygments .tok-mi { color: #1C01CE } /* Literal.Number.Integer */
+.listingblock .pygments .tok-mo { color: #1C01CE } /* Literal.Number.Oct */
+.listingblock .pygments .tok-sb { color: #C41A16 } /* Literal.String.Backtick */
+.listingblock .pygments .tok-sc { color: #2300CE } /* Literal.String.Char */
+.listingblock .pygments .tok-sd { color: #C41A16 } /* Literal.String.Doc */
+.listingblock .pygments .tok-s2 { color: #C41A16 } /* Literal.String.Double */
+.listingblock .pygments .tok-se { color: #C41A16 } /* Literal.String.Escape */
+.listingblock .pygments .tok-sh { color: #C41A16 } /* Literal.String.Heredoc */
+.listingblock .pygments .tok-si { color: #C41A16 } /* Literal.String.Interpol */
+.listingblock .pygments .tok-sx { color: #C41A16 } /* Literal.String.Other */
+.listingblock .pygments .tok-sr { color: #C41A16 } /* Literal.String.Regex */
+.listingblock .pygments .tok-s1 { color: #C41A16 } /* Literal.String.Single */
+.listingblock .pygments .tok-ss { color: #C41A16 } /* Literal.String.Symbol */
+.listingblock .pygments .tok-bp { color: #5B269A } /* Name.Builtin.Pseudo */
+.listingblock .pygments .tok-vc { color: #000000 } /* Name.Variable.Class */
+.listingblock .pygments .tok-vg { color: #000000 } /* Name.Variable.Global */
+.listingblock .pygments .tok-vi { color: #000000 } /* Name.Variable.Instance */
+.listingblock .pygments .tok-il { color: #1C01CE } /* Literal.Number.Integer.Long */
+</style>
 </head>
 <body class="article toc2 toc-left">
 <div id="header">
@@ -129,38 +190,38 @@ sends <code>NS_SEND</code> event. When connection is closed, <code>NS_CLOSE</cod
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-c" data-lang="c">#include "fossa.h"  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-cp">#include &quot;fossa.h&quot;  </span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
 
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
-  struct iobuf *io = &amp;nc-&gt;recv_iobuf;
+<span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
+  <span class="tok-k">struct</span> <span class="tok-n">iobuf</span> <span class="tok-o">*</span><span class="tok-n">io</span> <span class="tok-o">=</span> <span class="tok-o">&amp;</span><span class="tok-n">nc</span><span class="tok-o">-&gt;</span><span class="tok-n">recv_iobuf</span><span class="tok-p">;</span>
 
-  switch (ev) {
-    case NS_RECV:
-      // This event handler implements simple TCP echo server
-      ns_send(nc, io-&gt;buf, io-&gt;len);  // Echo received data back
-      iobuf_remove(io, io-&gt;len);      // Discard data from recv buffer
-      break;
-    default:
-      break;
-  }
-}
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_RECV</span><span class="tok-p">:</span>
+      <span class="tok-c1">// This event handler implements simple TCP echo server</span>
+      <span class="tok-n">ns_send</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>  <span class="tok-c1">// Echo received data back</span>
+      <span class="tok-n">iobuf_remove</span><span class="tok-p">(</span><span class="tok-n">io</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>      <span class="tok-c1">// Discard data from recv buffer</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-k">default</span><span class="tok-o">:</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span>
 
-int main(void) {
-  struct ns_mgr mgr;
+<span class="tok-kt">int</span> <span class="tok-nf">main</span><span class="tok-p">(</span><span class="tok-kt">void</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-n">mgr</span><span class="tok-p">;</span>
 
-  ns_mgr_init(&amp;mgr, NULL);  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
+  <span class="tok-n">ns_mgr_init</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
 
-  // Note that many connections can be added to a single event manager
-  // Connections can be created at any point, e.g. in event handler function
-  ns_bind(&amp;mgr, "1234", ev_handler, NULL);  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
+  <span class="tok-c1">// Note that many connections can be added to a single event manager</span>
+  <span class="tok-c1">// Connections can be created at any point, e.g. in event handler function</span>
+  <span class="tok-n">ns_bind</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-s">&quot;1234&quot;</span><span class="tok-p">,</span> <span class="tok-n">ev_handler</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
 
-  for (;;) {  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
-    ns_mgr_poll(&amp;mgr, 1000);
-  }
+  <span class="tok-k">for</span> <span class="tok-p">(;;)</span> <span class="tok-p">{</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
+    <span class="tok-n">ns_mgr_poll</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-mi">1000</span><span class="tok-p">);</span>
+  <span class="tok-p">}</span>
 
-  ns_mgr_free(&amp;mgr);
-  return 0;
-}</code></pre>
+  <span class="tok-n">ns_mgr_free</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">);</span>
+  <span class="tok-k">return</span> <span class="tok-mi">0</span><span class="tok-p">;</span>
+<span class="tok-p">}</span></code></pre>
 </div>
 </div>
 <div class="colist arabic">
@@ -207,7 +268,7 @@ of the remote peer.</p>
 <dt class="hdlist1">NS_CONNECT</dt>
 <dd>
 <p>sent when a new outbound connection created by <code>ns_connect()</code>
-eithe failed or succeeded. <code>void *ev_data</code> is <code>int *success</code>. If <code>success</code> is 0
+either failed or succeeded. <code>void *ev_data</code> is <code>int *success</code>. If <code>success</code> is 0
 then connection has been established, otherwise it contains error code. Example
 code to check connection status:</p>
 </dd>
@@ -215,20 +276,20 @@ code to check connection status:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-c" data-lang="c">static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  int connect_status;
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-kt">int</span> <span class="tok-n">connect_status</span><span class="tok-p">;</span>
 
-  switch (ev) {
-    case NS_CONNECT:
-      connect_status = * (int *) ev_data;
-      if (connect_status == 0) {
-        /* Success */
-      } else  {
-        /* Error */
-        printf("connect() error: %s\n", strerror(connect_status));
-      }
-      break;
-    ...</code></pre>
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_CONNECT</span><span class="tok-p">:</span>
+      <span class="tok-n">connect_status</span> <span class="tok-o">=</span> <span class="tok-o">*</span> <span class="tok-p">(</span><span class="tok-kt">int</span> <span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-n">ev_data</span><span class="tok-p">;</span>
+      <span class="tok-k">if</span> <span class="tok-p">(</span><span class="tok-n">connect_status</span> <span class="tok-o">==</span> <span class="tok-mi">0</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+        <span class="tok-cm">/* Success */</span>
+      <span class="tok-p">}</span> <span class="tok-k">else</span>  <span class="tok-p">{</span>
+        <span class="tok-cm">/* Error */</span>
+        <span class="tok-n">printf</span><span class="tok-p">(</span><span class="tok-s">&quot;connect() error: %s</span><span class="tok-se">\n</span><span class="tok-s">&quot;</span><span class="tok-p">,</span> <span class="tok-n">strerror</span><span class="tok-p">(</span><span class="tok-n">connect_status</span><span class="tok-p">));</span>
+      <span class="tok-p">}</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-p">...</span></code></pre>
 </div>
 </div>
 <div class="dlist">
@@ -388,9 +449,9 @@ is the iteration idiom:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-c" data-lang="c">for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
-  // Do something with connection `c`
-}</code></pre>
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">for</span> <span class="tok-p">(</span><span class="tok-n">c</span> <span class="tok-o">=</span> <span class="tok-n">ns_next</span><span class="tok-p">(</span><span class="tok-n">srv</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span> <span class="tok-n">c</span> <span class="tok-o">!=</span> <span class="tok-nb">NULL</span><span class="tok-p">;</span> <span class="tok-n">c</span> <span class="tok-o">=</span> <span class="tok-n">ns_next</span><span class="tok-p">(</span><span class="tok-n">srv</span><span class="tok-p">,</span> <span class="tok-n">c</span><span class="tok-p">))</span> <span class="tok-p">{</span>
+  <span class="tok-c1">// Do something with connection `c`</span>
+<span class="tok-p">}</span></code></pre>
 </div>
 </div>
 </div>
@@ -453,7 +514,7 @@ Returns: NULL if there is no error, or error string if there was error.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-sh" data-lang="sh">openssl req -x509 -nodes -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
+<pre class="pygments highlight"><code data-lang="sh">openssl req -x509 -nodes -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365
 cat cert.pem key.pem &gt; my_ssl_cert.pem</code></pre>
 </div>
 </div>
@@ -636,18 +697,18 @@ Example code snippet:</p>
 <div class="listingblock">
 <div class="title">web_server.c</div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-c" data-lang="c">static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct http_message *hm = (struct http_message *) ev_data;
-  struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-n">hm</span> <span class="tok-o">=</span> <span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-n">ev_data</span><span class="tok-p">;</span>
+  <span class="tok-k">struct</span> <span class="tok-n">ns_serve_http_opts</span> <span class="tok-n">opts</span> <span class="tok-o">=</span> <span class="tok-p">{</span> <span class="tok-p">.</span><span class="tok-n">document_root</span> <span class="tok-o">=</span> <span class="tok-s">&quot;/var/www&quot;</span> <span class="tok-p">};</span>  <span class="tok-c1">// C99 syntax</span>
 
-  switch (ev) {
-    case NS_HTTP_REQUEST:
-      ns_serve_http(nc, hm, opts);
-      break;
-    default:
-      break;
-  }
-}</code></pre>
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_HTTP_REQUEST</span><span class="tok-p">:</span>
+      <span class="tok-n">ns_serve_http</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">hm</span><span class="tok-p">,</span> <span class="tok-n">opts</span><span class="tok-p">);</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-k">default</span><span class="tok-o">:</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span></code></pre>
 </div>
 </div>
 </div>
@@ -756,7 +817,7 @@ event handler will receive following extra events:</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-12 23:21:21 GMT
+Last updated 2014-11-13 14:06:26 CET
 </div>
 </div>
 </body>

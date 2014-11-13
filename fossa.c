@@ -2461,14 +2461,19 @@ void ns_set_error_string(char **e, const char *s) {
 
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
+  static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
+  const struct json_token *id = req->id == NULL ? &null_tok : req->id;
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:V,s:",
-                 "jsonrpc", "2.0", "id",
-                 req->id == NULL ? "null" : req->id->ptr,
-                 req->id == NULL ? 4 : req->id->len,
-                 "result");
+  n += json_emit(buf + n, len - n, "{s:s,s:", "jsonrpc", "2.0", "id");
+  if (id->type == JSON_TYPE_STRING) {
+    n += json_emit_quoted_str(buf + n, len - n, id->ptr, id->len);
+  } else {
+    n += json_emit_unquoted_str(buf + n, len - n, id->ptr, id->len);
+  }
+  n += json_emit(buf + n, len - n, ",s:", "result");
+
   va_start(ap, result_fmt);
   n += json_emit_va(buf + n, len - n, result_fmt, ap);
   va_end(ap);

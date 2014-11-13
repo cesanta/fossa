@@ -753,9 +753,11 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
       ns_rpc_parse_reply(hm->body.p, hm->body.len,
                          toks, sizeof(toks) / sizeof(toks[0]),
                          &rpc_reply, &rpc_error);
-      sprintf((char *) nc->user_data, "%.*s",
-              rpc_reply.result == NULL ? 1 : rpc_reply.result->len,
-              rpc_reply.result == NULL ? "?" : rpc_reply.result->ptr);
+      if (rpc_reply.result != NULL) {
+        sprintf((char *) nc->user_data, "%d %.*s %.*s",
+                rpc_reply.id->type, (int) rpc_reply.id->len, rpc_reply.id->ptr,
+                (int) rpc_reply.result->len, rpc_reply.result->ptr);
+      }
       break;
     default:
       break;
@@ -780,7 +782,7 @@ static const char *test_rpc(void) {
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
-  ASSERT(strcmp(buf, "16") == 0);
+  ASSERT(strcmp(buf, "1 1 16") == 0);
 
   return NULL;
 }

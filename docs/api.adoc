@@ -1,23 +1,18 @@
 == Using Fossa
 
-1. Define an event handler function.
-2. Initialize mgr by calling `ns_mgr_init()`.
-3. Create *listening connections* with `ns_bind()` and/or *client connections*
-with `ns_connect()`. Note that many connections can be created within a
-single manager. Connections can be created at any time, including within
-an event handler function.
-4. Call `ns_mgr_poll()` in a loop.
+1. Copy `fossa.c` and `fossa.h` in your build
+2. Write code that uses Fossa API, see example below:
 
 [source,c]
 ----
-#include "fossa.h"
+#include "fossa.h"  // <1>
 
-// This event handler implements TCP echo server
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <2>
   struct iobuf *io = &nc->recv_iobuf;
 
   switch (ev) {
     case NS_RECV:
+      // This event handler implements simple TCP echo server
       ns_send(nc, io->buf, io->len);  // Echo received data back
       iobuf_remove(io, io->len);      // Discard data from recv buffer
       break;
@@ -28,11 +23,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
 
 int main(void) {
   struct ns_mgr mgr;
-  ns_mgr_init(&mgr, NULL);  // 2
-  ns_bind(&mgr, "1234", ev_handler, NULL);  // 3
 
-  // 4 - an event loop
-  for (;;) {
+  ns_mgr_init(&mgr, NULL);  // <3>
+
+  // Note that many connections can be added to a single event manager
+  // Connections can be created at any point, e.g. in event handler function
+  ns_bind(&mgr, "1234", ev_handler, NULL);  // <4>
+
+  for (;;) {  // <5>
     ns_mgr_poll(&mgr, 1000);
   }
 
@@ -41,20 +39,25 @@ int main(void) {
 }
 ----
 
+<1> Include Fossa API definitions
+<2> Define an event handler function
+<3> Initialize event manager object
+<4> Create listening connection and add it to the event manager
+<5> Start infinite event loop
 
 Fossa accepts incoming connections, reads and writes data, and
 calls specified event handler for each connection when appropriate. An
 event handler should examine received data, set connection flags if needed,
 and send data back to the client by `ns_send()` or `ns_printf()`. Here is a
-typical event flow for the accepted connection:
+typical event flow for the inbound connection:
 `NS_ACCEPT` -> `NS_RECV` -> .... -> `NS_CLOSE`. Below is a complete list
 of events triggered by Fossa:
 
 NS_ACCEPT:: sent when new server connection is accepted by a
 listening connection. `void *ev_data` is `union socket_address`
 of the remote peer.
-NS_CONNECT:: sent when a new client connection created by `ns_connect()` either
-failed or succeeded. `void *ev_data` is `int *success`. If `success` is 0
+NS_CONNECT:: sent when a new outbound connection created by `ns_connect()`
+either failed or succeeded. `void *ev_data` is `int *success`. If `success` is 0
 then connection has been established, otherwise it contains error code. Example
 code to check connection status:
 
@@ -178,7 +181,7 @@ just an IP address becomes mandatory: `[PROTO://]HOST:PORT`
 address, Fossa will resolve it - beware that standard blocking resolver
 will be used. It is a good practice to pre-resolve hosts beforehands and
 use only IP addresses to avoid blockin an IO thread.
-Returns: new client connection, or `NULL` on error.
+Returns: new outbound connection, or `NULL` on error.
 
 struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_event_handler_t ev_handler)::
 
@@ -199,7 +202,7 @@ const char *ns_set_ssl(struct ns_connection *nc, const char *cert, const char *c
 Enable SSL for a given connection. Connection must be TCP. For listening
 connection, `cert` is a path to a server certificate, and is mandatory.
 `ca_cert` if non-NULL, specifies CA certificate for client authentication,
-enables two-way SSL. For client connections, both `cert` and `ca_cert` are
+enables two-way SSL. For outbound connections, both `cert` and `ca_cert` are
 optional and can be set to NULL. All certificates
 must be in PEM format. PEM file for server certificate should contain
 both certificate and the private key concatenated together.

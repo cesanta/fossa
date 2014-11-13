@@ -31,7 +31,7 @@ bringing them online.
 
 == Examples & API Reference
 
-Detailed API reference is located at link:http://htmlpreview.github.io/?https://github.com/cesanta/fossa/blob/docs/docs/index.html[docs/index.html]
+Detailed API reference is located at link:http://htmlpreview.github.io/?https://github.com/cesanta/fossa/blob/master/docs/index.html[docs/index.html]
 
 Well-commented examples are located at link:examples[]
 

@@ -60,7 +60,7 @@ pre {  border: 1px solid #ccc;  }
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_concept">Concept</a></li>
+<li><a href="#_design_concept">Design Concept</a></li>
 <li><a href="#_using_fossa">Using Fossa</a></li>
 <li><a href="#_plain_tcp_udp_ssl_api">Plain TCP/UDP/SSL API</a>
 <ul class="sectlevel2">
@@ -79,15 +79,15 @@ pre {  border: 1px solid #ccc;  }
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="_concept">Concept</h2>
+<h2 id="_design_concept">Design Concept</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Fossa is a non-blocking, asyncronous event manager described by
 <code>struct ns_mgr</code> structure. That structure holds active connections.
-Connections could be either <strong>listening</strong>, <strong>client</strong> or <strong>accepted</strong>.
-Client connections are created by
-<code>ns_connect()</code> call. Listening connections are created by <code>ns_bind()</code> call.
-Accepted connections are those that incoming on a listening connection.
+Connections could be either <strong>listening</strong>, <strong>outbound</strong> or <strong>inbound</strong>.
+Outbound connections are created by <code>ns_connect()</code> call.
+Listening connections are created by <code>ns_bind()</code> call.
+Inbound connections are those accepted by a listening connection.
 Each connection is described by <code>struct ns_connection</code> structure, which has
 a number of fields like socket, event handler function, send/receive buffer,
 flags, et cetera.</p>
@@ -120,32 +120,23 @@ sends <code>NS_SEND</code> event. When connection is closed, <code>NS_CLOSE</cod
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Define an event handler function.</p>
+<p>Copy <code>fossa.c</code> and <code>fossa.h</code> in your build</p>
 </li>
 <li>
-<p>Initialize mgr by calling <code>ns_mgr_init()</code>.</p>
-</li>
-<li>
-<p>Create <strong>listening connections</strong> with <code>ns_bind()</code> and/or <strong>client connections</strong>
-with <code>ns_connect()</code>. Note that many connections can be created within a
-single manager. Connections can be created at any time, including within
-an event handler function.</p>
-</li>
-<li>
-<p>Call <code>ns_mgr_poll()</code> in a loop.</p>
+<p>Write code that uses Fossa API, see example below:</p>
 </li>
 </ol>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-c" data-lang="c">#include "fossa.h"
+<pre class="highlightjs highlight"><code class="language-c" data-lang="c">#include "fossa.h"  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
 
-// This event handler implements TCP echo server
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
   struct iobuf *io = &amp;nc-&gt;recv_iobuf;
 
   switch (ev) {
     case NS_RECV:
+      // This event handler implements simple TCP echo server
       ns_send(nc, io-&gt;buf, io-&gt;len);  // Echo received data back
       iobuf_remove(io, io-&gt;len);      // Discard data from recv buffer
       break;
@@ -156,11 +147,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // 1
 
 int main(void) {
   struct ns_mgr mgr;
-  ns_mgr_init(&amp;mgr, NULL);  // 2
-  ns_bind(&amp;mgr, "1234", ev_handler, NULL);  // 3
 
-  // 4 - an event loop
-  for (;;) {
+  ns_mgr_init(&amp;mgr, NULL);  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
+
+  // Note that many connections can be added to a single event manager
+  // Connections can be created at any point, e.g. in event handler function
+  ns_bind(&amp;mgr, "1234", ev_handler, NULL);  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
+
+  for (;;) {  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
     ns_mgr_poll(&amp;mgr, 1000);
   }
 
@@ -169,12 +163,36 @@ int main(void) {
 }</code></pre>
 </div>
 </div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1"></td>
+<td>Include Fossa API definitions</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2"></td>
+<td>Define an event handler function</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3"></td>
+<td>Initialize event manager object</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4"></td>
+<td>Create listening connection and add it to the event manager</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5"></td>
+<td>Start infinite event loop</td>
+</tr>
+</table>
+</div>
 <div class="paragraph">
 <p>Fossa accepts incoming connections, reads and writes data, and
 calls specified event handler for each connection when appropriate. An
 event handler should examine received data, set connection flags if needed,
 and send data back to the client by <code>ns_send()</code> or <code>ns_printf()</code>. Here is a
-typical event flow for the accepted connection:
+typical event flow for the inbound connection:
 <code>NS_ACCEPT</code> &#8594; <code>NS_RECV</code> &#8594; &#8230;&#8203;. &#8594; <code>NS_CLOSE</code>. Below is a complete list
 of events triggered by Fossa:</p>
 </div>
@@ -188,8 +206,8 @@ of the remote peer.</p>
 </dd>
 <dt class="hdlist1">NS_CONNECT</dt>
 <dd>
-<p>sent when a new client connection created by <code>ns_connect()</code> either
-failed or succeeded. <code>void *ev_data</code> is <code>int *success</code>. If <code>success</code> is 0
+<p>sent when a new outbound connection created by <code>ns_connect()</code>
+eithe failed or succeeded. <code>void *ev_data</code> is <code>int *success</code>. If <code>success</code> is 0
 then connection has been established, otherwise it contains error code. Example
 code to check connection status:</p>
 </dd>
@@ -394,7 +412,7 @@ just an IP address becomes mandatory: <code>[PROTO://]HOST:PORT</code>
 address, Fossa will resolve it - beware that standard blocking resolver
 will be used. It is a good practice to pre-resolve hosts beforehands and
 use only IP addresses to avoid blockin an IO thread.
-Returns: new client connection, or <code>NULL</code> on error.</p>
+Returns: new outbound connection, or <code>NULL</code> on error.</p>
 </dd>
 <dt class="hdlist1">struct ns_connection *ns_bind(struct ns_mgr *, const char *addr, ns_event_handler_t ev_handler)</dt>
 <dd>
@@ -422,7 +440,7 @@ will be chosen. Return value: a listening connection on success, or
 <p>Enable SSL for a given connection. Connection must be TCP. For listening
 connection, <code>cert</code> is a path to a server certificate, and is mandatory.
 <code>ca_cert</code> if non-NULL, specifies CA certificate for client authentication,
-enables two-way SSL. For client connections, both <code>cert</code> and <code>ca_cert</code> are
+enables two-way SSL. For outbound connections, both <code>cert</code> and <code>ca_cert</code> are
 optional and can be set to NULL. All certificates
 must be in PEM format. PEM file for server certificate should contain
 both certificate and the private key concatenated together.
@@ -738,7 +756,7 @@ event handler will receive following extra events:</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-12 13:54:13 GMT
+Last updated 2014-11-12 23:21:21 GMT
 </div>
 </div>
 </body>

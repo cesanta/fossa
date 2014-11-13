@@ -3,14 +3,14 @@
 
 = Multi-Protocol Networking Library For C/C++
 
-== Concept
+== Design Concept
 
 Fossa is a non-blocking, asyncronous event manager described by
 `struct ns_mgr` structure. That structure holds active connections.
-Connections could be either *listening*, *client* or *accepted*.
-Client connections are created by
-`ns_connect()` call. Listening connections are created by `ns_bind()` call.
-Accepted connections are those that incoming on a listening connection.
+Connections could be either *listening*, *outbound* or *inbound*.
+Outbound connections are created by `ns_connect()` call.
+Listening connections are created by `ns_bind()` call.
+Inbound connections are those accepted by a listening connection.
 Each connection is described by `struct ns_connection` structure, which has
 a number of fields like socket, event handler function, send/receive buffer,
 flags, et cetera.

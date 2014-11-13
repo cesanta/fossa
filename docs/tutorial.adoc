@@ -1,0 +1,115 @@
+== Using Fossa
+
+1. Copy `fossa.c` and `fossa.h` in your build
+2. Write code that uses Fossa API, see example below:
+
+[source,c]
+----
+#include "fossa.h"  // <1>
+
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) { // <2>
+  struct iobuf *io = &nc->recv_iobuf;
+
+  switch (ev) {
+    case NS_RECV:
+      // This event handler implements simple TCP echo server
+      ns_send(nc, io->buf, io->len);  // Echo received data back
+      iobuf_remove(io, io->len);      // Discard data from recv buffer
+      break;
+    default:
+      break;
+  }
+}
+
+int main(void) {
+  struct ns_mgr mgr;
+
+  ns_mgr_init(&mgr, NULL);  // <3>
+
+  // Note that many connections can be added to a single event manager
+  // Connections can be created at any point, e.g. in event handler function
+  ns_bind(&mgr, "1234", ev_handler, NULL);  // <4>
+
+  for (;;) {  // <5>
+    ns_mgr_poll(&mgr, 1000);
+  }
+
+  ns_mgr_free(&mgr);
+  return 0;
+}
+----
+
+<1> Include Fossa API definitions
+<2> Define an event handler function
+<3> Initialize event manager object
+<4> Create listening connection and add it to the event manager
+<5> Start infinite event loop
+
+Fossa accepts incoming connections, reads and writes data, and
+calls specified event handler for each connection when appropriate. An
+event handler should examine received data, set connection flags if needed,
+and send data back to the client by `ns_send()` or `ns_printf()`. Here is a
+typical event flow for the inbound connection:
+`NS_ACCEPT` -> `NS_RECV` -> .... -> `NS_CLOSE`. Below is a complete list
+of events triggered by Fossa:
+
+NS_ACCEPT:: sent when new server connection is accepted by a
+listening connection. `void *ev_data` is `union socket_address`
+of the remote peer.
+NS_CONNECT:: sent when a new outbound connection created by `ns_connect()`
+either failed or succeeded. `void *ev_data` is `int *success`. If `success` is 0
+then connection has been established, otherwise it contains error code. Example
+code to check connection status:
+
+[source,c]
+----
+static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  int connect_status;
+
+  switch (ev) {
+    case NS_CONNECT:
+      connect_status = * (int *) ev_data;
+      if (connect_status == 0) {
+        /* Success */
+      } else  {
+        /* Error */
+        printf("connect() error: %s\n", strerror(connect_status));
+      }
+      break;
+    ...
+----
+
+NS_RECV:: New data is received and appended to the end of `recv_iobuf`.
+`void *ev_data` is `int *num_received_bytes`.
+
+WARNING: Fossa uses `realloc()` to expand receive buffer.
+It is user's responsibility to discard processed
+data from the beginning of receive buffer, note the `iobuf_remove()`
+call in the example above.
+
+NS_SEND:: Fossa has written data to the remote peer and discarded
+written data from the `send_iobuf`. `void *ev_data` is `int *num_sent_bytes`
+
+NS_POLL:: Sent to all connections on each invocation of `ns_server_poll()`
+
+An event handler can set `struct ns_connection::flags` attribute to control
+the behavior of the connection.  Below is a list of connection flags:
+
+* `NSF_FINISHED_SENDING_DATA` tells Fossa that all data has been
+  appended to the `send_iobuf`. As soon as Fossa sends it to the
+  socket, the connection will be closed.
+* `NSF_BUFFER_BUT_DONT_SEND` tells Fossa to append data to the
+  `send_iobuf` but hold on sending it, because the data will be modified
+  later and then will be sent by clearing `NSF_BUFFER_BUT_DONT_SEND` flag.
+* `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
+* `NSF_CONNECTING` set when connection is in connecting state after
+  `ns_connect()` call but connect did not finish yet
+* `NSF_CLOSE_IMMEDIATELY` tells Fossa to close the connection
+  immediately, usually after some error
+* `NSF_LISTENING` set for all listening connections
+* `NSF_UDP` set if connection is UDP
+* `NSF_IS_WEBSOCKET` set by Fossa if connection is a Websocket connection
+* `NSF_WEBSOCKET_NO_DEFRAG` should be set by a user if user wants to switch
+  off automatic frame defragmentation
+* `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
+  used by a developer to store application-specific state

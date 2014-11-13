@@ -3,6 +3,10 @@
  * All rights reserved
  */
 
+/*
+ * == HTTP/Websocket API
+ */
+
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 #include "fossa.h"
@@ -111,6 +115,11 @@ static int get_request_len(const char *s, int buf_len) {
   return 0;
 }
 
+/* Parses a HTTP message.
+ *
+ * Return number of bytes parsed. If HTTP message is
+ * incomplete, `0` is returned. On parse error, negative number is returned.
+*/
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end;
   int len, i;
@@ -161,6 +170,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
   return len;
 }
 
+/* Returns HTTP header if it is present in the HTTP message, or `NULL`. */
 struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   size_t i, len = strlen(name);
 
@@ -290,6 +300,19 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
   ns_send(nc, header, header_len);
 }
 
+/*
+ * Send websocket frame to the remote end.
+ *
+ * `op` specifies frame's type , one of:
+ *
+ * - WEBSOCKET_OP_CONTINUE
+ * - WEBSOCKET_OP_TEXT
+ * - WEBSOCKET_OP_BINARY
+ * - WEBSOCKET_OP_CLOSE
+ * - WEBSOCKET_OP_PING
+ * - WEBSOCKET_OP_PONG
+ * `data` and `data_len` contain frame data.
+*/
 void ns_send_websocket_frame(struct ns_connection *nc, int op,
                              const void *data, size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -300,6 +323,11 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   }
 }
 
+/*
+ * Send multiple websocket frames.
+ *
+ * Like `ns_send_websocket_frame()`, but composes a frame from multiple buffers.
+ */
 void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
@@ -319,6 +347,12 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 }
 
+/*
+ * Send websocket frame to the remote end.
+ *
+ * Like `ns_send_websocket_frame()`, but allows to create formatted message
+ * with `printf()`-like semantics.
+ */
 void ns_printf_websocket_frame(struct ns_connection *nc, int op,
                                const char *fmt, ...) {
   char mem[4192], *buf = mem;
@@ -455,10 +489,33 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+/*
+ * Attach built-in HTTP event handler to the given connection.
+ * User-defined event handler will receive following extra events:
+ *
+ * - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
+ *   request. `ev_data` contains parsed HTTP request.
+ * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
+ *   `ev_data` is `NULL`.
+ * - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
+ *   `struct websocket_message *`
+ */
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
 
+/*
+ * Sends websocket handshake to the server.
+ *
+ * `nc` must be a valid connection, connected to a server, `uri` is an URI on the server, `extra_headers` is
+ * extra HTTP headers to send or `NULL`.
+ *
+ * This function is intended to be used by websocket client.
+ */
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
   unsigned long random = (unsigned long) uri;
@@ -544,6 +601,14 @@ static int ns_url_decode(const char *src, int src_len, char *dst,
   return i >= src_len ? j : -1;
 }
 
+/*
+ * Fetch an HTTP form variable.
+ *
+ * Fetch a variable `name` from a `buf` into a buffer specified by
+ * `dst`, `dst_len`. Destination is always zero-terminated. Return length
+ * of a fetched variable. If not found, 0 is returned. `buf` must be
+ * valid url-encoded buffer. If destination is too small, `-1` is returned.
+ */
 int ns_get_http_var(const struct ns_str *buf, const char *name,
                     char *dst, size_t dst_len) {
   const char *p, *e, *s;
@@ -581,6 +646,28 @@ int ns_get_http_var(const struct ns_str *buf, const char *name,
   return len;
 }
 
+/*
+ * Serve given HTTP request according to the `options`.
+ *
+ * Example code snippet:
+ *
+ * [source,c]
+ * .web_server.c
+ * ----
+ * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+ *   struct http_message *hm = (struct http_message *) ev_data;
+ *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
+ *
+ *   switch (ev) {
+ *     case NS_HTTP_REQUEST:
+ *       ns_serve_http(nc, hm, opts);
+ *       break;
+ *     default:
+ *       break;
+ *   }
+ * }
+ * ----
+ */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];

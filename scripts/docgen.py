@@ -55,6 +55,14 @@ class StructDecl(Decl):
     def __repr__(self):
         return 'Struct(%s, "%s")' % (self.name, self.comment)
 
+class InlineDoc(Decl):
+    def __init__(self, pos, comment):
+        super(InlineDoc, self).__init__(pos)
+        self.comment = comment
+
+    def __repr__(self):
+        return 'Inline("%s")' % (self.comment)
+
 def parse_tag(src, pos):
     if src.endswith('('):
         return parse_function(src, pos)
@@ -129,14 +137,31 @@ def gen_module(module):
             res.append(v)
     return res
 
+def extract_inline_doc(module, decls):
+    comment = ""
+    src = open(module).read()
+    first_include = src.find("#include")
+    last_comment_close = src[:first_include].rfind("*/")
+    last_comment_open = src[:last_comment_close].rfind("/*")
+    comment = multiline_cleanup(src[last_comment_open+2:last_comment_close])
+    if "All rights reserved" in comment or "Copyright" in comment:
+        comment = ""
+    decls.insert(0, InlineDoc("1,1", comment))
+
 def multiline_cleanup(comment):
     return ('\n'.join(re.sub(r'^(\* |\*$)', '', l.strip()) for l in comment.split('\n'))).strip()
 
 def render(out, mod):
+    # TODO(mkm) support multiple inline docs an place them
+    # according to their source position.
+    inline_docs = [m for m in mod if isinstance(m, InlineDoc) and m.comment]
+    for i in inline_docs:
+        print >>out, i.comment, '\n'
+
     funcs = [m for m in mod if isinstance(m, FuncDecl)]
-    print >>out, "== Functions"
+    print >>out, "=== Functions"
     for decl in funcs:
-        print >>out, '=== %s\n' % (decl.name, )
+        print >>out, '==== %s\n' % (decl.name, )
         if decl.source:
             print >>out, '[source,c]'
             print >>out, '----'
@@ -148,8 +173,8 @@ def main():
     global args
     args = parser.parse_args()
 
-    # TODO(mkm) extract module doc from the top level module comment
     mod = gen_module(args.module)
+    extract_inline_doc(args.module, mod)
     out = sys.stdout if args.output is None else open(args.output, 'w')
     render(out, mod)
 

@@ -2488,6 +2488,14 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
  */
 
 
+/*
+ * Fetches substring from input string `s`, `end` into `v`.
+ * Skips initial delimiter characters. Records first non-delimiter character
+ * as the beginning of substring `v`. Then scans the rest of the string
+ * until a delimiter character or end-of-string is found.
+ *
+ * do_not_export_to_docs
+ */
 const char *ns_skip(const char *s, const char *end,
                     const char *delims, struct ns_str *v) {
   v->p = s;
@@ -2501,6 +2509,9 @@ static int lowercase(const char *s) {
   return tolower(* (const unsigned char *) s);
 }
 
+/*
+ * Cross-platform version of `strncasecmp()`.
+ */
 int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   int diff = 0;
 
@@ -2512,15 +2523,26 @@ int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   return diff;
 }
 
+/*
+ * Cross-platform version of `strcasecmp()`.
+ */
 int ns_casecmp(const char *s1, const char *s2) {
   return ns_ncasecmp(s1, s2, (size_t) ~0);
 }
 
+/*
+ * Cross-platform version of `strncasecmp()` where first string is
+ * specified by `struct ns_str`.
+ */
 int ns_vcasecmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? ns_ncasecmp(str1, str2->p, n1) : n1 > n2 ? 1 : -1;
 }
 
+/*
+ * Cross-platform version of `strcmp()` where where first string is
+ * specified by `struct ns_str`.
+ */
 int ns_vcmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? memcmp(str1, str2->p, n2) : n1 > n2 ? 1 : -1;
@@ -2604,6 +2626,11 @@ int ns_open(const char *path, int flag, int mode) {
 #endif
 }
 
+/*
+ * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
+ * Destination has to have enough space to hold encoded buffer.
+ * Destination is '\0'-terminated.
+ */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -2653,6 +2680,11 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
+/*
+ * Decodes base64-encoded string `s`, `len` into the destination `dst`.
+ * Destination has to have enough space to hold decoded buffer.
+ * Destination is '\0'-terminated.
+ */
 void ns_base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   while (len >= 4 &&

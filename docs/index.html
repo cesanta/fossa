@@ -204,9 +204,15 @@ pre > code {
 <ul class="sectlevel2">
 <li><a href="#_functions_5">Functions</a>
 <ul class="sectlevel3">
+<li><a href="#_ns_ncasecmp">ns_ncasecmp</a></li>
+<li><a href="#_ns_casecmp">ns_casecmp</a></li>
+<li><a href="#_ns_vcasecmp">ns_vcasecmp</a></li>
+<li><a href="#_ns_vcmp">ns_vcmp</a></li>
 <li><a href="#_ns_stat">ns_stat</a></li>
 <li><a href="#_ns_fopen">ns_fopen</a></li>
 <li><a href="#_ns_open">ns_open</a></li>
+<li><a href="#_ns_base64_encode">ns_base64_encode</a></li>
+<li><a href="#_ns_base64_decode">ns_base64_decode</a></li>
 </ul>
 </li>
 </ul>
@@ -1208,6 +1214,52 @@ populated. The result of RPC call is located in <code>reply.result</code>. On er
 <div class="sect2">
 <h3 id="_functions_5">Functions</h3>
 <div class="sect3">
+<h4 id="_ns_ncasecmp">ns_ncasecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_ncasecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s1</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s2</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strncasecmp()</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_casecmp">ns_casecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_casecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s1</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s2</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strcasecmp()</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_vcasecmp">ns_vcasecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_vcasecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">str2</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">str1</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strncasecmp()</code> where first string is
+specified by <code>struct ns_str</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_vcmp">ns_vcmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_vcmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">str2</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">str1</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strcmp()</code> where where first string is
+specified by <code>struct ns_str</code>.</p>
+</div>
+</div>
+<div class="sect3">
 <h4 id="_ns_stat">ns_stat</h4>
 <div class="listingblock">
 <div class="content">
@@ -1258,13 +1310,39 @@ populated. The result of RPC call is located in <code>reply.result</code>. On er
 <p>Return value is the same as for the <code>open()</code> syscall.</p>
 </div>
 </div>
+<div class="sect3">
+<h4 id="_ns_base64_encode">ns_base64_encode</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_base64_encode</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">unsigned</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">src</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">src_len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Base64-encodes chunk of memory <code>src</code>, <code>src_len</code> into the destination <code>dst</code>.
+Destination has to have enough space to hold encoded buffer.
+Destination is '\0'-terminated.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_base64_decode">ns_base64_decode</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_base64_decode</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">unsigned</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Decodes base64-encoded string <code>s</code>, <code>len</code> into the destination <code>dst</code>.
+Destination has to have enough space to hold decoded buffer.
+Destination is '\0'-terminated.</p>
+</div>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-13 16:19:31 CET
+Last updated 2014-11-14 10:00:07 GMT
 </div>
 </div>
 </body>

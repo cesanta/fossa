@@ -24,16 +24,21 @@ code, pre {
 }
 p > code { background: #f0f0f0; }
 pre, pre > code { border-radius: 0.5em; }
-pre {  border: 1px solid #ccc;  }
+pre {
+  background: #f5f5f5 !important;
+  box-shadow: inset 1px 1px 1px 0px #aaa;
+}
+dd > p { margin: 0.4em; }
 
 #toc.toc2 {
   position: fixed; width: 20%; left: 0; top: 0;
-  border-right: 1px solid #ccc; z-index: 1000;
+  border-right: 1px solid #e5e5e5; z-index: 1000;
   height: 100%; overflow: auto; line-height: 1.5em;
 }
-#toc { background: #eee; }
+#toc { background: #f5f5f5; }
 #toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
 #toctitle { margin: 0.5em 1em;}
+#toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
 
 #content, h1 {
   margin: 1em 3em 0 22%;

@@ -161,6 +161,8 @@ def render(out, mod):
     funcs = [m for m in mod if isinstance(m, FuncDecl)]
     print >>out, "=== Functions"
     for decl in funcs:
+        if decl.comment and 'do_not_export_to_docs' in decl.comment:
+            continue
         print >>out, '==== %s\n' % (decl.name, )
         if decl.source:
             print >>out, '[source,c]'

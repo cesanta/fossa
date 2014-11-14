@@ -42,7 +42,7 @@
 */
 
 /*
- * == Plain TCP/UDP/SSL API
+ * == Core API: TCP/UDP/SSL
  *
  * CAUTION: Fossa manager instance is single threaded. It does not protect
  * it's data structures by mutexes, therefore all functions that are dealing
@@ -50,7 +50,7 @@
  * with exception of `mg_broadcast()` function. It is fine to have different
  * event managers handled by different threads.
  *
- * === Core structures
+ * === Structures
  *
  * - `struct ns_connection` Describes a connection between two peers
  * - `struct ns_mgr` Container for a bunch of connections

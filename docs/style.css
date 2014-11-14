@@ -35,6 +35,7 @@ dd > p { margin: 0.4em; }
 #toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
 #toctitle { margin: 0.5em 1em;}
 #toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
+.active { border-right: 2px solid #aaa; background: #fff; }
 #content, h1 { margin: 1em 3em 0 22%; }
 #footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
 

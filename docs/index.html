@@ -33,16 +33,21 @@ code, pre {
 }
 p > code { background: #f0f0f0; }
 pre, pre > code { border-radius: 0.5em; }
-pre {  border: 1px solid #ccc;  }
+pre {
+  background: #f5f5f5 !important;
+  box-shadow: inset 1px 1px 1px 0px #aaa;
+}
+dd > p { margin: 0.4em; }
 
 #toc.toc2 {
   position: fixed; width: 20%; left: 0; top: 0;
-  border-right: 1px solid #ccc; z-index: 1000;
+  border-right: 1px solid #e5e5e5; z-index: 1000;
   height: 100%; overflow: auto; line-height: 1.5em;
 }
-#toc { background: #eee; }
+#toc { background: #f5f5f5; }
 #toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
 #toctitle { margin: 0.5em 1em;}
+#toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
 
 #content, h1 {
   margin: 1em 3em 0 22%;
@@ -122,16 +127,10 @@ pre > code {
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_design_concept">Design Concept</a></li>
-<li><a href="#_tutorials">Tutorials</a>
-<ul class="sectlevel1">
 <li><a href="#_using_fossa">Using Fossa</a></li>
-</ul>
-</li>
-<li><a href="#_api_reference">API Reference</a>
-<ul class="sectlevel1">
-<li><a href="#_plain_tcp_udp_ssl_api">Plain TCP/UDP/SSL API</a>
+<li><a href="#_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</a>
 <ul class="sectlevel2">
-<li><a href="#_core_structures">Core structures</a></li>
+<li><a href="#_structures">Structures</a></li>
 <li><a href="#_functions">Functions</a>
 <ul class="sectlevel3">
 <li><a href="#_ns_start_thread">ns_start_thread</a></li>
@@ -212,8 +211,6 @@ pre > code {
 </ul>
 </li>
 </ul>
-</li>
-</ul>
 </div>
 </div>
 <div id="content">
@@ -253,7 +250,6 @@ sends <code>NS_SEND</code> event. When connection is closed, <code>NS_CLOSE</cod
 </div>
 </div>
 </div>
-<h1 id="_tutorials" class="sect0">Tutorials</h1>
 <div class="sect1">
 <h2 id="_using_fossa">Using Fossa</h2>
 <div class="sectionbody">
@@ -456,9 +452,8 @@ used by a developer to store application-specific state</p>
 </div>
 </div>
 </div>
-<h1 id="_api_reference" class="sect0">API Reference</h1>
 <div class="sect1">
-<h2 id="_plain_tcp_udp_ssl_api">Plain TCP/UDP/SSL API</h2>
+<h2 id="_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</h2>
 <div class="sectionbody">
 <div class="admonitionblock caution">
 <table>
@@ -477,7 +472,7 @@ event managers handled by different threads.
 </table>
 </div>
 <div class="sect2">
-<h3 id="_core_structures">Core structures</h3>
+<h3 id="_structures">Structures</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -1264,7 +1259,7 @@ populated. The result of RPC call is located in <code>reply.result</code>. On er
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-13 16:19:31 CET
+Last updated 2014-11-14 12:17:35 GMT
 </div>
 </div>
 </body>

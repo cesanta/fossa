@@ -36,3 +36,6 @@ json-rpc.adoc: ../modules/json-rpc.c Makefile $(DOCGEN)
 
 sha1.adoc: ../modules/sha1.c Makefile $(DOCGEN)
 	../scripts/docgen.py -o $@ $<
+
+clean:
+	rm -rf $(GEN_ADOCS)

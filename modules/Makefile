@@ -3,13 +3,7 @@ include modules.mk
 all: ../fossa.c ../fossa.h
 
 ../fossa.h: Makefile $(HEADERS)
-	$(MAKE) -s --no-print-directory merge_fossa.h >$@
+	@cat $(HEADERS) >$@
 
 ../fossa.c: Makefile $(SOURCES)
-	$(MAKE) -s --no-print-directory merge_fossa.c >$@
-
-merge_fossa.h: Makefile $(HEADERS)
-	@cat $(HEADERS)
-
-merge_fossa.c: Makefile $(SOURCES)
-	@(echo '#include "fossa.h"'; cat internal.h; (cat $(SOURCES) | sed '/^#include "/d'))
+	@(echo '#include "fossa.h"'; cat internal.h; (cat $(SOURCES) | sed '/^#include "/d')) >$@

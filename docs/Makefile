@@ -28,23 +28,8 @@ index.html: $(ADOCS) Makefile style.css
 	fi
 	@rm -f index.html.tmp*
 
-skeleton.adoc: ../modules/skeleton.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
-
-http.adoc: ../modules/http.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
-
-util.adoc: ../modules/util.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
-
-mqtt.adoc: ../modules/mqtt.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
-
-json-rpc.adoc: ../modules/json-rpc.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
-
-sha1.adoc: ../modules/sha1.c Makefile $(DOCGEN)
-	../scripts/docgen.py -o $@ $<
+%.adoc: ../modules/%.c
+	$(DOCGEN) -o $@ $<
 
 clean:
 	rm -rf $(GEN_ADOCS)

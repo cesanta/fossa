@@ -9,13 +9,9 @@ include ../modules/modules.mk
 # http://crossgcc.rts-software.org/doku.php?id=compiling_for_win32
 MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-gcc
 
-all: clean ismerged $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
+all: clean $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
 .PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
-
-ismerged:
-	$(MAKE) -C ../modules -s --no-print-directory merge_fossa.c | diff ../fossa.c -
-	$(MAKE) -C ../modules -s --no-print-directory merge_fossa.h | diff ../fossa.h -
 
 $(PROG): Makefile
 	g++ -x c++ $(AMALGAMATED_SOURCES) -o $(PROG) $(CFLAGS) -lssl && ./$(PROG) $(TEST_FILTER)

@@ -2,13 +2,15 @@ machine:
   pre:
     - sudo pip install cpp-coveralls
 
+dependencies:
+  pre:
+    - gem install asciidoctor
+    - gem install pygments.rb
+
 checkout:
   post:
     - git clone https://github.com/cesanta/frozen.git /home/ubuntu/frozen
 
 test:
   pre:
-    - make -C test ismerged
-    - make -C modules
-    - make -C test
-    - make -C examples
+    - make all difftest

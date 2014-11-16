@@ -28,15 +28,11 @@ li > p { margin: 0; padding: 0; }
 dt { font-weight: bold; }
 h1, h2 { color: #369; }
 h2 { border-bottom: 1px solid #69c; }
-code, pre {
-  font: 14px/1.0 Courier, 'DejaVu Sans Mono', monospace !important;
-}
+code, pre { font: 14px/1.0 Courier, 'DejaVu Sans Mono', monospace !important; }
 p > code { background: #f0f0f0; }
 pre, pre > code { border-radius: 0.5em; }
-pre {
-  background: #f5f5f5 !important;
-  box-shadow: inset 1px 1px 1px 0px #aaa;
-}
+pre { background: #f5f5f5 !important; box-shadow: inset 1px 1px 1px 0px #aaa; }
+pre > code { padding: 0.5em; display:block; }
 dd > p { margin: 0.4em; }
 
 #toc.toc2 {
@@ -48,17 +44,10 @@ dd > p { margin: 0.4em; }
 #toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
 #toctitle { margin: 0.5em 1em;}
 #toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
-
-#content, h1 {
-  margin: 1em 3em 0 22%;
-}
-
+#content, h1 { margin: 1em 3em 0 22%; }
 #footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
 
-pre > code {
-  padding: 0.5em;
-  display:block;
-}
+.listingblock .title { font-weight: bold; }
 </style>
 <style>
 .listingblock .pygments .hll { background-color: #ffffcc }
@@ -126,8 +115,15 @@ pre > code {
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_design_concept">Design Concept</a></li>
-<li><a href="#_using_fossa">Using Fossa</a></li>
+<li><a href="#_design_concept">Design Concept</a>
+<ul class="sectlevel2">
+<li><a href="#_io_buffers">IO buffers</a></li>
+<li><a href="#_event_handler_function">Event handler function</a></li>
+<li><a href="#_events">Events</a></li>
+<li><a href="#_connection_flags">Connection flags</a></li>
+</ul>
+</li>
+<li><a href="#_usage_example">Usage Example</a></li>
 <li><a href="#_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</a>
 <ul class="sectlevel2">
 <li><a href="#_structures">Structures</a></li>
@@ -240,6 +236,8 @@ flags, et cetera.</p>
 sends and receives data, closes connections, and calls an event handler
 function for each of those events.</p>
 </div>
+<div class="sect2">
+<h3 id="_io_buffers">IO buffers</h3>
 <div class="paragraph">
 <p>Each connection has send and receive buffer, <code>struct ns_connection::send_iobuf</code>
 and <code>struct ns_connection::recv_iobuf</code> respectively. When data arrives,
@@ -255,88 +253,61 @@ sends <code>NS_SEND</code> event. When connection is closed, <code>NS_CLOSE</cod
 </div>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_using_fossa">Using Fossa</h2>
-<div class="sectionbody">
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p>Copy <code>fossa.c</code> and <code>fossa.h</code> in your build</p>
-</li>
-<li>
-<p>Write code that uses Fossa API, see example below:</p>
-</li>
-</ol>
+<div class="sect2">
+<h3 id="_event_handler_function">Event handler function</h3>
+<div class="paragraph">
+<p>Each connection has an event handler function associated with it. That
+function must be implemented by user. Event handler is the key element of
+the Fossa application, since it defines application&#8217;s behavior. This is the
+signature of event handler function:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="c"><span class="tok-cp">#include &quot;fossa.h&quot;  </span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
-
-<span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
-  <span class="tok-k">struct</span> <span class="tok-n">iobuf</span> <span class="tok-o">*</span><span class="tok-n">io</span> <span class="tok-o">=</span> <span class="tok-o">&amp;</span><span class="tok-n">nc</span><span class="tok-o">-&gt;</span><span class="tok-n">recv_iobuf</span><span class="tok-p">;</span>
-
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span>
   <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
-    <span class="tok-k">case</span> <span class="tok-nl">NS_RECV</span><span class="tok-p">:</span>
-      <span class="tok-c1">// This event handler implements simple TCP echo server</span>
-      <span class="tok-n">ns_send</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>  <span class="tok-c1">// Echo received data back</span>
-      <span class="tok-n">iobuf_remove</span><span class="tok-p">(</span><span class="tok-n">io</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>      <span class="tok-c1">// Discard data from recv buffer</span>
-      <span class="tok-k">break</span><span class="tok-p">;</span>
-    <span class="tok-k">default</span><span class="tok-o">:</span>
-      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-cm">/* Event handler code that defines behavior of the connection */</span>
+    <span class="tok-p">...</span>
   <span class="tok-p">}</span>
-<span class="tok-p">}</span>
-
-<span class="tok-kt">int</span> <span class="tok-nf">main</span><span class="tok-p">(</span><span class="tok-kt">void</span><span class="tok-p">)</span> <span class="tok-p">{</span>
-  <span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-n">mgr</span><span class="tok-p">;</span>
-
-  <span class="tok-n">ns_mgr_init</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
-
-  <span class="tok-c1">// Note that many connections can be added to a single event manager</span>
-  <span class="tok-c1">// Connections can be created at any point, e.g. in event handler function</span>
-  <span class="tok-n">ns_bind</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-s">&quot;1234&quot;</span><span class="tok-p">,</span> <span class="tok-n">ev_handler</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
-
-  <span class="tok-k">for</span> <span class="tok-p">(;;)</span> <span class="tok-p">{</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
-    <span class="tok-n">ns_mgr_poll</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-mi">1000</span><span class="tok-p">);</span>
-  <span class="tok-p">}</span>
-
-  <span class="tok-n">ns_mgr_free</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">);</span>
-  <span class="tok-k">return</span> <span class="tok-mi">0</span><span class="tok-p">;</span>
 <span class="tok-p">}</span></code></pre>
 </div>
 </div>
-<div class="colist arabic">
-<table>
-<tr>
-<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1"></td>
-<td>Include Fossa API definitions</td>
-</tr>
-<tr>
-<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2"></td>
-<td>Define an event handler function</td>
-</tr>
-<tr>
-<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3"></td>
-<td>Initialize event manager object</td>
-</tr>
-<tr>
-<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4"></td>
-<td>Create listening connection and add it to the event manager</td>
-</tr>
-<tr>
-<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5"></td>
-<td>Start infinite event loop</td>
-</tr>
-</table>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">struct ns_connection *nc</dt>
+<dd>
+<p>Connection that has received an event. Application should check received
+data in <code>nc&#8594;recv_iobuf</code>, discard processed data by <code>iobuf_remove()</code>,
+set connection flags <code>nc&#8594;flags</code> if necessary (see below), and write
+data the remote peer by output functions like <code>ns_send()</code>.</p>
+</dd>
+<dt class="hdlist1">int ev</dt>
+<dd>
+<p>Event number, defined in <code>fossa.h</code>. For example, when data arrives
+on inbound connection <code>ev</code> would be <code>NS_RECV</code>.</p>
+</dd>
+<dt class="hdlist1">void *ev_data</dt>
+<dd>
+<p>This pointer points to the event-specific data, and it has different
+meaning for different events. For example, for <code>NS_RECV</code> event,
+<code>ev_data</code> is an <code>int *</code> pointer, pointing to the number of bytes received
+from the remote peer and saved into the receive IO buffer. Exact meaning
+of <code>ev_data</code> is described for each event. Protocol-specific events usually
+have <code>ev_data</code> pointing to structures that hold protocol-specific information.</p>
+</dd>
+</dl>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_events">Events</h3>
 <div class="paragraph">
 <p>Fossa accepts incoming connections, reads and writes data, and
 calls specified event handler for each connection when appropriate. An
 event handler should examine received data, set connection flags if needed,
 and send data back to the client by <code>ns_send()</code> or <code>ns_printf()</code>. Here is a
 typical event flow for the inbound connection:
-<code>NS_ACCEPT</code> &#8594; <code>NS_RECV</code> &#8594; &#8230;&#8203;. &#8594; <code>NS_CLOSE</code>. Below is a complete list
-of events triggered by Fossa:</p>
+<code>NS_ACCEPT</code> &#8594; <code>NS_RECV</code> &#8594; &#8230;&#8203;. &#8594; <code>NS_CLOSE</code>. Below is a list
+of core events triggered by Fossa (note that each protocol triggers
+protocol-specific events in addition to the core ones):</p>
 </div>
 <div class="dlist">
 <dl>
@@ -410,6 +381,9 @@ written data from the <code>send_iobuf</code>. <code>void *ev_data</code> is <co
 </dd>
 </dl>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_connection_flags">Connection flags</h3>
 <div class="paragraph">
 <p>An event handler can set <code>struct ns_connection::flags</code> attribute to control
 the behavior of the connection.  Below is a list of connection flags:</p>
@@ -455,6 +429,86 @@ off automatic frame defragmentation</p>
 used by a developer to store application-specific state</p>
 </li>
 </ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_usage_example">Usage Example</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Copy <code>fossa.c</code> and <code>fossa.h</code> to your build tree</p>
+</li>
+<li>
+<p>Write code that uses Fossa API, e.g. in <code>my_app.c</code></p>
+</li>
+<li>
+<p>Compile application: <code>$ cc my_app.c fossa.c</code></p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="title">my_app.c</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-cp">#include &quot;fossa.h&quot;  </span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
+
+<span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
+  <span class="tok-k">struct</span> <span class="tok-n">iobuf</span> <span class="tok-o">*</span><span class="tok-n">io</span> <span class="tok-o">=</span> <span class="tok-o">&amp;</span><span class="tok-n">nc</span><span class="tok-o">-&gt;</span><span class="tok-n">recv_iobuf</span><span class="tok-p">;</span>
+
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_RECV</span><span class="tok-p">:</span>
+      <span class="tok-c1">// This event handler implements simple TCP echo server</span>
+      <span class="tok-n">ns_send</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>  <span class="tok-c1">// Echo received data back</span>
+      <span class="tok-n">iobuf_remove</span><span class="tok-p">(</span><span class="tok-n">io</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>      <span class="tok-c1">// Discard data from recv buffer</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-k">default</span><span class="tok-o">:</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span>
+
+<span class="tok-kt">int</span> <span class="tok-nf">main</span><span class="tok-p">(</span><span class="tok-kt">void</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-n">mgr</span><span class="tok-p">;</span>
+
+  <span class="tok-n">ns_mgr_init</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
+
+  <span class="tok-c1">// Note that many connections can be added to a single event manager</span>
+  <span class="tok-c1">// Connections can be created at any point, e.g. in event handler function</span>
+  <span class="tok-n">ns_bind</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-s">&quot;1234&quot;</span><span class="tok-p">,</span> <span class="tok-n">ev_handler</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
+
+  <span class="tok-k">for</span> <span class="tok-p">(;;)</span> <span class="tok-p">{</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
+    <span class="tok-n">ns_mgr_poll</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-mi">1000</span><span class="tok-p">);</span>
+  <span class="tok-p">}</span>
+
+  <span class="tok-n">ns_mgr_free</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">);</span>
+  <span class="tok-k">return</span> <span class="tok-mi">0</span><span class="tok-p">;</span>
+<span class="tok-p">}</span></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1"></td>
+<td>Include Fossa API definitions</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2"></td>
+<td>Define an event handler function</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3"></td>
+<td>Initialize event manager object</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4"></td>
+<td>Create listening connection and add it to the event manager</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5"></td>
+<td>Start infinite event loop</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -1337,7 +1391,7 @@ Destination is '\0'-terminated.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-14 16:28:47 CET
+Last updated 2014-11-16 09:46:50 GMT
 </div>
 </div>
 </body>

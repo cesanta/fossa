@@ -3,10 +3,14 @@
  * All rights reserved
  */
 
+/*
+ * == MQTT
+ */
+
 #ifndef NS_DISABLE_MQTT
 
 #include "fossa.h"
-#include "mqtt.h"
+#include "internal.h"
 
 static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
@@ -43,7 +47,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
     case NS_MQTT_CMD_PUBLISH:
       {
         uint16_t topic_len = ntohs(*(uint16_t*)io->buf);
-        mm->topic = (char *)malloc(topic_len + 1);
+        mm->topic = (char *) NS_MALLOC(topic_len + 1);
         mm->topic[topic_len] = 0;
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
@@ -83,8 +87,9 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
-      if (mm.topic)
-        free(mm.topic);
+      if (mm.topic) {
+        NS_FREE(mm.topic);
+      }
       iobuf_remove(io, mm.payload_len);
       break;
     default:
@@ -92,10 +97,24 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+/*
+ * Attach built-in MQTT event handler to the given connection.
+ *
+ * The user-defined event handler will receive following extra events:
+ *
+ * - NS_MQTT_CONNACK
+ * - NS_MQTT_PUBLISH
+ * - NS_MQTT_PUBACK
+ * - NS_MQTT_PUBREC
+ * - NS_MQTT_PUBREL
+ * - NS_MQTT_PUBCOMP
+ * - NS_MQTT_SUBACK
+*/
 void ns_set_protocol_mqtt(struct ns_connection *nc) {
   nc->proto_handler = mqtt_handler;
 }
 
+/* Send MQTT handshake. */
 void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   static struct ns_send_mqtt_handshake_opts opts;
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
@@ -129,6 +148,7 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id,
   ns_send(nc, client_id, strlen(client_id));
 }
 
+/* Publish a message to a given channel. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags,
                      const void *data, size_t len) {
@@ -151,6 +171,7 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
   ns_send(nc, data, len);
 }
 
+/* Subscribe to a given channel. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {

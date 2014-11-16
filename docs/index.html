@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 1.5.1">
+<title>Multi-Protocol Networking Library For C/C++</title>
+<style>
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic|Noto+Serif:400,400italic,700,700italic|Droid+Sans+Mono:400');
+
+*, *:after, *:before {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  outline: 0;
+}
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font: 15px/1.4 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #444;
+}
+
+a { color: #369; }
+li > p { margin: 0; padding: 0; }
+dt { font-weight: bold; }
+h1, h2 { color: #369; }
+h2 { border-bottom: 1px solid #69c; }
+code, pre {
+  font: 14px/1.0 Courier, 'DejaVu Sans Mono', monospace !important;
+}
+p > code { background: #f0f0f0; }
+pre, pre > code { border-radius: 0.5em; }
+pre {
+  background: #f5f5f5 !important;
+  box-shadow: inset 1px 1px 1px 0px #aaa;
+}
+dd > p { margin: 0.4em; }
+
+#toc.toc2 {
+  position: fixed; width: 20%; left: 0; top: 0;
+  border-right: 1px solid #e5e5e5; z-index: 1000;
+  height: 100%; overflow: auto; line-height: 1.5em;
+}
+#toc { background: #f5f5f5; }
+#toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
+#toctitle { margin: 0.5em 1em;}
+#toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
+
+#content, h1 {
+  margin: 1em 3em 0 22%;
+}
+
+#footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
+
+pre > code {
+  padding: 0.5em;
+  display:block;
+}
+</style>
+<style>
+.listingblock .pygments .hll { background-color: #ffffcc }
+.listingblock .pygments  { background: #ffffff; }
+.listingblock .pygments .tok-c { color: #177500 } /* Comment */
+.listingblock .pygments .tok-err { color: #000000 } /* Error */
+.listingblock .pygments .tok-k { color: #A90D91 } /* Keyword */
+.listingblock .pygments .tok-l { color: #1C01CE } /* Literal */
+.listingblock .pygments .tok-n { color: #000000 } /* Name */
+.listingblock .pygments .tok-o { color: #000000 } /* Operator */
+.listingblock .pygments .tok-cm { color: #177500 } /* Comment.Multiline */
+.listingblock .pygments .tok-cp { color: #633820 } /* Comment.Preproc */
+.listingblock .pygments .tok-c1 { color: #177500 } /* Comment.Single */
+.listingblock .pygments .tok-cs { color: #177500 } /* Comment.Special */
+.listingblock .pygments .tok-kc { color: #A90D91 } /* Keyword.Constant */
+.listingblock .pygments .tok-kd { color: #A90D91 } /* Keyword.Declaration */
+.listingblock .pygments .tok-kn { color: #A90D91 } /* Keyword.Namespace */
+.listingblock .pygments .tok-kp { color: #A90D91 } /* Keyword.Pseudo */
+.listingblock .pygments .tok-kr { color: #A90D91 } /* Keyword.Reserved */
+.listingblock .pygments .tok-kt { color: #A90D91 } /* Keyword.Type */
+.listingblock .pygments .tok-ld { color: #1C01CE } /* Literal.Date */
+.listingblock .pygments .tok-m { color: #1C01CE } /* Literal.Number */
+.listingblock .pygments .tok-s { color: #C41A16 } /* Literal.String */
+.listingblock .pygments .tok-na { color: #836C28 } /* Name.Attribute */
+.listingblock .pygments .tok-nb { color: #A90D91 } /* Name.Builtin */
+.listingblock .pygments .tok-nc { color: #3F6E75 } /* Name.Class */
+.listingblock .pygments .tok-no { color: #000000 } /* Name.Constant */
+.listingblock .pygments .tok-nd { color: #000000 } /* Name.Decorator */
+.listingblock .pygments .tok-ni { color: #000000 } /* Name.Entity */
+.listingblock .pygments .tok-ne { color: #000000 } /* Name.Exception */
+.listingblock .pygments .tok-nf { color: #000000 } /* Name.Function */
+.listingblock .pygments .tok-nl { color: #000000 } /* Name.Label */
+.listingblock .pygments .tok-nn { color: #000000 } /* Name.Namespace */
+.listingblock .pygments .tok-nx { color: #000000 } /* Name.Other */
+.listingblock .pygments .tok-py { color: #000000 } /* Name.Property */
+.listingblock .pygments .tok-nt { color: #000000 } /* Name.Tag */
+.listingblock .pygments .tok-nv { color: #000000 } /* Name.Variable */
+.listingblock .pygments .tok-ow { color: #000000 } /* Operator.Word */
+.listingblock .pygments .tok-mb { color: #1C01CE } /* Literal.Number.Bin */
+.listingblock .pygments .tok-mf { color: #1C01CE } /* Literal.Number.Float */
+.listingblock .pygments .tok-mh { color: #1C01CE } /* Literal.Number.Hex */
+.listingblock .pygments .tok-mi { color: #1C01CE } /* Literal.Number.Integer */
+.listingblock .pygments .tok-mo { color: #1C01CE } /* Literal.Number.Oct */
+.listingblock .pygments .tok-sb { color: #C41A16 } /* Literal.String.Backtick */
+.listingblock .pygments .tok-sc { color: #2300CE } /* Literal.String.Char */
+.listingblock .pygments .tok-sd { color: #C41A16 } /* Literal.String.Doc */
+.listingblock .pygments .tok-s2 { color: #C41A16 } /* Literal.String.Double */
+.listingblock .pygments .tok-se { color: #C41A16 } /* Literal.String.Escape */
+.listingblock .pygments .tok-sh { color: #C41A16 } /* Literal.String.Heredoc */
+.listingblock .pygments .tok-si { color: #C41A16 } /* Literal.String.Interpol */
+.listingblock .pygments .tok-sx { color: #C41A16 } /* Literal.String.Other */
+.listingblock .pygments .tok-sr { color: #C41A16 } /* Literal.String.Regex */
+.listingblock .pygments .tok-s1 { color: #C41A16 } /* Literal.String.Single */
+.listingblock .pygments .tok-ss { color: #C41A16 } /* Literal.String.Symbol */
+.listingblock .pygments .tok-bp { color: #5B269A } /* Name.Builtin.Pseudo */
+.listingblock .pygments .tok-vc { color: #000000 } /* Name.Variable.Class */
+.listingblock .pygments .tok-vg { color: #000000 } /* Name.Variable.Global */
+.listingblock .pygments .tok-vi { color: #000000 } /* Name.Variable.Instance */
+.listingblock .pygments .tok-il { color: #1C01CE } /* Literal.Number.Integer.Long */
+</style>
+</head>
+<body class="book toc2 toc-left">
+<div id="header">
+<h1>Multi-Protocol Networking Library For C/C++</h1>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_design_concept">Design Concept</a></li>
+<li><a href="#_using_fossa">Using Fossa</a></li>
+<li><a href="#_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</a>
+<ul class="sectlevel2">
+<li><a href="#_structures">Structures</a></li>
+<li><a href="#_functions">Functions</a>
+<ul class="sectlevel3">
+<li><a href="#_ns_start_thread">ns_start_thread</a></li>
+<li><a href="#_ns_avprintf">ns_avprintf</a></li>
+<li><a href="#_ns_vprintf">ns_vprintf</a></li>
+<li><a href="#_ns_printf">ns_printf</a></li>
+<li><a href="#_ns_set_close_on_exec">ns_set_close_on_exec</a></li>
+<li><a href="#_ns_socketpair2">ns_socketpair2</a></li>
+<li><a href="#_ns_resolve">ns_resolve</a></li>
+<li><a href="#_ns_sock_to_str">ns_sock_to_str</a></li>
+<li><a href="#_ns_hexdump">ns_hexdump</a></li>
+<li><a href="#_ns_send">ns_send</a></li>
+<li><a href="#_ns_mgr_poll">ns_mgr_poll</a></li>
+<li><a href="#_ns_connect">ns_connect</a></li>
+<li><a href="#_ns_connect_opt">ns_connect_opt</a></li>
+<li><a href="#_ns_add_sock">ns_add_sock</a></li>
+<li><a href="#_ns_add_sock_opt">ns_add_sock_opt</a></li>
+<li><a href="#_ns_next">ns_next</a></li>
+<li><a href="#_ns_broadcast">ns_broadcast</a></li>
+<li><a href="#_ns_mgr_init">ns_mgr_init</a></li>
+<li><a href="#_ns_mgr_free">ns_mgr_free</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_http_websocket_api">HTTP/Websocket API</a>
+<ul class="sectlevel2">
+<li><a href="#_functions_2">Functions</a>
+<ul class="sectlevel3">
+<li><a href="#_ns_parse_http">ns_parse_http</a></li>
+<li><a href="#_ns_get_http_header">ns_get_http_header</a></li>
+<li><a href="#_ns_send_websocket_frame">ns_send_websocket_frame</a></li>
+<li><a href="#_ns_send_websocket_framev">ns_send_websocket_framev</a></li>
+<li><a href="#_ns_printf_websocket_frame">ns_printf_websocket_frame</a></li>
+<li><a href="#_ns_set_protocol_http_websocket">ns_set_protocol_http_websocket</a></li>
+<li><a href="#_ns_send_websocket_handshake">ns_send_websocket_handshake</a></li>
+<li><a href="#_ns_get_http_var">ns_get_http_var</a></li>
+<li><a href="#_ns_serve_http">ns_serve_http</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_json_rpc">JSON-RPC</a>
+<ul class="sectlevel2">
+<li><a href="#_functions_3">Functions</a>
+<ul class="sectlevel3">
+<li><a href="#_ns_rpc_create_reply">ns_rpc_create_reply</a></li>
+<li><a href="#_ns_rpc_create_request">ns_rpc_create_request</a></li>
+<li><a href="#_ns_rpc_create_error">ns_rpc_create_error</a></li>
+<li><a href="#_ns_rpc_create_std_error">ns_rpc_create_std_error</a></li>
+<li><a href="#_ns_rpc_dispatch">ns_rpc_dispatch</a></li>
+<li><a href="#_ns_rpc_parse_reply">ns_rpc_parse_reply</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_mqtt">MQTT</a>
+<ul class="sectlevel2">
+<li><a href="#_functions_4">Functions</a>
+<ul class="sectlevel3">
+<li><a href="#_ns_set_protocol_mqtt">ns_set_protocol_mqtt</a></li>
+<li><a href="#_ns_send_mqtt_handshake">ns_send_mqtt_handshake</a></li>
+<li><a href="#_ns_mqtt_publish">ns_mqtt_publish</a></li>
+<li><a href="#_ns_mqtt_subscribe">ns_mqtt_subscribe</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_utilities">Utilities</a>
+<ul class="sectlevel2">
+<li><a href="#_functions_5">Functions</a>
+<ul class="sectlevel3">
+<li><a href="#_ns_ncasecmp">ns_ncasecmp</a></li>
+<li><a href="#_ns_casecmp">ns_casecmp</a></li>
+<li><a href="#_ns_vcasecmp">ns_vcasecmp</a></li>
+<li><a href="#_ns_vcmp">ns_vcmp</a></li>
+<li><a href="#_ns_stat">ns_stat</a></li>
+<li><a href="#_ns_fopen">ns_fopen</a></li>
+<li><a href="#_ns_open">ns_open</a></li>
+<li><a href="#_ns_base64_encode">ns_base64_encode</a></li>
+<li><a href="#_ns_base64_decode">ns_base64_decode</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_design_concept">Design Concept</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Fossa is a non-blocking, asyncronous event manager described by
+<code>struct ns_mgr</code> structure. That structure holds active connections.
+Connections could be either <strong>listening</strong>, <strong>outbound</strong> or <strong>inbound</strong>.
+Outbound connections are created by <code>ns_connect()</code> call.
+Listening connections are created by <code>ns_bind()</code> call.
+Inbound connections are those accepted by a listening connection.
+Each connection is described by <code>struct ns_connection</code> structure, which has
+a number of fields like socket, event handler function, send/receive buffer,
+flags, et cetera.</p>
+</div>
+<div class="paragraph">
+<p><code>ns_mgr_poll()</code> should be called in an infinite event loop.
+<code>ns_mgr_poll()</code> iterates over all sockets, accepts new connections,
+sends and receives data, closes connections, and calls an event handler
+function for each of those events.</p>
+</div>
+<div class="paragraph">
+<p>Each connection has send and receive buffer, <code>struct ns_connection::send_iobuf</code>
+and <code>struct ns_connection::recv_iobuf</code> respectively. When data arrives,
+Fossa appends received data to the <code>recv_iobuf</code> and
+triggers <code>NS_RECV</code> event. User may send data back (<code>ns_send()</code> or
+<code>ns_printf()</code>), which appends data to the <code>send_iobuf</code>. When Fossa
+successfully writes data to the socket, it discards it from <code>send_iobuf</code> and
+sends <code>NS_SEND</code> event. When connection is closed, <code>NS_CLOSE</code> event is sent.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="http://cesanta.com/images/fossa/iobuf.png" alt="iobuf">
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_using_fossa">Using Fossa</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Copy <code>fossa.c</code> and <code>fossa.h</code> in your build</p>
+</li>
+<li>
+<p>Write code that uses Fossa API, see example below:</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-cp">#include &quot;fossa.h&quot;  </span><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1">
+
+<span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2">
+  <span class="tok-k">struct</span> <span class="tok-n">iobuf</span> <span class="tok-o">*</span><span class="tok-n">io</span> <span class="tok-o">=</span> <span class="tok-o">&amp;</span><span class="tok-n">nc</span><span class="tok-o">-&gt;</span><span class="tok-n">recv_iobuf</span><span class="tok-p">;</span>
+
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_RECV</span><span class="tok-p">:</span>
+      <span class="tok-c1">// This event handler implements simple TCP echo server</span>
+      <span class="tok-n">ns_send</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>  <span class="tok-c1">// Echo received data back</span>
+      <span class="tok-n">iobuf_remove</span><span class="tok-p">(</span><span class="tok-n">io</span><span class="tok-p">,</span> <span class="tok-n">io</span><span class="tok-o">-&gt;</span><span class="tok-n">len</span><span class="tok-p">);</span>      <span class="tok-c1">// Discard data from recv buffer</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-k">default</span><span class="tok-o">:</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span>
+
+<span class="tok-kt">int</span> <span class="tok-nf">main</span><span class="tok-p">(</span><span class="tok-kt">void</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-n">mgr</span><span class="tok-p">;</span>
+
+  <span class="tok-n">ns_mgr_init</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3">
+
+  <span class="tok-c1">// Note that many connections can be added to a single event manager</span>
+  <span class="tok-c1">// Connections can be created at any point, e.g. in event handler function</span>
+  <span class="tok-n">ns_bind</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-s">&quot;1234&quot;</span><span class="tok-p">,</span> <span class="tok-n">ev_handler</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4">
+
+  <span class="tok-k">for</span> <span class="tok-p">(;;)</span> <span class="tok-p">{</span>  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5">
+    <span class="tok-n">ns_mgr_poll</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-mi">1000</span><span class="tok-p">);</span>
+  <span class="tok-p">}</span>
+
+  <span class="tok-n">ns_mgr_free</span><span class="tok-p">(</span><span class="tok-o">&amp;</span><span class="tok-n">mgr</span><span class="tok-p">);</span>
+  <span class="tok-k">return</span> <span class="tok-mi">0</span><span class="tok-p">;</span>
+<span class="tok-p">}</span></code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABjSURBVHjaVY6xDcAwCAS/pPQaLim9QmajdOk2I2SNrMEIlARIoigU8Cek/4e7zdHaWOYOVwaoA6wOCw05Y7FBgE0tIWQ+sBcwKM8qoD/wB5wGL8hjfdzWrh01GRp1hInGjDoXwHgsFuzBVLQAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUANThhMDcyZTA3MGRhMjJmNjEzNWNiZDNlNDE0NTQ2ZjloaiHtAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="1"></td>
+<td>Include Fossa API definitions</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB7SURBVHjaHY6hFcMwDEQ/NDQsNSwU9Apdo7Cw0CsIBoZmhKzQEQJLDQsFVclHpHu693W429Zr7bu541Pg3kCmY0K75u9TEUPhuGgWU4mQDvieEaSQEnsT6zKPeZY0EUNtrHMCXvYUuSUg0PsMjUSvpysUT6OOSil9izp/VNk1YJ8vf6MAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBlYWU1MjljOTRhN2Y0N2RlY2NmYWRhMjhhY2I5ZGblb7ENAAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="2"></td>
+<td>Define an event handler function</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB4SURBVHjaJU6rFcNADBM09BqBhl6ltDCwKxQeDOwKB7tGYGCoYaChK6cmlt7TD1W5uap/sgoVBnEXWBTSoOdx7gpLDOAVorWC0ABdcBPqwZtx8Muf+DPXJpQ96Nu/LSMYl/n17oCOnplTOrpiwW3sUs4ZJmob5/wAUbg1Y/zrjUwAAABDdEVYdFNvZnR3YXJlAEAoIylJbWFnZU1hZ2ljayA0LjIuOCA5OS8wOC8wMSBjcmlzdHlAbXlzdGljLmVzLmR1cG9udC5jb22RuiG4AAAAKnRFWHRTaWduYXR1cmUAODBiYmRhMjcyNmRkYWNlOGFiOGEwMWY1OWRlMmViZGII/Q51AAAADnRFWHRQYWdlADEyeDEyKzArMIRtu30AAAAASUVORK5CYII=" alt="3"></td>
+<td>Initialize event manager object</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAABzSURBVHjaHY0hEoUwEEMjkZVYZGVlr1CJxCKRXKPyy28reyVsZeXKsCFi573ZzAQk+x5jaQ6gFQAxIA8XceENZEN3DkOCH/TobUoSVuAYwSSLyzbvaHWVFJxUmmp+PF+twrLkuXzLwPmZ8+OjtH8KS6pGvuoGNo5b6rzDAAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlADlmODJmY2FjOWUwMzljYmRiNzIzODBhNDU5MTMyNGY1gLv4dgAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="4"></td>
+<td>Create listening connection and add it to the event manager</td>
+</tr>
+<tr>
+<td><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAAAAABzHgM7AAAAAmJLR0QAAKqNIzIAAAB2SURBVHjaFY6hEcQwDAQPChqGGhoaqgWX8PUYBhqGBn4rX0JooKDh/UlsZ3b2BJKXH8XPTYLh1lpt1h+BwxkRA23jhsCQd2IkfH9T3HEkzPFegCXUKSUSpJUPsN7UFOgc9VkZUBoz9l0yrVHZarUcJZeb9XznDyNbNy9CX3/7AAAAQ3RFWHRTb2Z0d2FyZQBAKCMpSW1hZ2VNYWdpY2sgNC4yLjggOTkvMDgvMDEgY3Jpc3R5QG15c3RpYy5lcy5kdXBvbnQuY29tkbohuAAAACp0RVh0U2lnbmF0dXJlAGZlNjkwNDYzMzc5ZWIyNWU1NjJmY2M4Y2M5YjNjN2Uw37I5ngAAAA50RVh0UGFnZQAxMngxMiswKzCEbbt9AAAAAElFTkSuQmCC" alt="5"></td>
+<td>Start infinite event loop</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Fossa accepts incoming connections, reads and writes data, and
+calls specified event handler for each connection when appropriate. An
+event handler should examine received data, set connection flags if needed,
+and send data back to the client by <code>ns_send()</code> or <code>ns_printf()</code>. Here is a
+typical event flow for the inbound connection:
+<code>NS_ACCEPT</code> &#8594; <code>NS_RECV</code> &#8594; &#8230;&#8203;. &#8594; <code>NS_CLOSE</code>. Below is a complete list
+of events triggered by Fossa:</p>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">NS_ACCEPT</dt>
+<dd>
+<p>sent when new server connection is accepted by a
+listening connection. <code>void *ev_data</code> is <code>union socket_address</code>
+of the remote peer.</p>
+</dd>
+<dt class="hdlist1">NS_CONNECT</dt>
+<dd>
+<p>sent when a new outbound connection created by <code>ns_connect()</code>
+either failed or succeeded. <code>void *ev_data</code> is <code>int *success</code>. If <code>success</code> is 0
+then connection has been established, otherwise it contains error code. Example
+code to check connection status:</p>
+</dd>
+</dl>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-kt">int</span> <span class="tok-n">connect_status</span><span class="tok-p">;</span>
+
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_CONNECT</span><span class="tok-p">:</span>
+      <span class="tok-n">connect_status</span> <span class="tok-o">=</span> <span class="tok-o">*</span> <span class="tok-p">(</span><span class="tok-kt">int</span> <span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-n">ev_data</span><span class="tok-p">;</span>
+      <span class="tok-k">if</span> <span class="tok-p">(</span><span class="tok-n">connect_status</span> <span class="tok-o">==</span> <span class="tok-mi">0</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+        <span class="tok-cm">/* Success */</span>
+      <span class="tok-p">}</span> <span class="tok-k">else</span>  <span class="tok-p">{</span>
+        <span class="tok-cm">/* Error */</span>
+        <span class="tok-n">printf</span><span class="tok-p">(</span><span class="tok-s">&quot;connect() error: %s</span><span class="tok-se">\n</span><span class="tok-s">&quot;</span><span class="tok-p">,</span> <span class="tok-n">strerror</span><span class="tok-p">(</span><span class="tok-n">connect_status</span><span class="tok-p">));</span>
+      <span class="tok-p">}</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-p">...</span></code></pre>
+</div>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">NS_RECV</dt>
+<dd>
+<p>New data is received and appended to the end of <code>recv_iobuf</code>.
+<code>void *ev_data</code> is <code>int *num_received_bytes</code>.</p>
+</dd>
+</dl>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<img src="data:image/png;base64,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" alt="Warning">
+</td>
+<td class="content">
+Fossa uses <code>realloc()</code> to expand receive buffer.
+It is user&#8217;s responsibility to discard processed
+data from the beginning of receive buffer, note the <code>iobuf_remove()</code>
+call in the example above.
+</td>
+</tr>
+</table>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">NS_SEND</dt>
+<dd>
+<p>Fossa has written data to the remote peer and discarded
+written data from the <code>send_iobuf</code>. <code>void *ev_data</code> is <code>int *num_sent_bytes</code></p>
+</dd>
+<dt class="hdlist1">NS_POLL</dt>
+<dd>
+<p>Sent to all connections on each invocation of <code>ns_server_poll()</code></p>
+</dd>
+</dl>
+</div>
+<div class="paragraph">
+<p>An event handler can set <code>struct ns_connection::flags</code> attribute to control
+the behavior of the connection.  Below is a list of connection flags:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>NSF_FINISHED_SENDING_DATA</code> tells Fossa that all data has been
+appended to the <code>send_iobuf</code>. As soon as Fossa sends it to the
+socket, the connection will be closed.</p>
+</li>
+<li>
+<p><code>NSF_BUFFER_BUT_DONT_SEND</code> tells Fossa to append data to the
+<code>send_iobuf</code> but hold on sending it, because the data will be modified
+later and then will be sent by clearing <code>NSF_BUFFER_BUT_DONT_SEND</code> flag.</p>
+</li>
+<li>
+<p><code>NSF_SSL_HANDSHAKE_DONE</code> SSL only, set when SSL handshake is done</p>
+</li>
+<li>
+<p><code>NSF_CONNECTING</code> set when connection is in connecting state after
+<code>ns_connect()</code> call but connect did not finish yet</p>
+</li>
+<li>
+<p><code>NSF_CLOSE_IMMEDIATELY</code> tells Fossa to close the connection
+immediately, usually after some error</p>
+</li>
+<li>
+<p><code>NSF_LISTENING</code> set for all listening connections</p>
+</li>
+<li>
+<p><code>NSF_UDP</code> set if connection is UDP</p>
+</li>
+<li>
+<p><code>NSF_IS_WEBSOCKET</code> set by Fossa if connection is a Websocket connection</p>
+</li>
+<li>
+<p><code>NSF_WEBSOCKET_NO_DEFRAG</code> should be set by a user if user wants to switch
+off automatic frame defragmentation</p>
+</li>
+<li>
+<p><code>NSF_USER_1</code>, <code>NSF_USER_2</code>, <code>NSF_USER_3</code>, <code>NSF_USER_4</code> could be
+used by a developer to store application-specific state</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</h2>
+<div class="sectionbody">
+<div class="admonitionblock caution">
+<table>
+<tr>
+<td class="icon">
+<img src="data:image/png;base64,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" alt="Caution">
+</td>
+<td class="content">
+Fossa manager instance is single threaded. It does not protect
+it&#8217;s data structures by mutexes, therefore all functions that are dealing
+with particular event manager should be called from the same thread,
+with exception of <code>mg_broadcast()</code> function. It is fine to have different
+event managers handled by different threads.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_structures">Structures</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><code>struct ns_connection</code> Describes a connection between two peers</p>
+</li>
+<li>
+<p><code>struct ns_mgr</code> Container for a bunch of connections</p>
+</li>
+<li>
+<p><code>struct iobuf</code> Describes piece of data</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_functions">Functions</h3>
+<div class="sect3">
+<h4 id="_ns_start_thread">ns_start_thread</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ns_start_thread</span><span class="tok-p">(</span><span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-p">(</span><span class="tok-o">*</span><span class="tok-n">f</span><span class="tok-p">)(</span><span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-p">),</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">p</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Starts a new thread.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_avprintf">ns_avprintf</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_avprintf</span><span class="tok-p">(</span><span class="tok-kt">char</span> <span class="tok-o">**</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">size</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">fmt</span><span class="tok-p">,</span> <span class="tok-kt">va_list</span> <span class="tok-n">ap</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Print message to buffer. If buffer is large enough to hold the message,
+return buffer. If buffer is to small, allocate large enough buffer on heap,
+and return allocated buffer.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_vprintf">ns_vprintf</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_vprintf</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">fmt</span><span class="tok-p">,</span> <span class="tok-kt">va_list</span> <span class="tok-n">ap</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send <code>printf</code>-style formatted data to the connection.</p>
+</div>
+<div class="paragraph">
+<p>See <code>ns_send</code> for more details on send semantics.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_printf">ns_printf</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_printf</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">conn</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">fmt</span><span class="tok-p">,</span> <span class="tok-p">...)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send <code>printf</code>-style formatted data to the connection.</p>
+</div>
+<div class="paragraph">
+<p>See <code>ns_send</code> for more details on send semantics.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_set_close_on_exec">ns_set_close_on_exec</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_set_close_on_exec</span><span class="tok-p">(</span><span class="tok-kt">sock_t</span> <span class="tok-n">sock</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set close-on-exec bit for a given socket.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_socketpair2">ns_socketpair2</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_socketpair2</span><span class="tok-p">(</span><span class="tok-kt">sock_t</span> <span class="tok-n">sp</span><span class="tok-p">[</span><span class="tok-mi">2</span><span class="tok-p">],</span> <span class="tok-kt">int</span> <span class="tok-n">sock_type</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create a socket pair.
+<code>proto</code> can be either <code>SOCK_STREAM</code> or <code>SOCK_DGRAM</code>.
+Return 0 on failure, 1 on success.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_resolve">ns_resolve</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_resolve</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">host</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">n</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Converts domain name into IP address.</p>
+</div>
+<div class="paragraph">
+<p>This is a blocking call. Returns 1 on success, 0 on failure.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_sock_to_str">ns_sock_to_str</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_sock_to_str</span><span class="tok-p">(</span><span class="tok-kt">sock_t</span> <span class="tok-n">sock</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">flags</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Converts socket&#8217;s local or remote address into string.</p>
+</div>
+<div class="paragraph">
+<p>The <code>flags</code> parameter is a bit mask that controls the behavior.
+If bit 2 is set (<code>flags &amp; 4</code>) then the remote address is stringified,
+otherwise local address is stringified. If bit 0 is set, then IP
+address is printed. If bit 1 is set, then port number is printed. If both
+port number and IP address are printed, they are separated by <code>:</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_hexdump">ns_hexdump</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_hexdump</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">dst_len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Generates a hexdump.</p>
+</div>
+<div class="paragraph">
+<p>Takes a memory buffer <code>buf</code> of length <code>len</code> and creates a hex dump of that
+buffer in <code>dst</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_send">ns_send</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_send</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">conn</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send data to the connection.</p>
+</div>
+<div class="paragraph">
+<p>Number of written bytes is returned. Note that these sending
+functions do not actually push data to the sockets, they just append data
+to the output buffer. The exception is UDP connections. For UDP, data is
+sent immediately, and returned value indicates an actual number of bytes
+sent to the socket.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_mgr_poll">ns_mgr_poll</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">time_t</span> <span class="tok-n">ns_mgr_poll</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">milli</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This function performs the actual IO, and must be called in a loop
+(an event loop). Returns the current timestamp.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_connect">ns_connect</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">ns_connect</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">address</span><span class="tok-p">,</span>
+                                 <span class="tok-kt">ns_event_handler_t</span> <span class="tok-n">callback</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Connect to a remote host.</p>
+</div>
+<div class="paragraph">
+<p>See <code>ns_connect_opt</code> for full documentation.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_connect_opt">ns_connect_opt</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">ns_connect_opt</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">address</span><span class="tok-p">,</span>
+                                     <span class="tok-kt">ns_event_handler_t</span> <span class="tok-n">callback</span><span class="tok-p">,</span>
+                                     <span class="tok-k">struct</span> <span class="tok-n">ns_connect_opts</span> <span class="tok-n">opts</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Connect to a remote host.</p>
+</div>
+<div class="paragraph">
+<p>If successful, <code>NS_CONNECT</code> event will be delivered
+to the new connection. <code>addr</code> format is the same as for the <code>ns_bind()</code> call,
+just an IP address becomes mandatory: <code>[PROTO://]HOST:PORT</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>PROTO</code> could be <code>tcp://</code> or <code>udp://</code>. If <code>HOST</code> is not an IP
+address, Fossa will resolve it - beware that standard blocking resolver
+will be used. It is a good practice to pre-resolve hosts beforehands and
+use only IP addresses to avoid blockin an IO thread.</p>
+</div>
+<div class="paragraph">
+<p>See the <code>ns_connect_opts</code> structure for a description of the optional
+parameters.</p>
+</div>
+<div class="paragraph">
+<p>Returns a new outbound connection, or <code>NULL</code> on error.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_add_sock">ns_add_sock</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">ns_add_sock</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">sock_t</span> <span class="tok-n">sock</span><span class="tok-p">,</span>
+                                  <span class="tok-kt">ns_event_handler_t</span> <span class="tok-n">callback</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create a connection, associate it with the given socket and event handler, and
+add to the manager.</p>
+</div>
+<div class="paragraph">
+<p>For more options see the <code>ns_add_sock_opt</code> variant.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_add_sock_opt">ns_add_sock_opt</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">ns_add_sock_opt</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">sock_t</span> <span class="tok-n">sock</span><span class="tok-p">,</span>
+                                      <span class="tok-kt">ns_event_handler_t</span> <span class="tok-n">callback</span><span class="tok-p">,</span>
+                                      <span class="tok-k">struct</span> <span class="tok-n">ns_add_sock_opts</span> <span class="tok-n">opts</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create a connection, associate it with the given socket and event handler,
+and add to the manager.</p>
+</div>
+<div class="paragraph">
+<p>See the <code>ns_add_sock_opts</code> structure for a description of the options.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_next">ns_next</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">ns_next</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">conn</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Iterates over all active connections.</p>
+</div>
+<div class="paragraph">
+<p>Returns next connection from the list
+of active connections, or <code>NULL</code> if there is no more connections. Below
+is the iteration idiom:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">for</span> <span class="tok-p">(</span><span class="tok-n">c</span> <span class="tok-o">=</span> <span class="tok-n">ns_next</span><span class="tok-p">(</span><span class="tok-n">srv</span><span class="tok-p">,</span> <span class="tok-nb">NULL</span><span class="tok-p">);</span> <span class="tok-n">c</span> <span class="tok-o">!=</span> <span class="tok-nb">NULL</span><span class="tok-p">;</span> <span class="tok-n">c</span> <span class="tok-o">=</span> <span class="tok-n">ns_next</span><span class="tok-p">(</span><span class="tok-n">srv</span><span class="tok-p">,</span> <span class="tok-n">c</span><span class="tok-p">))</span> <span class="tok-p">{</span>
+  <span class="tok-c1">// Do something with connection `c`</span>
+<span class="tok-p">}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_broadcast">ns_broadcast</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_broadcast</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">mgr</span><span class="tok-p">,</span> <span class="tok-kt">ns_event_handler_t</span> <span class="tok-n">cb</span><span class="tok-p">,</span><span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">data</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Passes a message of a given length to all connections.</p>
+</div>
+<div class="paragraph">
+<p>Must be called from a different thread.</p>
+</div>
+<div class="paragraph">
+<p>Skeleton manager has a socketpair, <code>struct ns_mgr::ctl</code>,
+where <code>ns_broadcast()</code> pushes the message.
+<code>ns_mgr_poll()</code> wakes up, reads a message from the socket pair, and calls
+specified callback for each connection. Thus the callback function executes
+in event manager thread. Note that <code>ns_broadcast()</code> is the only function
+that can be, and must be, called from a different thread.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_mgr_init">ns_mgr_init</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_mgr_init</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">user_data</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Initializes Fossa manager.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_mgr_free">ns_mgr_free</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_mgr_free</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_mgr</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>De-initializes skeleton manager.</p>
+</div>
+<div class="paragraph">
+<p>Closes and deallocates all active connections.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_http_websocket_api">HTTP/Websocket API</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_functions_2">Functions</h3>
+<div class="sect3">
+<h4 id="_ns_parse_http">ns_parse_http</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_parse_http</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">n</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-n">req</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Parses a HTTP message.</p>
+</div>
+<div class="paragraph">
+<p>Return number of bytes parsed. If HTTP message is
+incomplete, <code>0</code> is returned. On parse error, negative number is returned.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_get_http_header">ns_get_http_header</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">ns_get_http_header</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-n">hm</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">name</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Returns HTTP header if it is present in the HTTP message, or <code>NULL</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_send_websocket_frame">ns_send_websocket_frame</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_send_websocket_frame</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">op</span><span class="tok-p">,</span>
+                             <span class="tok-k">const</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">data</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send websocket frame to the remote end.</p>
+</div>
+<div class="paragraph">
+<p><code>op</code> specifies frame&#8217;s type , one of:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>WEBSOCKET_OP_CONTINUE</p>
+</li>
+<li>
+<p>WEBSOCKET_OP_TEXT</p>
+</li>
+<li>
+<p>WEBSOCKET_OP_BINARY</p>
+</li>
+<li>
+<p>WEBSOCKET_OP_CLOSE</p>
+</li>
+<li>
+<p>WEBSOCKET_OP_PING</p>
+</li>
+<li>
+<p>WEBSOCKET_OP_PONG
+<code>data</code> and <code>data_len</code> contain frame data.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_send_websocket_framev">ns_send_websocket_framev</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_send_websocket_framev</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">op</span><span class="tok-p">,</span>
+                              <span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">strv</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">strvcnt</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send multiple websocket frames.</p>
+</div>
+<div class="paragraph">
+<p>Like <code>ns_send_websocket_frame()</code>, but composes a frame from multiple buffers.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_printf_websocket_frame">ns_printf_websocket_frame</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_printf_websocket_frame</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">op</span><span class="tok-p">,</span>
+                               <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">fmt</span><span class="tok-p">,</span> <span class="tok-p">...)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send websocket frame to the remote end.</p>
+</div>
+<div class="paragraph">
+<p>Like <code>ns_send_websocket_frame()</code>, but allows to create formatted message
+with <code>printf()</code>-like semantics.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_set_protocol_http_websocket">ns_set_protocol_http_websocket</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_set_protocol_http_websocket</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Attach built-in HTTP event handler to the given connection.
+User-defined event handler will receive following extra events:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
+<code>struct http_message</code> through the handler&#8217;s <code>void *ev_data</code> pointer.</p>
+</li>
+<li>
+<p>NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
+<code>struct http_message</code> through the handler&#8217;s <code>void *ev_data</code> pointer.</p>
+</li>
+<li>
+<p>NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
+request. <code>ev_data</code> contains parsed HTTP request.</p>
+</li>
+<li>
+<p>NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
+<code>ev_data</code> is <code>NULL</code>.</p>
+</li>
+<li>
+<p>NS_WEBSOCKET_FRAME: new websocket frame has arrived. <code>ev_data</code> is
+<code>struct websocket_message *</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_send_websocket_handshake">ns_send_websocket_handshake</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_send_websocket_handshake</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">uri</span><span class="tok-p">,</span>
+                                 <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">extra_headers</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Sends websocket handshake to the server.</p>
+</div>
+<div class="paragraph">
+<p><code>nc</code> must be a valid connection, connected to a server, <code>uri</code> is an URI on the server, <code>extra_headers</code> is
+extra HTTP headers to send or <code>NULL</code>.</p>
+</div>
+<div class="paragraph">
+<p>This function is intended to be used by websocket client.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_get_http_var">ns_get_http_var</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_get_http_var</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">name</span><span class="tok-p">,</span>
+                    <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">dst_len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Fetch an HTTP form variable.</p>
+</div>
+<div class="paragraph">
+<p>Fetch a variable <code>name</code> from a <code>buf</code> into a buffer specified by
+<code>dst</code>, <code>dst_len</code>. Destination is always zero-terminated. Return length
+of a fetched variable. If not found, 0 is returned. <code>buf</code> must be
+valid url-encoded buffer. If destination is too small, <code>-1</code> is returned.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_serve_http">ns_serve_http</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_serve_http</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-n">hm</span><span class="tok-p">,</span>
+                   <span class="tok-k">struct</span> <span class="tok-n">ns_serve_http_opts</span> <span class="tok-n">opts</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Serve given HTTP request according to the <code>options</code>.</p>
+</div>
+<div class="paragraph">
+<p>Example code snippet:</p>
+</div>
+<div class="listingblock">
+<div class="title">web_server.c</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-k">static</span> <span class="tok-kt">void</span> <span class="tok-nf">ev_handler</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">ev</span><span class="tok-p">,</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">ev_data</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+  <span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-n">hm</span> <span class="tok-o">=</span> <span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">http_message</span> <span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-n">ev_data</span><span class="tok-p">;</span>
+  <span class="tok-k">struct</span> <span class="tok-n">ns_serve_http_opts</span> <span class="tok-n">opts</span> <span class="tok-o">=</span> <span class="tok-p">{</span> <span class="tok-p">.</span><span class="tok-n">document_root</span> <span class="tok-o">=</span> <span class="tok-s">&quot;/var/www&quot;</span> <span class="tok-p">};</span>  <span class="tok-c1">// C99 syntax</span>
+
+  <span class="tok-k">switch</span> <span class="tok-p">(</span><span class="tok-n">ev</span><span class="tok-p">)</span> <span class="tok-p">{</span>
+    <span class="tok-k">case</span> <span class="tok-nl">NS_HTTP_REQUEST</span><span class="tok-p">:</span>
+      <span class="tok-n">ns_serve_http</span><span class="tok-p">(</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-n">hm</span><span class="tok-p">,</span> <span class="tok-n">opts</span><span class="tok-p">);</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+    <span class="tok-k">default</span><span class="tok-o">:</span>
+      <span class="tok-k">break</span><span class="tok-p">;</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_json_rpc">JSON-RPC</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_functions_3">Functions</h3>
+<div class="sect3">
+<h4 id="_ns_rpc_create_reply">ns_rpc_create_reply</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_create_reply</span><span class="tok-p">(</span><span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_rpc_request</span> <span class="tok-o">*</span><span class="tok-n">req</span><span class="tok-p">,</span>
+                        <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">result_fmt</span><span class="tok-p">,</span> <span class="tok-p">...)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create JSON-RPC reply in a given buffer.</p>
+</div>
+<div class="paragraph">
+<p>Return length of the reply, which
+can be larger then <code>len</code> that indicates an overflow.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_rpc_create_request">ns_rpc_create_request</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_create_request</span><span class="tok-p">(</span><span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">method</span><span class="tok-p">,</span>
+                          <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">id</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">params_fmt</span><span class="tok-p">,</span> <span class="tok-p">...)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create JSON-RPC request in a given buffer.</p>
+</div>
+<div class="paragraph">
+<p>Return length of the request, which
+can be larger then <code>len</code> that indicates an overflow.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_rpc_create_error">ns_rpc_create_error</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_create_error</span><span class="tok-p">(</span><span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">ns_rpc_request</span> <span class="tok-o">*</span><span class="tok-n">req</span><span class="tok-p">,</span>
+                        <span class="tok-kt">int</span> <span class="tok-n">code</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">message</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">fmt</span><span class="tok-p">,</span> <span class="tok-p">...)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create JSON-RPC error reply in a given buffer.</p>
+</div>
+<div class="paragraph">
+<p>Return length of the error, which
+can be larger then <code>len</code> that indicates an overflow.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_rpc_create_std_error">ns_rpc_create_std_error</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_create_std_error</span><span class="tok-p">(</span><span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">ns_rpc_request</span> <span class="tok-o">*</span><span class="tok-n">req</span><span class="tok-p">,</span>
+                            <span class="tok-kt">int</span> <span class="tok-n">code</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Create JSON-RPC error in a given buffer.</p>
+</div>
+<div class="paragraph">
+<p>Return length of the error, which
+can be larger then <code>len</code> that indicates an overflow. <code>code</code> could be one of:
+<code>JSON_RPC_PARSE_ERROR</code>, <code>JSON_RPC_INVALID_REQUEST_ERROR</code>,
+<code>JSON_RPC_METHOD_NOT_FOUND_ERROR</code>, <code>JSON_RPC_INVALID_PARAMS_ERROR</code>,
+<code>JSON_RPC_INTERNAL_ERROR</code>, <code>JSON_RPC_SERVER_ERROR</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_rpc_dispatch">ns_rpc_dispatch</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_dispatch</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">dst_len</span><span class="tok-p">,</span>
+                    <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">**</span><span class="tok-n">methods</span><span class="tok-p">,</span> <span class="tok-kt">ns_rpc_handler_t</span> <span class="tok-o">*</span><span class="tok-n">handlers</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Dispatches a JSON-RPC request.</p>
+</div>
+<div class="paragraph">
+<p>Parses JSON-RPC request contained in <code>buf</code>, <code>len</code>. Then, dispatches the request
+to the correct handler method. Valid method names should be specified in NULL
+terminated array <code>methods</code>, and corresponding handlers in <code>handlers</code>.
+Result is put in <code>dst</code>, <code>dst_len</code>. Return: length of the result, which
+can be larger then <code>dst_len</code> that indicates an overflow.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_rpc_parse_reply">ns_rpc_parse_reply</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_rpc_parse_reply</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">buf</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span>
+                       <span class="tok-k">struct</span> <span class="tok-n">json_token</span> <span class="tok-o">*</span><span class="tok-n">toks</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">max_toks</span><span class="tok-p">,</span>
+                       <span class="tok-k">struct</span> <span class="tok-n">ns_rpc_reply</span> <span class="tok-o">*</span><span class="tok-n">rep</span><span class="tok-p">,</span> <span class="tok-k">struct</span> <span class="tok-n">ns_rpc_error</span> <span class="tok-o">*</span><span class="tok-n">er</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Parse JSON-RPC reply contained in <code>buf</code>, <code>len</code> into JSON tokens array
+<code>toks</code>, <code>max_toks</code>. If buffer contains valid reply, <code>reply</code> structure is
+populated. The result of RPC call is located in <code>reply.result</code>. On error,
+<code>error</code> structure is populated. Returns: the result of calling
+<code>parse_json(buf, len, toks, max_toks)</code>.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mqtt">MQTT</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_functions_4">Functions</h3>
+<div class="sect3">
+<h4 id="_ns_set_protocol_mqtt">ns_set_protocol_mqtt</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_set_protocol_mqtt</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Attach built-in MQTT event handler to the given connection.</p>
+</div>
+<div class="paragraph">
+<p>The user-defined event handler will receive following extra events:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>NS_MQTT_CONNACK</p>
+</li>
+<li>
+<p>NS_MQTT_PUBLISH</p>
+</li>
+<li>
+<p>NS_MQTT_PUBACK</p>
+</li>
+<li>
+<p>NS_MQTT_PUBREC</p>
+</li>
+<li>
+<p>NS_MQTT_PUBREL</p>
+</li>
+<li>
+<p>NS_MQTT_PUBCOMP</p>
+</li>
+<li>
+<p>NS_MQTT_SUBACK</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_send_mqtt_handshake">ns_send_mqtt_handshake</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_send_mqtt_handshake</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">client_id</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Send MQTT handshake.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_mqtt_publish">ns_mqtt_publish</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_mqtt_publish</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">topic</span><span class="tok-p">,</span>
+                     <span class="tok-kt">uint16_t</span> <span class="tok-n">message_id</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">flags</span><span class="tok-p">,</span>
+                     <span class="tok-k">const</span> <span class="tok-kt">void</span> <span class="tok-o">*</span><span class="tok-n">data</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Publish a message to a given channel.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_mqtt_subscribe">ns_mqtt_subscribe</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_mqtt_subscribe</span><span class="tok-p">(</span><span class="tok-k">struct</span> <span class="tok-n">ns_connection</span> <span class="tok-o">*</span><span class="tok-n">nc</span><span class="tok-p">,</span>
+                       <span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_mqtt_topic_expression</span> <span class="tok-o">*</span><span class="tok-n">topics</span><span class="tok-p">,</span>
+                       <span class="tok-kt">size_t</span> <span class="tok-n">topics_len</span><span class="tok-p">,</span> <span class="tok-kt">uint16_t</span> <span class="tok-n">message_id</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Subscribe to a given channel.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_utilities">Utilities</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_functions_5">Functions</h3>
+<div class="sect3">
+<h4 id="_ns_ncasecmp">ns_ncasecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_ncasecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s1</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s2</span><span class="tok-p">,</span> <span class="tok-kt">size_t</span> <span class="tok-n">len</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strncasecmp()</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_casecmp">ns_casecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_casecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s1</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s2</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strcasecmp()</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_vcasecmp">ns_vcasecmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_vcasecmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">str2</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">str1</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strncasecmp()</code> where first string is
+specified by <code>struct ns_str</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_vcmp">ns_vcmp</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_vcmp</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-k">struct</span> <span class="tok-n">ns_str</span> <span class="tok-o">*</span><span class="tok-n">str2</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">str1</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Cross-platform version of <code>strcmp()</code> where where first string is
+specified by <code>struct ns_str</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_stat">ns_stat</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_stat</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">path</span><span class="tok-p">,</span> <span class="tok-kt">ns_stat_t</span> <span class="tok-o">*</span><span class="tok-n">st</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Perform a 64-bit <code>stat()</code> call against given file.</p>
+</div>
+<div class="paragraph">
+<p><code>path</code> should be UTF8 encoded.</p>
+</div>
+<div class="paragraph">
+<p>Return value is the same as for <code>stat()</code> syscall.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_fopen">ns_fopen</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">FILE</span> <span class="tok-o">*</span><span class="tok-n">ns_fopen</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">path</span><span class="tok-p">,</span> <span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">mode</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Open the given file and return a file stream.</p>
+</div>
+<div class="paragraph">
+<p><code>path</code> and <code>mode</code> should be UTF8 encoded.</p>
+</div>
+<div class="paragraph">
+<p>Return value is the same as for the <code>fopen()</code> call.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_open">ns_open</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">int</span> <span class="tok-n">ns_open</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">path</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">flag</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">mode</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Open the given file and return a file stream.</p>
+</div>
+<div class="paragraph">
+<p><code>path</code> should be UTF8 encoded.</p>
+</div>
+<div class="paragraph">
+<p>Return value is the same as for the <code>open()</code> syscall.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_base64_encode">ns_base64_encode</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_base64_encode</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">unsigned</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">src</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">src_len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Base64-encodes chunk of memory <code>src</code>, <code>src_len</code> into the destination <code>dst</code>.
+Destination has to have enough space to hold encoded buffer.
+Destination is '\0'-terminated.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ns_base64_decode">ns_base64_decode</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="c"><span class="tok-kt">void</span> <span class="tok-n">ns_base64_decode</span><span class="tok-p">(</span><span class="tok-k">const</span> <span class="tok-kt">unsigned</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">s</span><span class="tok-p">,</span> <span class="tok-kt">int</span> <span class="tok-n">len</span><span class="tok-p">,</span> <span class="tok-kt">char</span> <span class="tok-o">*</span><span class="tok-n">dst</span><span class="tok-p">)</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Decodes base64-encoded string <code>s</code>, <code>len</code> into the destination <code>dst</code>.
+Destination has to have enough space to hold decoded buffer.
+Destination is '\0'-terminated.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-11-14 16:28:47 CET
+</div>
+</div>
+</body>
+</html>

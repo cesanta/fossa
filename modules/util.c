@@ -3,9 +3,21 @@
  * All rights reserved
  */
 
-#include "fossa.h"
-#include "util.h"
+/*
+ * == Utilities
+ */
 
+#include "fossa.h"
+#include "internal.h"
+
+/*
+ * Fetches substring from input string `s`, `end` into `v`.
+ * Skips initial delimiter characters. Records first non-delimiter character
+ * as the beginning of substring `v`. Then scans the rest of the string
+ * until a delimiter character or end-of-string is found.
+ *
+ * do_not_export_to_docs
+ */
 const char *ns_skip(const char *s, const char *end,
                     const char *delims, struct ns_str *v) {
   v->p = s;
@@ -19,6 +31,9 @@ static int lowercase(const char *s) {
   return tolower(* (const unsigned char *) s);
 }
 
+/*
+ * Cross-platform version of `strncasecmp()`.
+ */
 int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   int diff = 0;
 
@@ -30,11 +45,26 @@ int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   return diff;
 }
 
+/*
+ * Cross-platform version of `strcasecmp()`.
+ */
+int ns_casecmp(const char *s1, const char *s2) {
+  return ns_ncasecmp(s1, s2, (size_t) ~0);
+}
+
+/*
+ * Cross-platform version of `strncasecmp()` where first string is
+ * specified by `struct ns_str`.
+ */
 int ns_vcasecmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? ns_ncasecmp(str1, str2->p, n1) : n1 > n2 ? 1 : -1;
 }
 
+/*
+ * Cross-platform version of `strcmp()` where where first string is
+ * specified by `struct ns_str`.
+ */
 int ns_vcmp(const struct ns_str *str2, const char *str1) {
   size_t n1 = strlen(str1), n2 = str2->len;
   return n1 == n2 ? memcmp(str1, str2->p, n2) : n1 > n2 ? 1 : -1;
@@ -65,6 +95,13 @@ static void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 }
 #endif  /* _WIN32 */
 
+/*
+ * Perform a 64-bit `stat()` call against given file.
+ *
+ * `path` should be UTF8 encoded.
+ *
+ * Return value is the same as for `stat()` syscall.
+ */
 int ns_stat(const char *path, ns_stat_t *st) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -76,6 +113,13 @@ int ns_stat(const char *path, ns_stat_t *st) {
 #endif
 }
 
+/*
+ * Open the given file and return a file stream.
+ *
+ * `path` and `mode` should be UTF8 encoded.
+ *
+ * Return value is the same as for the `fopen()` call.
+ */
 FILE *ns_fopen(const char *path, const char *mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE], wmode[10];
@@ -87,6 +131,13 @@ FILE *ns_fopen(const char *path, const char *mode) {
 #endif
 }
 
+/*
+ * Open the given file and return a file stream.
+ *
+ * `path` should be UTF8 encoded.
+ *
+ * Return value is the same as for the `open()` syscall.
+ */
 int ns_open(const char *path, int flag, int mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -97,6 +148,11 @@ int ns_open(const char *path, int flag, int mode) {
 #endif
 }
 
+/*
+ * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
+ * Destination has to have enough space to hold encoded buffer.
+ * Destination is '\0'-terminated.
+ */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -146,6 +202,11 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
+/*
+ * Decodes base64-encoded string `s`, `len` into the destination `dst`.
+ * Destination has to have enough space to hold decoded buffer.
+ * Destination is '\0'-terminated.
+ */
 void ns_base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   while (len >= 4 &&
@@ -173,12 +234,12 @@ char *ns_error_string(const char *p) {
 
   if (!errno) {
     len = strlen(p) + 1;
-    buf = (char*)malloc(len);
+    buf = (char *) NS_MALLOC(len);
     strncpy(buf, p, len);
     return buf;
   }
   len = strlen(p) + 2 + errbuf_len + 1;
-  buf = (char*)malloc(len);
+  buf = (char *) NS_MALLOC(len);
   snprintf(buf, len, "%s: %.*s", p, errbuf_len, strerror(errno));
   return buf;
 }

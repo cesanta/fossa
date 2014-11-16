@@ -26,6 +26,7 @@
 #define _INTEGRAL_MAX_BITS 64   /* Enable _stati64() on Windows */
 #define _CRT_SECURE_NO_WARNINGS /* Disable deprecation warning in VS2005+ */
 #undef WIN32_LEAN_AND_MEAN      /* Let windows.h always include winsock2.h */
+#undef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600       /* For flockfile() on Linux */
 #define __STDC_FORMAT_MACROS    /* <inttypes.h> wants this for C++ */
 #define __STDC_LIMIT_MACROS     /* C++ wants that for INT64_MAX */
@@ -402,6 +403,7 @@ extern "C" {
 
 const char *ns_skip(const char *, const char *, const char *, struct ns_str *);
 int ns_ncasecmp(const char *s1, const char *s2, size_t len);
+int ns_casecmp(const char *s1, const char *s2);
 int ns_vcmp(const struct ns_str *str2, const char *str1);
 int ns_vcasecmp(const struct ns_str *str2, const char *str1);
 void ns_base64_decode(const unsigned char *s, int len, char *dst);

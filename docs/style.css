@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic|Noto+Serif:400,400italic,700,700italic|Droid+Sans+Mono:400');
+
+*, *:after, *:before {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  outline: 0;
+}
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font: 15px/1.4 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #444;
+}
+
+a { color: #369; }
+li > p { margin: 0; padding: 0; }
+dt { font-weight: bold; }
+h1, h2 { color: #369; }
+h2 { border-bottom: 1px solid #69c; }
+code, pre {
+  font: 14px/1.0 Courier, 'DejaVu Sans Mono', monospace !important;
+}
+p > code { background: #f0f0f0; }
+pre, pre > code { border-radius: 0.5em; }
+pre {
+  background: #f5f5f5 !important;
+  box-shadow: inset 1px 1px 1px 0px #aaa;
+}
+dd > p { margin: 0.4em; }
+
+#toc.toc2 {
+  position: fixed; width: 20%; left: 0; top: 0;
+  border-right: 1px solid #e5e5e5; z-index: 1000;
+  height: 100%; overflow: auto; line-height: 1.5em;
+}
+#toc { background: #f5f5f5; }
+#toc ul { list-style-type: none; margin-left: 1em; padding: 0; }
+#toctitle { margin: 0.5em 1em;}
+#toc ul.sectlevel3 > li { xfont-size: 90%; line-height: 1.4em; }
+
+#content, h1 {
+  margin: 1em 3em 0 22%;
+}
+
+#footer { margin: 0.2em 1em; font-size: 90%; color: silver; text-align: right; }
+
+pre > code {
+  padding: 0.5em;
+  display:block;
+}

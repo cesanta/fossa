@@ -3,16 +3,93 @@
  * All rights reserved
  */
 
+/*
+ * == HTTP/Websocket API
+ */
+
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 #include "fossa.h"
-#include "sha1.h"
-#include "util.h"
-#include "http.h"
+#include "internal.h"
 
 struct proto_data_http {
   FILE *fp;   /* Opened file */
 };
+
+#define MIME_ENTRY(_ext, _type) { _ext, sizeof(_ext) - 1, _type }
+static const struct {
+  const char *extension;
+  size_t ext_len;
+  const char *mime_type;
+} static_builtin_mime_types[] = {
+  MIME_ENTRY("html", "text/html"),
+  MIME_ENTRY("html", "text/html"),
+  MIME_ENTRY("htm", "text/html"),
+  MIME_ENTRY("shtm", "text/html"),
+  MIME_ENTRY("shtml", "text/html"),
+  MIME_ENTRY("css", "text/css"),
+  MIME_ENTRY("js", "application/x-javascript"),
+  MIME_ENTRY("ico", "image/x-icon"),
+  MIME_ENTRY("gif", "image/gif"),
+  MIME_ENTRY("jpg", "image/jpeg"),
+  MIME_ENTRY("jpeg", "image/jpeg"),
+  MIME_ENTRY("png", "image/png"),
+  MIME_ENTRY("svg", "image/svg+xml"),
+  MIME_ENTRY("txt", "text/plain"),
+  MIME_ENTRY("torrent", "application/x-bittorrent"),
+  MIME_ENTRY("wav", "audio/x-wav"),
+  MIME_ENTRY("mp3", "audio/x-mp3"),
+  MIME_ENTRY("mid", "audio/mid"),
+  MIME_ENTRY("m3u", "audio/x-mpegurl"),
+  MIME_ENTRY("ogg", "application/ogg"),
+  MIME_ENTRY("ram", "audio/x-pn-realaudio"),
+  MIME_ENTRY("xml", "text/xml"),
+  MIME_ENTRY("ttf", "application/x-font-ttf"),
+  MIME_ENTRY("json",  "application/json"),
+  MIME_ENTRY("xslt", "application/xml"),
+  MIME_ENTRY("xsl", "application/xml"),
+  MIME_ENTRY("ra", "audio/x-pn-realaudio"),
+  MIME_ENTRY("doc", "application/msword"),
+  MIME_ENTRY("exe", "application/octet-stream"),
+  MIME_ENTRY("zip", "application/x-zip-compressed"),
+  MIME_ENTRY("xls", "application/excel"),
+  MIME_ENTRY("tgz", "application/x-tar-gz"),
+  MIME_ENTRY("tar", "application/x-tar"),
+  MIME_ENTRY("gz", "application/x-gunzip"),
+  MIME_ENTRY("arj", "application/x-arj-compressed"),
+  MIME_ENTRY("rar", "application/x-rar-compressed"),
+  MIME_ENTRY("rtf", "application/rtf"),
+  MIME_ENTRY("pdf", "application/pdf"),
+  MIME_ENTRY("swf", "application/x-shockwave-flash"),
+  MIME_ENTRY("mpg", "video/mpeg"),
+  MIME_ENTRY("webm", "video/webm"),
+  MIME_ENTRY("mpeg", "video/mpeg"),
+  MIME_ENTRY("mov", "video/quicktime"),
+  MIME_ENTRY("mp4", "video/mp4"),
+  MIME_ENTRY("m4v", "video/x-m4v"),
+  MIME_ENTRY("asf", "video/x-ms-asf"),
+  MIME_ENTRY("avi", "video/x-msvideo"),
+  MIME_ENTRY("bmp", "image/bmp"),
+  {NULL, 0, NULL}
+};
+
+static const char *get_mime_type(const char *path, const char *dflt) {
+  const char *ext;
+  size_t i, path_len;
+
+  path_len = strlen(path);
+
+  for (i = 0; static_builtin_mime_types[i].extension != NULL; i++) {
+    ext = path + (path_len - static_builtin_mime_types[i].ext_len);
+    if (path_len > static_builtin_mime_types[i].ext_len &&
+        ext[-1] == '.' &&
+        ns_casecmp(ext, static_builtin_mime_types[i].extension) == 0) {
+      return static_builtin_mime_types[i].mime_type;
+    }
+  }
+
+  return dflt;
+}
 
 /*
  * Check whether full request is buffered. Return:
@@ -38,6 +115,11 @@ static int get_request_len(const char *s, int buf_len) {
   return 0;
 }
 
+/* Parses a HTTP message.
+ *
+ * Return number of bytes parsed. If HTTP message is
+ * incomplete, `0` is returned. On parse error, negative number is returned.
+*/
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end;
   int len, i;
@@ -88,6 +170,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
   return len;
 }
 
+/* Returns HTTP header if it is present in the HTTP message, or `NULL`. */
 struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   size_t i, len = strlen(name);
 
@@ -217,6 +300,19 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
   ns_send(nc, header, header_len);
 }
 
+/*
+ * Send websocket frame to the remote end.
+ *
+ * `op` specifies frame's type , one of:
+ *
+ * - WEBSOCKET_OP_CONTINUE
+ * - WEBSOCKET_OP_TEXT
+ * - WEBSOCKET_OP_BINARY
+ * - WEBSOCKET_OP_CLOSE
+ * - WEBSOCKET_OP_PING
+ * - WEBSOCKET_OP_PONG
+ * `data` and `data_len` contain frame data.
+*/
 void ns_send_websocket_frame(struct ns_connection *nc, int op,
                              const void *data, size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -227,6 +323,11 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   }
 }
 
+/*
+ * Send multiple websocket frames.
+ *
+ * Like `ns_send_websocket_frame()`, but composes a frame from multiple buffers.
+ */
 void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
@@ -246,6 +347,12 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 }
 
+/*
+ * Send websocket frame to the remote end.
+ *
+ * Like `ns_send_websocket_frame()`, but allows to create formatted message
+ * with `printf()`-like semantics.
+ */
 void ns_printf_websocket_frame(struct ns_connection *nc, int op,
                                const char *fmt, ...) {
   char mem[4192], *buf = mem;
@@ -259,7 +366,7 @@ void ns_printf_websocket_frame(struct ns_connection *nc, int op,
   va_end(ap);
 
   if (buf != mem && buf != NULL) {
-    free(buf);
+    NS_FREE(buf);
   }
 }
 
@@ -316,7 +423,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     ns_send(nc, buf, n);
   } else {
     fclose(dp->fp);
-    free(dp);
+    NS_FREE(dp);
     nc->proto_data = NULL;
   }
 }
@@ -382,10 +489,33 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+/*
+ * Attach built-in HTTP event handler to the given connection.
+ * User-defined event handler will receive following extra events:
+ *
+ * - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
+ *   request. `ev_data` contains parsed HTTP request.
+ * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
+ *   `ev_data` is `NULL`.
+ * - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
+ *   `struct websocket_message *`
+ */
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
 
+/*
+ * Sends websocket handshake to the server.
+ *
+ * `nc` must be a valid connection, connected to a server, `uri` is an URI on the server, `extra_headers` is
+ * extra HTTP headers to send or `NULL`.
+ *
+ * This function is intended to be used by websocket client.
+ */
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
   unsigned long random = (unsigned long) uri;
@@ -410,14 +540,17 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
                        ns_stat_t *st) {
   struct proto_data_http *dp;
 
-  if ((dp = (struct proto_data_http *) calloc(1, sizeof(*dp))) == NULL) {
+  if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
     send_http_error(nc, 500, "Server Error");
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
-    free(dp);
+    NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
   } else {
     ns_printf(nc, "HTTP/1.1 200 OK\r\n"
-              "Content-Length: %lu\r\n\r\n", (unsigned long) st->st_size);
+              "Content-Type: %s\r\n"
+              "Content-Length: %lu\r\n\r\n",
+              get_mime_type(path, "text/plain"),
+              (unsigned long) st->st_size);
     nc->proto_data = (void *) dp;
     transfer_file_data(nc);
   }
@@ -468,6 +601,14 @@ static int ns_url_decode(const char *src, int src_len, char *dst,
   return i >= src_len ? j : -1;
 }
 
+/*
+ * Fetch an HTTP form variable.
+ *
+ * Fetch a variable `name` from a `buf` into a buffer specified by
+ * `dst`, `dst_len`. Destination is always zero-terminated. Return length
+ * of a fetched variable. If not found, 0 is returned. `buf` must be
+ * valid url-encoded buffer. If destination is too small, `-1` is returned.
+ */
 int ns_get_http_var(const struct ns_str *buf, const char *name,
                     char *dst, size_t dst_len) {
   const char *p, *e, *s;
@@ -505,6 +646,28 @@ int ns_get_http_var(const struct ns_str *buf, const char *name,
   return len;
 }
 
+/*
+ * Serve given HTTP request according to the `options`.
+ *
+ * Example code snippet:
+ *
+ * [source,c]
+ * .web_server.c
+ * ----
+ * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+ *   struct http_message *hm = (struct http_message *) ev_data;
+ *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
+ *
+ *   switch (ev) {
+ *     case NS_HTTP_REQUEST:
+ *       ns_serve_http(nc, hm, opts);
+ *       break;
+ *     default:
+ *       break;
+ *   }
+ * }
+ * ----
+ */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];

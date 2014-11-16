@@ -1,21 +1,36 @@
 /* Copyright (c) 2014 Cesanta Software Limited */
 /* All rights reserved */
 
+/*
+ * == JSON-RPC
+ */
+
 #ifndef NS_DISABLE_JSON_RPC
 
 #include "fossa.h"
 #include "json-rpc.h"
 
+/*
+ * Create JSON-RPC reply in a given buffer.
+ *
+ * Return length of the reply, which
+ * can be larger then `len` that indicates an overflow.
+*/
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
+  static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
+  const struct json_token *id = req->id == NULL ? &null_tok : req->id;
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:V,s:",
-                 "jsonrpc", "2.0", "id",
-                 req->id == NULL ? "null" : req->id->ptr,
-                 req->id == NULL ? 4 : req->id->len,
-                 "result");
+  n += json_emit(buf + n, len - n, "{s:s,s:", "jsonrpc", "2.0", "id");
+  if (id->type == JSON_TYPE_STRING) {
+    n += json_emit_quoted_str(buf + n, len - n, id->ptr, id->len);
+  } else {
+    n += json_emit_unquoted_str(buf + n, len - n, id->ptr, id->len);
+  }
+  n += json_emit(buf + n, len - n, ",s:", "result");
+
   va_start(ap, result_fmt);
   n += json_emit_va(buf + n, len - n, result_fmt, ap);
   va_end(ap);
@@ -25,6 +40,12 @@ int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
   return n;
 }
 
+/*
+ * Create JSON-RPC request in a given buffer.
+ *
+ * Return length of the request, which
+ * can be larger then `len` that indicates an overflow.
+ */
 int ns_rpc_create_request(char *buf, int len, const char *method,
                           const char *id, const char *params_fmt, ...) {
   va_list ap;
@@ -41,6 +62,12 @@ int ns_rpc_create_request(char *buf, int len, const char *method,
   return n;
 }
 
+/*
+ * Create JSON-RPC error reply in a given buffer.
+ *
+ * Return length of the error, which
+ * can be larger then `len` that indicates an overflow.
+ */
 int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
                         int code, const char *message, const char *fmt, ...) {
   va_list ap;
@@ -61,6 +88,15 @@ int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
   return n;
 }
 
+/*
+ * Create JSON-RPC error in a given buffer.
+ *
+ * Return length of the error, which
+ * can be larger then `len` that indicates an overflow. `code` could be one of:
+ * `JSON_RPC_PARSE_ERROR`, `JSON_RPC_INVALID_REQUEST_ERROR`,
+ * `JSON_RPC_METHOD_NOT_FOUND_ERROR`, `JSON_RPC_INVALID_PARAMS_ERROR`,
+ * `JSON_RPC_INTERNAL_ERROR`, `JSON_RPC_SERVER_ERROR`.
+*/
 int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
                             int code) {
   const char *message = NULL;
@@ -77,6 +113,15 @@ int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
   return ns_rpc_create_error(buf, len, req, code, message, "N");
 }
 
+/*
+ * Dispatches a JSON-RPC request.
+ *
+ * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the request
+ * to the correct handler method. Valid method names should be specified in NULL
+ * terminated array `methods`, and corresponding handlers in `handlers`.
+ * Result is put in `dst`, `dst_len`. Return: length of the result, which
+ * can be larger then `dst_len` that indicates an overflow.
+ */
 int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
                     const char **methods, ns_rpc_handler_t *handlers) {
   struct json_token tokens[200];
@@ -115,6 +160,13 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   return handlers[i](dst, dst_len, &req);
 }
 
+/*
+ * Parse JSON-RPC reply contained in `buf`, `len` into JSON tokens array
+ * `toks`, `max_toks`. If buffer contains valid reply, `reply` structure is
+ * populated. The result of RPC call is located in `reply.result`. On error,
+ * `error` structure is populated. Returns: the result of calling
+ * `parse_json(buf, len, toks, max_toks)`.
+ */
 int ns_rpc_parse_reply(const char *buf, int len,
                        struct json_token *toks, int max_toks,
                        struct ns_rpc_reply *rep, struct ns_rpc_error *er) {

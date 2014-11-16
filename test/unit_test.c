@@ -27,8 +27,11 @@
   if (!(expr)) FAIL(#expr, __LINE__); \
 } while (0)
 
-#define RUN_TEST(test) do { const char *msg = test(); \
-  if (msg) return msg; } while (0)
+#define RUN_TEST(test) do {                 \
+  const char *msg = NULL;                   \
+  if (strstr(# test, filter)) msg = test(); \
+  if (msg) return msg;                      \
+} while (0)
 
 #define HTTP_PORT "45772"
 #define LOOPBACK_IP  "127.0.0.1"
@@ -391,6 +394,7 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
 
 static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_str *s;
   size_t size;
   char *data;
 
@@ -398,9 +402,21 @@ static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
     /* Make sure that we've downloaded this executable, byte-to-byte */
     data = read_file(s_argv_0, &size);
     strcpy((char *) nc->user_data, data == NULL || size != hm->body.len ||
+           (s = ns_get_http_header(hm, "Content-Type")) == NULL ||
+           (ns_vcmp(s, "text/plain")) != 0 ||
            memcmp(hm->body.p, data, size) != 0 ? "fail" : "success");
     free(data);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
+static void cb10(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+  struct ns_str *s;
+
+  if (ev == NS_HTTP_REPLY &&
+      (s = ns_get_http_header(hm, "Content-Type")) != NULL) {
+    sprintf((char *) nc->user_data, "%.*s", (int) s->len, s->p);
   }
 }
 
@@ -408,7 +424,7 @@ static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[20] = "";
+  char buf[20] = "", status[20] = "", mime[20] = "";
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -432,6 +448,12 @@ static const char *test_http(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", s_argv_0);
 
+  /* Test mime type for static file */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb10)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = mime;
+  ns_printf(nc, "%s", "GET /data/dummy.xml HTTP/1.0\n\n");
+
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 200);
   ns_mgr_free(&mgr);
@@ -439,6 +461,7 @@ static const char *test_http(void) {
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10]") == 0);
   ASSERT(strcmp(status, "success") == 0);
+  ASSERT(strcmp(mime, "text/xml") == 0);
 
   return NULL;
 }
@@ -730,9 +753,11 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
       ns_rpc_parse_reply(hm->body.p, hm->body.len,
                          toks, sizeof(toks) / sizeof(toks[0]),
                          &rpc_reply, &rpc_error);
-      sprintf((char *) nc->user_data, "%.*s",
-              rpc_reply.result == NULL ? 1 : rpc_reply.result->len,
-              rpc_reply.result == NULL ? "?" : rpc_reply.result->ptr);
+      if (rpc_reply.result != NULL) {
+        sprintf((char *) nc->user_data, "%d %.*s %.*s",
+                rpc_reply.id->type, (int) rpc_reply.id->len, rpc_reply.id->ptr,
+                (int) rpc_reply.result->len, rpc_reply.result->ptr);
+      }
       break;
     default:
       break;
@@ -757,7 +782,7 @@ static const char *test_rpc(void) {
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
-  ASSERT(strcmp(buf, "16") == 0);
+  ASSERT(strcmp(buf, "1 1 16") == 0);
 
   return NULL;
 }
@@ -903,7 +928,7 @@ static const char *test_hexdump_file(void) {
   return NULL;
 }
 
-static const char *run_all_tests(void) {
+static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
 #if 0
   RUN_TEST(test_parse_address);
@@ -939,10 +964,10 @@ static const char *run_all_tests(void) {
 
 int __cdecl main(int argc, char *argv[]) {
   const char *fail_msg;
+  const char *filter = argc > 1 ? argv[1] : "";
 
-  (void) argc;
   s_argv_0 = argv[0];
-  fail_msg = run_all_tests();
+  fail_msg = run_tests(filter);
   printf("%s, tests run: %d\n", fail_msg ? "FAIL" : "PASS", static_num_tests);
 
   return fail_msg == NULL ? EXIT_SUCCESS : EXIT_FAILURE;

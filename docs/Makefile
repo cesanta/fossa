@@ -2,7 +2,7 @@
 # All rights reserved
 
 DOCGEN=../scripts/docgen.py
-GEN_ADOCS = skeleton.adoc http.adoc util.adoc mqtt.adoc json-rpc.adoc sha1.adoc
+GEN_ADOCS = skeleton.adoc iobuf.adoc http.adoc util.adoc mqtt.adoc json-rpc.adoc sha1.adoc
 ADOCS = $(wildcard *.adoc) $(GEN_ADOCS)
 
 all: index.html

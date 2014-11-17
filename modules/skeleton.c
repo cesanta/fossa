@@ -44,57 +44,6 @@ struct ctl_msg {
   char message[NS_CTL_MSG_MESSAGE_SIZE];
 };
 
-void iobuf_resize(struct iobuf *io, size_t new_size) {
-  char *p;
-  if ((new_size > io->size || (new_size < io->size && new_size >= io->len)) &&
-      (p = (char *) NS_REALLOC(io->buf, new_size)) != NULL) {
-    io->size = new_size;
-    io->buf = p;
-  }
-}
-
-void iobuf_init(struct iobuf *iobuf, size_t initial_size) {
-  iobuf->len = iobuf->size = 0;
-  iobuf->buf = NULL;
-  iobuf_resize(iobuf, initial_size);
-}
-
-void iobuf_free(struct iobuf *iobuf) {
-  if (iobuf != NULL) {
-    NS_FREE(iobuf->buf);
-    iobuf_init(iobuf, 0);
-  }
-}
-
-size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
-  char *p = NULL;
-
-  assert(io != NULL);
-  assert(io->len <= io->size);
-
-  if (len <= 0) {
-  } else if (io->len + len <= io->size) {
-    memcpy(io->buf + io->len, buf, len);
-    io->len += len;
-  } else if ((p = (char *) NS_REALLOC(io->buf, io->len + len)) != NULL) {
-    io->buf = p;
-    memcpy(io->buf + io->len, buf, len);
-    io->len += len;
-    io->size = io->len;
-  } else {
-    len = 0;
-  }
-
-  return len;
-}
-
-void iobuf_remove(struct iobuf *io, size_t n) {
-  if (n > 0 && n <= io->len) {
-    memmove(io->buf, io->buf + n, io->len - n);
-    io->len -= n;
-  }
-}
-
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   if (nc->flags & NSF_UDP) {
     long n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));

@@ -21,4 +21,9 @@ test:
   pre:
     - make all difftest
 
-  
+deployment:
+  master:
+    branch: master
+    owner: cesanta
+    commands:
+      - scp docs/index.html circleci@cesanta.com://var/www/cesanta.com/docs/fossa/

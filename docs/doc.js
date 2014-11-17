@@ -21,7 +21,7 @@ $(function() {
     var y = element.position().top;
     if (y < 0 || y > pane.height()) {
       lastTocScrollHuman = false;
-      pane.scrollTo(element);
+      pane.scrollTo(element, { axis: 'y' });
     }
   }
 

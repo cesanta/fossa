@@ -35,4 +35,4 @@ index-docinfo.html: doc.js jquery.min.js Makefile
 	(echo '<script>'; cat jquery.min.js jquery.scrollTo.min.js doc.js ; echo '</script>') > $@
 
 clean:
-	rm -rf $(GEN_ADOCS)
+	rm -rf $(GEN_ADOCS) index-docinfo.html

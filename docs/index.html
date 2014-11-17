@@ -10447,7 +10447,7 @@ return jQuery;
     var y = element.position().top;
     if (y < 0 || y > pane.height()) {
       lastTocScrollHuman = false;
-      pane.scrollTo(element);
+      pane.scrollTo(element, { axis: 'y' });
     }
   }
 
@@ -11764,7 +11764,7 @@ Destination is '\0'-terminated.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-17 11:37:05 CET
+Last updated 2014-11-17 12:37:36 GMT
 </div>
 </div>
 </body>

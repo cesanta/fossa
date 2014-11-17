@@ -14,3 +14,10 @@ checkout:
 test:
   pre:
     - make all difftest
+
+deployment:
+  master:
+    branch: master
+    owner: cesanta
+    commands:
+      - ./scripts/deploy_doc.sh

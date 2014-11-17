@@ -1,7 +1,8 @@
 = Multi-Protocol Networking Library For C/C++
 
-image::https://drone.io/github.com/cesanta/fossa/status.png[Build Status,link=https://drone.io/github.com/cesanta/fossa/latest,float=left]
-image::https://coveralls.io/repos/cesanta/fossa/badge.png?branch=master[Coverage Status,link=https://coveralls.io/r/cesanta/fossa?branch=master,float=left]
+image:https://circleci.com/gh/cesanta/fossa.svg?style=shield[Build Status,link=https://circleci.com/gh/cesanta/fossa/tree/master]
+image:http://img.shields.io/coveralls/cesanta/fossa/master.svg[Coverage Status,link=https://coveralls.io/r/cesanta/fossa?branch=master]
+image:https://img.shields.io/badge/license-GPL_2-green.svg[License,link=https://github.com/cesanta/fossa/blob/master/LICENSE]
 
 Fossa is a multi-protocol networking library written in C.
 It provides easy to use event-driven interface that allows to implement

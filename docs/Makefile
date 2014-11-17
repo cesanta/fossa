@@ -10,7 +10,7 @@ all: index.html
 # deps:
 # gem install pygments.rb
 # gem install pygmentize
-index.html: $(ADOCS) Makefile style.css
+index.html: $(ADOCS) Makefile style.css index-docinfo.html
 	asciidoctor -b html5 \
 	  -d book \
 	  -a icons \
@@ -30,6 +30,9 @@ index.html: $(ADOCS) Makefile style.css
 
 %.adoc: ../modules/%.c
 	$(DOCGEN) -o $@ $<
+
+index-docinfo.html: doc.js jquery.min.js Makefile
+	(echo '<script>'; cat jquery.min.js jquery.scrollTo.min.js doc.js ; echo '</script>') > $@
 
 clean:
 	rm -rf $(GEN_ADOCS)

@@ -1,0 +1,25 @@
+
+== Build Options
+
+Fossa source code ships in a single .c file that contains functionality
+for all supported protocols (modules). Modules can be disabled at compile
+time which reduces executable size. That can be done by setting preprocessor
+flags. Also, some preprocessor flags can be used to tune internal Fossa
+parameters.
+
+To set a preprocessor flag during compile time, use `-D <PREPROCESSOR_FLAG>`
+compiler option. For example, to disable both MQTT and JSON-RPC,
+compile the application `my_app.c` like this (assumed UNIX system):
+
+```
+  $ cc my_app.c fossa.c -D NS_DISABLE_MQTT -D NS_DISABLE_JSON_RPC
+```
+
+The complete list of flags is given below:
+
+- `NS_DISABLE_HTTP_WEBSOCKET` disable HTTP + Websocket protocol support
+- `NS_DISABLE_MQTT` disable MQTT support
+- `NS_DISABLE_SHA1` disable SHA1 support (used by Websocket)
+- `NS_DISABLE_JSON_RPC` disable JSON-RPC support
+- `NS_DISABLE_SOCKETPAIR` disable `ns_broadcast()` API
+- `NS_DISABLE_THREADS` disable `ns_start_thread()` API

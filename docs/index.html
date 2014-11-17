@@ -10497,6 +10497,7 @@ return jQuery;
 </ul>
 </li>
 <li><a href="#_usage_example">Usage Example</a></li>
+<li><a href="#_build_options">Build Options</a></li>
 <li><a href="#_core_api_tcp_udp_ssl">Core API: TCP/UDP/SSL</a>
 <ul class="sectlevel2">
 <li><a href="#_structures">Structures</a></li>
@@ -10882,6 +10883,53 @@ used by a developer to store application-specific state</p>
 <td>Start infinite event loop</td>
 </tr>
 </table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_build_options">Build Options</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Fossa source code ships in a single .c file that contains functionality
+for all supported protocols (modules). Modules can be disabled at compile
+time which reduces executable size. That can be done by setting preprocessor
+flags. Also, some preprocessor flags can be used to tune internal Fossa
+parameters.</p>
+</div>
+<div class="paragraph">
+<p>To set a preprocessor flag during compile time, use <code>-D &lt;PREPROCESSOR_FLAG&gt;</code>
+compiler option. For example, to disable both MQTT and JSON-RPC,
+compile the application <code>my_app.c</code> like this (assumed UNIX system):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>  $ cc my_app.c fossa.c -D NS_DISABLE_MQTT -D NS_DISABLE_JSON_RPC</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The complete list of flags is given below:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>NS_DISABLE_HTTP_WEBSOCKET</code> disable HTTP + Websocket protocol support</p>
+</li>
+<li>
+<p><code>NS_DISABLE_MQTT</code> disable MQTT support</p>
+</li>
+<li>
+<p><code>NS_DISABLE_SHA1</code> disable SHA1 support (used by Websocket)</p>
+</li>
+<li>
+<p><code>NS_DISABLE_JSON_RPC</code> disable JSON-RPC support</p>
+</li>
+<li>
+<p><code>NS_DISABLE_SOCKETPAIR</code> disable <code>ns_broadcast()</code> API</p>
+</li>
+<li>
+<p><code>NS_DISABLE_THREADS</code> disable <code>ns_start_thread()</code> API</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -11764,7 +11812,7 @@ Destination is '\0'-terminated.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-17 12:37:36 GMT
+Last updated 2014-11-18 07:46:44 GMT
 </div>
 </div>
 </body>

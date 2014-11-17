@@ -1,3 +1,9 @@
+general:
+  artifacts:
+    - "fossa.c"
+    - "fossa.h"
+    - "docs/index.html"
+
 machine:
   pre:
     - sudo pip install cpp-coveralls
@@ -14,3 +20,5 @@ checkout:
 test:
   pre:
     - make all difftest
+
+  

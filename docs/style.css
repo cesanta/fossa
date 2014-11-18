@@ -12,6 +12,10 @@ html, body { margin: 0; padding: 0; }
 body {
   font: 14px/1.4 'Open Sans', Helvetica, Arial, sans-serif;
   color: #444;
+  background-image: url(http://cesanta.com/images/cesanta_logo.svg);
+  background-position: 95% 5px;
+  background-size: 160px 60px;
+  background-repeat: no-repeat;
 }
 
 a { color: #369; }

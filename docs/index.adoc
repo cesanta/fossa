@@ -4,7 +4,7 @@
 :pygments-style: xcode
 :docinfo:
 
-= Multi-Protocol Networking Library For C/C++
+= Multi-Protocol Networking Library
 
 include::concept.adoc[]
 include::tutorial.adoc[]

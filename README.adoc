@@ -1,10 +1,11 @@
-= Multi-Protocol Networking Library For C/C++
+= Multi-Protocol Networking Library
 
 image:https://circleci.com/gh/cesanta/fossa.svg?style=shield[Build Status,link=https://circleci.com/gh/cesanta/fossa/tree/master]
 image:http://img.shields.io/coveralls/cesanta/fossa/master.svg[Coverage Status,link=https://coveralls.io/r/cesanta/fossa?branch=master]
 image:https://img.shields.io/badge/license-GPL_2-green.svg[License,link=https://github.com/cesanta/fossa/blob/master/LICENSE]
 
-Fossa is a multi-protocol networking library written in C.
+Fossa is a
+http://cesanta.com/fossa.shtml[multi-protocol networking library] written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.
 Fossa releives developers from the burden of network programming
@@ -30,11 +31,11 @@ bringing them online.
 * Very easy to integrate: just copy `fossa.c` and `fossa.h` to your build tree
 * Extensively tested and production-ready, trusted by many blue chip businesses
 
-== Examples & API Reference
+== Examples & Documentation
 
-Detailed API reference is located at link:http://htmlpreview.github.io/?https://github.com/cesanta/fossa/blob/master/docs/index.html[docs/index.html]
-
-Well-commented examples are located at link:examples[]
+- link:http://cesanta.com/docs/fossa[User Guide] - Detailed User Guide and API reference
+- link:examples[] - Collection of well-commented examples. To build any example,
+go into respective directory and type `make`
 
 == License
 

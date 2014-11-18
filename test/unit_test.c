@@ -490,6 +490,7 @@ static const char *test_http_errors(void) {
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
+#ifndef TEST_UNDER_VIRTUALBOX
   /* Test file which exists but cannot be opened */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);
   ns_set_protocol_http_websocket(nc);
@@ -503,6 +504,7 @@ static const char *test_http_errors(void) {
 
   /* Check that it failed */
   ASSERT(strncmp(status, "HTTP/1.1 500", strlen("HTTP/1.1 500")) == 0);
+#endif
 
   /* Test non existing file */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);

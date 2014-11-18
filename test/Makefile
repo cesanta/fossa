@@ -11,7 +11,7 @@ MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-g
 
 all: clean $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
-.PHONY: clean clean_coverage lcov valgrind $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
+.PHONY: clean clean_coverage lcov valgrind docker $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
 
 $(PROG): Makefile
 	g++ -x c++ $(AMALGAMATED_SOURCES) -o $(PROG) $(CFLAGS) -lssl && ./$(PROG) $(TEST_FILTER)
@@ -44,6 +44,11 @@ lcov: clean $(PROG)_coverage
 valgrind:
 	$(MAKE) $(PROG) SSL="" CFLAGS_EXTRA=-DNO_DNS_TEST
 	valgrind --leak-check=full ./unit_test
+
+# Interactive:
+#   docker run -v $(CURDIR)/../..:/cesanta -t -i --entrypoint=/bin/bash cesanta/fossa_test
+docker:
+	docker run -v $(CURDIR)/../..:/cesanta cesanta/fossa_test
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt

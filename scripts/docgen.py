@@ -111,15 +111,12 @@ def parse_tags(tags):
             decls[decl.name] = decl
     return decls
 
-def gen_module(module):
-    c_file = module
-    h_file = re.sub(r'\.c$', '.h', module)
-    # TODO(mkm) parse the header as well
+def gen_file(path):
+    cmd = 'etags -o - --declarations %s' % (path, )
+    tags = subprocess.check_output(cmd, shell=True)
+    defs = parse_tags(tags)
 
-    c_tags = subprocess.check_output('etags -o - --declarations %s' % (c_file,), shell=True)
-    defs = parse_tags(c_tags)
-
-    src = open('%s' % (c_file,)).read()
+    src = open('%s' % (path,)).read()
     for decl in defs.values():
         comment_close = src[:decl.offset].rfind('*/')
         comment_open = src[:comment_close].rfind('/*')+2
@@ -128,8 +125,25 @@ def gen_module(module):
         decl.comment = multiline_cleanup(src[comment_open:comment_close])
 
         # TODO(mkm) this smells, perhaps needs to be made more robust
-        end_decl = src[decl.offset:].find('{')
-        decl.source = src[decl.offset:decl.offset+end_decl]
+        # TODO(lsm): move source extraction to type-specific constructor
+        if isinstance(decl, FuncDecl):
+            end_decl = src[decl.offset:].find('{')
+            decl.source = src[decl.offset:decl.offset + end_decl - 1] + ';'
+        elif isinstance(decl, StructDecl):
+            pos = src[decl.offset:].find('\n}')
+            decl.source = src[decl.offset:decl.offset + pos + 3]
+
+    return defs
+
+def gen_module(module):
+    c_file = module
+    h_file = re.sub(r'\.c$', '.h', module)
+
+    defs = gen_file(h_file)     # Structures/macros are in h_file
+    c_defs = gen_file(c_file)   # Functions are in c_file
+
+    # Definitions from .c file override .h file definitions
+    defs.update(c_defs)
 
     res = []
     for k, v in sorted(defs.items(), key=lambda x: x[1].offset):
@@ -151,16 +165,9 @@ def extract_inline_doc(module, decls):
 def multiline_cleanup(comment):
     return ('\n'.join(re.sub(r'^(\* |\*$)', '', l.strip()) for l in comment.split('\n'))).strip()
 
-def render(out, mod):
-    # TODO(mkm) support multiple inline docs an place them
-    # according to their source position.
-    inline_docs = [m for m in mod if isinstance(m, InlineDoc) and m.comment]
-    for i in inline_docs:
-        print >>out, i.comment, '\n'
-
-    funcs = [m for m in mod if isinstance(m, FuncDecl)]
-    print >>out, "=== Functions"
-    for decl in funcs:
+def render_collection(out, collection, title):
+    print >>out, "=== %s" % (title, )
+    for decl in collection:
         if decl.comment and 'do_not_export_to_docs' in decl.comment:
             continue
         print >>out, '==== %s\n' % (decl.name, )
@@ -170,6 +177,19 @@ def render(out, mod):
             print >>out, decl.source
             print >>out, '----'
         print >>out, decl.comment, '\n'
+
+def render(out, mod):
+    # TODO(mkm) support multiple inline docs an place them
+    # according to their source position.
+    inline_docs = [m for m in mod if isinstance(m, InlineDoc) and m.comment]
+    for i in inline_docs:
+        print >>out, i.comment, '\n'
+
+    funcs = [m for m in mod if isinstance(m, FuncDecl)]
+    structs = [m for m in mod if isinstance(m, StructDecl)]
+
+    render_collection(out, structs, 'Structures')
+    render_collection(out, funcs, 'Functions')
 
 def main():
     global args

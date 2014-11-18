@@ -22,11 +22,11 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* IO buffers interface */
+/* IO buffer */
 struct iobuf {
-  char *buf;
-  size_t len;
-  size_t size;
+  char *buf;    /* Buffer pointer */
+  size_t len;   /* Data length. Data is located between offset 0 and len. */
+  size_t size;  /* Buffer size allocated by realloc(1). Must be >= len */
 };
 
 void iobuf_init(struct iobuf *, size_t initial_size);

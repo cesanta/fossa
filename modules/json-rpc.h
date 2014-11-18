@@ -18,6 +18,7 @@ extern "C" {
 #define JSON_RPC_INTERNAL_ERROR           (-32603)
 #define JSON_RPC_SERVER_ERROR             (-32000)
 
+/* JSON-RPC request */
 struct ns_rpc_request {
   struct json_token *message;   /* Whole RPC message */
   struct json_token *id;        /* Message ID */
@@ -25,15 +26,17 @@ struct ns_rpc_request {
   struct json_token *params;    /* Method params */
 };
 
+/* JSON-RPC response */
 struct ns_rpc_reply {
   struct json_token *message;   /* Whole RPC message */
   struct json_token *id;        /* Message ID */
   struct json_token *result;    /* Remote call result */
 };
 
+/* JSON-RPC error */
 struct ns_rpc_error {
-  struct json_token *message;   /* Whole RPC message */
-  struct json_token *id;        /* Message ID */
+  struct json_token *message;         /* Whole RPC message */
+  struct json_token *id;              /* Message ID */
   struct json_token *error_code;      /* error.code */
   struct json_token *error_message;   /* error.message */
   struct json_token *error_data;      /* error.data, can be NULL */

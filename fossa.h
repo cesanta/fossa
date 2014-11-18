@@ -156,11 +156,11 @@ typedef struct stat ns_stat_t;
 extern "C" {
 #endif /* __cplusplus */
 
-/* IO buffers interface */
+/* IO buffer */
 struct iobuf {
-  char *buf;
-  size_t len;
-  size_t size;
+  char *buf;    /* Buffer pointer */
+  size_t len;   /* Data length. Data is located between offset 0 and len. */
+  size_t size;  /* Buffer size allocated by realloc(1). Must be >= len */
 };
 
 void iobuf_init(struct iobuf *, size_t initial_size);
@@ -220,8 +220,8 @@ union socket_address {
 
 /* Describes chunk of memory */
 struct ns_str {
-  const char *p;
-  size_t len;
+  const char *p;  /* Memory chunk pointer */
+  size_t len;     /* Memory chunk length */
 };
 
 /* Callback function (event handler) prototype, must be defined by user. */
@@ -237,6 +237,9 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 #define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
 #define NS_CLOSE   5  /* Connection is closed. NULL */
 
+/*
+ * Fossa event manager.
+ */
 struct ns_mgr {
   struct ns_connection *active_connections;
   const char *hexdump_file;         /* Debug hexdump file path */
@@ -244,6 +247,9 @@ struct ns_mgr {
   void *user_data;                  /* User data */
 };
 
+/*
+ * Fossa connection.
+ */
 struct ns_connection {
   struct ns_connection *next, *prev;  /* ns_mgr::active_connections linkage */
   struct ns_connection *listener;     /* Set only for accept()-ed connections */
@@ -486,6 +492,7 @@ extern "C" {
 #define NS_MAX_HTTP_SEND_IOBUF 4096
 #define NS_WEBSOCKET_PING_INTERVAL_SECONDS 5
 
+/* HTTP message */
 struct http_message {
   struct ns_str message;    /* Whole message: request line + headers + body */
 
@@ -581,6 +588,7 @@ extern "C" {
 #define JSON_RPC_INTERNAL_ERROR           (-32603)
 #define JSON_RPC_SERVER_ERROR             (-32000)
 
+/* JSON-RPC request */
 struct ns_rpc_request {
   struct json_token *message;   /* Whole RPC message */
   struct json_token *id;        /* Message ID */
@@ -588,15 +596,17 @@ struct ns_rpc_request {
   struct json_token *params;    /* Method params */
 };
 
+/* JSON-RPC response */
 struct ns_rpc_reply {
   struct json_token *message;   /* Whole RPC message */
   struct json_token *id;        /* Message ID */
   struct json_token *result;    /* Remote call result */
 };
 
+/* JSON-RPC error */
 struct ns_rpc_error {
-  struct json_token *message;   /* Whole RPC message */
-  struct json_token *id;        /* Message ID */
+  struct json_token *message;         /* Whole RPC message */
+  struct json_token *id;              /* Message ID */
   struct json_token *error_code;      /* error.code */
   struct json_token *error_message;   /* error.message */
   struct json_token *error_data;      /* error.data, can be NULL */

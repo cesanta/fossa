@@ -24,6 +24,16 @@ struct http_message {
   struct ns_str uri;        /* "/my_file.html" */
   struct ns_str proto;      /* "HTTP/1.1" */
 
+  /*
+   * Query-string part of the URI. For example, for HTTP request
+   *    GET /foo/bar?param1=val1&param2=val2
+   *    |    uri    |     query_string     |
+   *
+   * Note that question mark character doesn't belong neither to the uri,
+   * nor to the query_string
+   */
+  struct ns_str query_string;
+
   /* Headers */
   struct ns_str header_names[NS_MAX_HTTP_HEADERS];
   struct ns_str header_values[NS_MAX_HTTP_HEADERS];

@@ -121,7 +121,7 @@ static int get_request_len(const char *s, int buf_len) {
  * incomplete, `0` is returned. On parse error, negative number is returned.
 */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
-  const char *end;
+  const char *end, *qs;
   int len, i;
 
   if ((len = get_request_len(s, n)) <= 0) return len;
@@ -160,6 +160,13 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
       req->body.len = to64(v->p);
       req->message.len = len + req->body.len;
     }
+  }
+
+  /* If URI contains '?' character, initialize query_string */
+  if ((qs = (char *) memchr(req->uri.p, '?', req->uri.len)) != NULL) {
+    req->query_string.p = qs + 1;
+    req->query_string.len = &req->uri.p[req->uri.len] - (qs + 1);
+    req->uri.len = qs - req->uri.p;
   }
 
   if (req->body.len == (size_t) ~0 && ns_vcasecmp(&req->method, "GET") == 0) {

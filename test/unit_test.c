@@ -312,6 +312,7 @@ static const char *test_parse_http_message(void) {
   static const char *b = "GET /blah HTTP/1.0\r\nFoo:  bar  \r\n\r\n";
   static const char *c = "get b c\nz:  k \nb: t\nvvv\n\n xx";
   static const char *d = "a b c\nContent-Length: 21 \nb: t\nvvv\n\n";
+  static const char *e = "GET /foo?a=b&c=d HTTP/1.0\n\n";
   struct ns_str *v;
   struct http_message req;
 
@@ -339,6 +340,10 @@ static const char *test_parse_http_message(void) {
   ASSERT(ns_get_http_header(&req, "foo") == NULL);
   ASSERT((v = ns_get_http_header(&req, "contENT-Length")) != NULL);
   ASSERT(v->len == 2 && memcmp(v->p, "21", 2) == 0);
+
+  ASSERT(ns_parse_http(e, strlen(e), &req) == (int) strlen(e));
+  ASSERT(ns_vcmp(&req.uri, "/foo") == 0);
+  ASSERT(ns_vcmp(&req.query_string, "a=b&c=d") == 0);
 
   return NULL;
 }

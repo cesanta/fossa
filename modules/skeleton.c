@@ -18,17 +18,11 @@
 /*
  * == Core API: TCP/UDP/SSL
  *
- * CAUTION: Fossa manager instance is single threaded. It does not protect
+ * CAUTION: Fossa manager is single threaded. It does not protect
  * it's data structures by mutexes, therefore all functions that are dealing
  * with particular event manager should be called from the same thread,
  * with exception of `mg_broadcast()` function. It is fine to have different
  * event managers handled by different threads.
- *
- * === Structures
- *
- * - `struct ns_connection` Describes a connection between two peers
- * - `struct ns_mgr` Container for a bunch of connections
- * - `struct iobuf` Describes piece of data
  */
 
 #include "fossa.h"

@@ -16,6 +16,7 @@ extern "C" {
 #define NS_MAX_HTTP_SEND_IOBUF 4096
 #define NS_WEBSOCKET_PING_INTERVAL_SECONDS 5
 
+/* HTTP message */
 struct http_message {
   struct ns_str message;    /* Whole message: request line + headers + body */
 

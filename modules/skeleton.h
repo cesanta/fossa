@@ -44,8 +44,8 @@ union socket_address {
 
 /* Describes chunk of memory */
 struct ns_str {
-  const char *p;
-  size_t len;
+  const char *p;  /* Memory chunk pointer */
+  size_t len;     /* Memory chunk length */
 };
 
 #define NS_STR(str_literal) { str_literal, sizeof(str_literal) - 1 }
@@ -63,6 +63,9 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 #define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
 #define NS_CLOSE   5  /* Connection is closed. NULL */
 
+/*
+ * Fossa event manager.
+ */
 struct ns_mgr {
   struct ns_connection *active_connections;
   const char *hexdump_file;         /* Debug hexdump file path */
@@ -70,6 +73,9 @@ struct ns_mgr {
   void *user_data;                  /* User data */
 };
 
+/*
+ * Fossa connection.
+ */
 struct ns_connection {
   struct ns_connection *next, *prev;  /* ns_mgr::active_connections linkage */
   struct ns_connection *listener;     /* Set only for accept()-ed connections */

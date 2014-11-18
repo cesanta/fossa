@@ -17,16 +17,7 @@ index.html: $(ADOCS) Makefile style.css index-docinfo.html
 	  -a data-uri \
 	  -a toc \
 	  -a stylesheet=style.css \
-	  index.adoc -o index.html.tmp
-	@git checkout index.html
-	@sed 's/^Last updated.*//' index.html >index.html.tmp.A
-	@sed 's/^Last updated.*//' index.html.tmp >index.html.tmp.B
-	@if ! diff -q index.html.tmp.A index.html.tmp.B; then \
-	  mv index.html.tmp $@; \
-	else \
-	  touch $@; \
-	fi
-	@rm -f index.html.tmp*
+	  index.adoc -o index.html
 
 %.adoc: ../modules/%.c
 	$(DOCGEN) -o $@ $<

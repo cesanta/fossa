@@ -8,6 +8,7 @@
 
 include::concept.adoc[]
 include::tutorial.adoc[]
+include::build_opts.adoc[]
 
 include::skeleton.adoc[]
 include::http.adoc[]

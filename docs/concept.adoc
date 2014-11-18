@@ -115,8 +115,11 @@ NS_POLL:: Sent to all connections on each invocation of `ns_server_poll()`
 
 === Connection flags
 
-An event handler can set `struct ns_connection::flags` attribute to control
-the behavior of the connection.  Below is a list of connection flags:
+Each connection has a `flags` bit field. Some flags are set by Fossa, for
+example if a user creates an outbound UDP connection using `udp://1.2.3.4:5678`
+address, Fossa is going to set `NSF_UDP` flag for that connection. Other flags
+are meant to be set only by user event handler to tell Fossa how to behave.
+Below is a list of connection flags that are meant to be set by event handlers:
 
 * `NSF_FINISHED_SENDING_DATA` tells Fossa that all data has been
   appended to the `send_iobuf`. As soon as Fossa sends it to the
@@ -124,15 +127,18 @@ the behavior of the connection.  Below is a list of connection flags:
 * `NSF_BUFFER_BUT_DONT_SEND` tells Fossa to append data to the
   `send_iobuf` but hold on sending it, because the data will be modified
   later and then will be sent by clearing `NSF_BUFFER_BUT_DONT_SEND` flag.
-* `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done
-* `NSF_CONNECTING` set when connection is in connecting state after
-  `ns_connect()` call but connect did not finish yet
 * `NSF_CLOSE_IMMEDIATELY` tells Fossa to close the connection
   immediately, usually after some error
-* `NSF_LISTENING` set for all listening connections
-* `NSF_UDP` set if connection is UDP
-* `NSF_IS_WEBSOCKET` set by Fossa if connection is a Websocket connection
-* `NSF_WEBSOCKET_NO_DEFRAG` should be set by a user if user wants to switch
-  off automatic frame defragmentation
 * `NSF_USER_1`, `NSF_USER_2`, `NSF_USER_3`, `NSF_USER_4` could be
   used by a developer to store application-specific state
+
+Flags below are set by Fossa:
+
+* `NSF_SSL_HANDSHAKE_DONE` SSL only, set when SSL handshake is done.
+* `NSF_CONNECTING` set when connection is in connecting state after
+  `ns_connect()` call but connect did not finish yet.
+* `NSF_LISTENING` set for all listening connections
+* `NSF_UDP` set if connection is UDP
+* `NSF_IS_WEBSOCKET` set if connection is a Websocket connection
+* `NSF_WEBSOCKET_NO_DEFRAG` should be set by a user if user wants to switch
+  off automatic Websocket frame defragmentation

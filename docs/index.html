@@ -10765,8 +10765,11 @@ written data from the <code>send_iobuf</code>. <code>void *ev_data</code> is <co
 <div class="sect2">
 <h3 id="_connection_flags">Connection flags</h3>
 <div class="paragraph">
-<p>An event handler can set <code>struct ns_connection::flags</code> attribute to control
-the behavior of the connection.  Below is a list of connection flags:</p>
+<p>Each connection has a <code>flags</code> bit field. Some flags are set by Fossa, for
+example if a user creates an outbound UDP connection using <code>udp://1.2.3.4:5678</code>
+address, Fossa is going to set <code>NSF_UDP</code> flag for that connection. Other flags
+are meant to be set only by user event handler to tell Fossa how to behave.
+Below is a list of connection flags that are meant to be set by event handlers:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -10781,15 +10784,26 @@ socket, the connection will be closed.</p>
 later and then will be sent by clearing <code>NSF_BUFFER_BUT_DONT_SEND</code> flag.</p>
 </li>
 <li>
-<p><code>NSF_SSL_HANDSHAKE_DONE</code> SSL only, set when SSL handshake is done</p>
+<p><code>NSF_CLOSE_IMMEDIATELY</code> tells Fossa to close the connection
+immediately, usually after some error</p>
+</li>
+<li>
+<p><code>NSF_USER_1</code>, <code>NSF_USER_2</code>, <code>NSF_USER_3</code>, <code>NSF_USER_4</code> could be
+used by a developer to store application-specific state</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Flags below are set by Fossa:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>NSF_SSL_HANDSHAKE_DONE</code> SSL only, set when SSL handshake is done.</p>
 </li>
 <li>
 <p><code>NSF_CONNECTING</code> set when connection is in connecting state after
-<code>ns_connect()</code> call but connect did not finish yet</p>
-</li>
-<li>
-<p><code>NSF_CLOSE_IMMEDIATELY</code> tells Fossa to close the connection
-immediately, usually after some error</p>
+<code>ns_connect()</code> call but connect did not finish yet.</p>
 </li>
 <li>
 <p><code>NSF_LISTENING</code> set for all listening connections</p>
@@ -10798,15 +10812,11 @@ immediately, usually after some error</p>
 <p><code>NSF_UDP</code> set if connection is UDP</p>
 </li>
 <li>
-<p><code>NSF_IS_WEBSOCKET</code> set by Fossa if connection is a Websocket connection</p>
+<p><code>NSF_IS_WEBSOCKET</code> set if connection is a Websocket connection</p>
 </li>
 <li>
 <p><code>NSF_WEBSOCKET_NO_DEFRAG</code> should be set by a user if user wants to switch
-off automatic frame defragmentation</p>
-</li>
-<li>
-<p><code>NSF_USER_1</code>, <code>NSF_USER_2</code>, <code>NSF_USER_3</code>, <code>NSF_USER_4</code> could be
-used by a developer to store application-specific state</p>
+off automatic Websocket frame defragmentation</p>
 </li>
 </ul>
 </div>
@@ -11818,7 +11828,7 @@ Destination is '\0'-terminated.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-11-18 10:20:01 GMT
+Last updated 2014-11-18 12:08:13 CET
 </div>
 </div>
 </body>

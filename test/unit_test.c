@@ -933,6 +933,24 @@ static const char *test_hexdump_file(void) {
   return NULL;
 }
 
+static const char *test_http_chunk(void) {
+  struct ns_connection nc;
+
+  memset(&nc, 0, sizeof(nc));
+
+  ns_printf_http_chunk(&nc, "%d %s", 123, ":-)");
+  ASSERT(nc.send_iobuf.len == 12);
+  ASSERT(memcmp(nc.send_iobuf.buf, "7\r\n123 :-)\r\n", 12) == 0);
+  iobuf_free(&nc.send_iobuf);
+
+  ns_send_http_chunk(&nc, "", 0);
+  ASSERT(nc.send_iobuf.len == 5);
+  ASSERT(memcmp(nc.send_iobuf.buf, "0\r\n\r\n", 3) == 0);
+  iobuf_free(&nc.send_iobuf);
+
+  return NULL;
+}
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -954,6 +972,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
+  RUN_TEST(test_http_chunk);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

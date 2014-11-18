@@ -2300,6 +2300,56 @@ int ns_get_http_var(const struct ns_str *buf, const char *name,
 }
 
 /*
+ * Send buffer `buf` of size `len` to the client using chunked HTTP encoding.
+ * This function first sends buffer size as hex number + newline, then
+ * buffer itself, then newline. For example,
+ *   `ns_send_http_chunk(nc, "foo", 3)` whill append `3\r\nfoo\r\n` string to
+ * the `nc->send_iobuf` output IO buffer.
+ *
+ * NOTE: HTTP header "Transfer-Encoding: chunked" should be sent prior to
+ * using this function.
+ *
+ * NOTE: do not forget to send empty chunk at the end of the response,
+ * to tell the client that everything was sent. Example:
+ *
+ * ```
+ *   ns_printf_http_chunk(nc, "%s", "my response!");
+ *   ns_send_http_chunk(nc, "", 0); // Tell the client we're finished
+ * ```
+ */
+void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
+  char chunk_size[50];
+  int n;
+
+  n = snprintf(chunk_size, sizeof(chunk_size), "%lX\r\n", len);
+  ns_send(nc, chunk_size, n);
+  ns_send(nc, buf, len);
+  ns_send(nc, "\r\n", 2);
+}
+
+/*
+ * Send printf-formatted HTTP chunk.
+ * Functionality is similar to `ns_send_http_chunk()`.
+ */
+void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
+  char mem[500], *buf = mem;
+  int len;
+  va_list ap;
+
+  va_start(ap, fmt);
+  len = ns_avprintf(&buf, sizeof(mem), fmt, ap);
+  va_end(ap);
+
+  if (len >= 0) {
+    ns_send_http_chunk(nc, buf, len);
+  }
+
+  if (buf != mem && buf != NULL) {
+    NS_FREE(buf);
+  }
+}
+
+/*
  * Serve given HTTP request according to the `options`.
  *
  * Example code snippet:

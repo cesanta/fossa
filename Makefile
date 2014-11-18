@@ -2,11 +2,14 @@
 # All rights reserved
 
 # Note: order is important
-all:
-	$(MAKE) -C modules
-	$(MAKE) -C docs
-	$(MAKE) -C test
-	$(MAKE) -C examples
+SUBDIRS = modules docs test examples
+
+.PHONY: all $(SUBDIRS)
+
+all: $(SUBDIRS)
+
+$(SUBDIRS): %:
+	@$(MAKE) -C $@
 
 difftest:
 	@TMP=`mktemp -t checkout-diff.XXXXXX`; \

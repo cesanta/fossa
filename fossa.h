@@ -15,10 +15,10 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-#ifndef NS_SKELETON_HEADER_INCLUDED
-#define NS_SKELETON_HEADER_INCLUDED
+#ifndef NS_COMMON_HEADER_INCLUDED
+#define NS_COMMON_HEADER_INCLUDED
 
-#define NS_SKELETON_VERSION "2.2.0"
+#define NS_FOSSA_VERSION "2.2.0"
 
 #undef UNICODE                  /* Use ANSI WinAPI functions */
 #undef _UNICODE                 /* Use multibyte encoding on Windows */
@@ -131,6 +131,69 @@ typedef struct stat ns_stat_t;
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
+#endif /* NS_COMMON_HEADER_INCLUDED */
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ */
+
+#ifndef NS_IOBUF_HEADER_INCLUDED
+#define NS_IOBUF_HEADER_INCLUDED
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/* IO buffers interface */
+struct iobuf {
+  char *buf;
+  size_t len;
+  size_t size;
+};
+
+void iobuf_init(struct iobuf *, size_t initial_size);
+void iobuf_free(struct iobuf *);
+size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
+void iobuf_remove(struct iobuf *, size_t data_size);
+void iobuf_resize(struct iobuf *, size_t new_size);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* NS_IOBUF_HEADER_INCLUDED */
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ */
+
+#ifndef NS_SKELETON_HEADER_INCLUDED
+#define NS_SKELETON_HEADER_INCLUDED
+
 #ifdef NS_ENABLE_SSL
 #ifdef __APPLE__
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -160,19 +223,6 @@ struct ns_str {
   const char *p;
   size_t len;
 };
-
-/* IO buffers interface */
-struct iobuf {
-  char *buf;
-  size_t len;
-  size_t size;
-};
-
-void iobuf_init(struct iobuf *, size_t initial_size);
-void iobuf_free(struct iobuf *);
-size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
-void iobuf_remove(struct iobuf *, size_t data_size);
-void iobuf_resize(struct iobuf *, size_t new_size);
 
 /* Callback function (event handler) prototype, must be defined by user. */
 /* Net skeleton will call event handler, passing events defined above. */

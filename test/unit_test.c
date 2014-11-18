@@ -55,6 +55,7 @@ static char *read_file(const char *path, size_t *size) {
 
 static const char *test_iobuf(void) {
   struct iobuf io;
+  const char *data = "TEST";
 
   iobuf_init(&io, 0);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
@@ -65,6 +66,15 @@ static const char *test_iobuf(void) {
   ASSERT(io.buf != NULL && io.len == 0 && io.size == 10);
   iobuf_free(&io);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
+
+  iobuf_init(&io, 10);
+  ASSERT(iobuf_append(&io, NULL, 0) == 0);
+  ASSERT(iobuf_append(&io, NULL, -1) == 0);
+
+  ASSERT(iobuf_append(&io, data, strlen(data)) == strlen(data));
+  iobuf_resize(&io, 2);
+  ASSERT(io.size == 10);
+  iobuf_free(&io);
 
   return NULL;
 }

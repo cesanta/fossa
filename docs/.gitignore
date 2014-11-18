@@ -5,4 +5,5 @@ json-rpc.adoc
 mqtt.adoc
 sha1.adoc
 util.adoc
+iobuf.adoc
 index-docinfo.html

@@ -224,6 +224,8 @@ struct ns_str {
   size_t len;
 };
 
+#define NS_STR(str_literal) { str_literal, sizeof(str_literal) - 1 }
+
 /* Callback function (event handler) prototype, must be defined by user. */
 /* Net skeleton will call event handler, passing events defined above. */
 struct ns_connection;

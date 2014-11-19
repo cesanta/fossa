@@ -56,6 +56,8 @@ static char *read_file(const char *path, size_t *size) {
 static const char *test_iobuf(void) {
   struct iobuf io;
   const char *data = "TEST";
+  const char *prefix = "MY";
+  const char *big_prefix = "Some long prefix: ";
 
   iobuf_init(&io, 0);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
@@ -69,13 +71,27 @@ static const char *test_iobuf(void) {
 
   iobuf_init(&io, 10);
   ASSERT(iobuf_append(&io, NULL, 0) == 0);
-  ASSERT(iobuf_append(&io, NULL, -1) == 0);
+  /* test allocation failure */
+  ASSERT(iobuf_append(&io, NULL, 1125899906842624) == 0);
 
   ASSERT(iobuf_append(&io, data, strlen(data)) == strlen(data));
+
   iobuf_resize(&io, 2);
   ASSERT(io.size == 10);
-  iobuf_free(&io);
+  ASSERT(io.len == strlen(data));
 
+  ASSERT(iobuf_prepend(&io, prefix, strlen(prefix)) == strlen(prefix));
+  ASSERT(io.size == 10);
+  ASSERT(io.len == strlen(data) + strlen(prefix));
+
+  ASSERT(iobuf_prepend(&io, big_prefix, strlen(big_prefix)) == strlen(big_prefix));
+  ASSERT(io.size == strlen(big_prefix) + strlen(prefix) + strlen(data));
+
+  /* test overflow */
+  ASSERT(iobuf_prepend(&io, NULL, -1) == 0);
+  /* test allocation failure */
+  ASSERT(iobuf_prepend(&io, NULL, 1125899906842624) == 0);
+  iobuf_free(&io);
   return NULL;
 }
 

@@ -45,9 +45,8 @@ $(function() {
    // Get the id of the current element
    cur = cur[cur.length-1];
    var id = cur && cur.length ? cur[0].id : "";
-   var item = menuItems.parent().removeClass(className)
-                       .end().filter("[href=#"+id+"]").parent();
-
+   $('#toc a').removeClass(className);
+   var item = menuItems.filter("[href=#"+id+"]");
    if (item.length != 0) {
      item.addClass(className);
      scrollToView(topMenu, item);

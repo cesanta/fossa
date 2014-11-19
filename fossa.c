@@ -1798,7 +1798,7 @@ static int get_request_len(const char *s, int buf_len) {
 */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end, *qs;
-  int len, i;
+  int len, i, is_http_response;
 
   if ((len = get_request_len(s, n)) <= 0) return len;
 
@@ -1845,7 +1845,26 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
     req->uri.len = qs - req->uri.p;
   }
 
-  if (req->body.len == (size_t) ~0 && ns_vcasecmp(&req->method, "GET") == 0) {
+  /*
+   * ns_parse_http() is used to parse both HTTP requests and HTTP
+   * responses. If HTTP response does not have Content-Length set, then
+   * body is read until socket is closed, i.e. body.len is infinite (~0).
+   *
+   * For HTTP requests though, according to
+   * http://tools.ietf.org/html/rfc7231#section-8.1.3,
+   * only POST and PUT methods have defined body semantics.
+   * Therefore, if Content-Length is not specified and methods are
+   * not one of PUT or POST, set body length to 0.
+   *
+   * So,
+   * if it is HTTP request, and Content-Length is not set,
+   * and method is not (PUT or POST) then reset body length to zero.
+   */
+  is_http_response = req->method.len > 5 && !memcmp(req->method.p, "HTTP/", 5);
+  if (!is_http_response &&
+      req->body.len == (size_t) ~0 &&
+      ns_vcasecmp(&req->method, "PUT") != 0 &&
+      ns_vcasecmp(&req->method, "POST") != 0) {
     req->body.len = 0;
     req->message.len = len;
   }

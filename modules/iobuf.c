@@ -19,7 +19,7 @@
  * == IO Buffers
  */
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "internal.h"
 
 /* Initializes an IO buffer. */

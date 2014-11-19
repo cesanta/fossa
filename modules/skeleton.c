@@ -25,7 +25,7 @@
  * event managers handled by different threads.
  */
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "internal.h"
 
 #define NS_CTL_MSG_MESSAGE_SIZE     8192
@@ -365,7 +365,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
 
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
-      /* http://msdn.microsoft.com/en-us/library/windows/desktop/ms740621(v=vs.85).aspx */
+      /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
       !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
                   (void *) &on, sizeof(on)) &&
 #endif
@@ -479,7 +479,8 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *srv, const char *str,
   } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
     DBG(("Failed to open listener: %d", errno));
     ns_set_error_string(opts.error_string, "failed to open listener");
-  } else if ((nc = ns_add_sock_opt(srv, sock, callback, add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(srv, sock, callback,
+                                   add_sock_opts)) == NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
@@ -568,7 +569,8 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
       /* Only Windoze Vista (and newer) have inet_ntop() */
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,(socklen_t)len);
+      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
+                (socklen_t)len);
 #endif
     }
     if (flags & 2) {
@@ -930,7 +932,8 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
     ns_set_error_string(opts.error_string, "cannot connect to socket");
     closesocket(sock);
     return NULL;
-  } else if ((nc = ns_add_sock_opt(mgr, sock, callback, add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback,
+                                   add_sock_opts)) == NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     closesocket(sock);
     return NULL;
@@ -1010,7 +1013,8 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
  * in event manager thread. Note that `ns_broadcast()` is the only function
  * that can be, and must be, called from a different thread.
  */
-void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
+                  void *data, size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
@@ -1029,7 +1033,10 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
   s->user_data = user_data;
 
 #ifdef _WIN32
-  { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
+  {
+    WSADATA data;
+    WSAStartup(MAKEWORD(2, 2), &data);
+  }
 #else
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
@@ -1043,7 +1050,13 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #endif
 
 #ifdef NS_ENABLE_SSL
-  {static int init_done; if (!init_done) { SSL_library_init(); init_done++; }}
+  {
+    static int init_done;
+    if (!init_done) {
+      SSL_library_init();
+      init_done++;
+    }
+  }
 #endif
 }
 

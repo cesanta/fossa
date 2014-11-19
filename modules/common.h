@@ -58,7 +58,7 @@
 #ifdef __va_copy
 #define va_copy __va_copy
 #else
-#define va_copy(x,y) (x) = (y)
+#define va_copy(x, y) (x) = (y)
 #endif
 #endif
 
@@ -121,8 +121,12 @@ typedef struct stat ns_stat_t;
 #endif /* _WIN32 */
 
 #ifdef NS_ENABLE_DEBUG
-#define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \
-  fflush(stdout); } while(0)
+#define DBG(x) do {           \
+    printf("%-20s ", __func__);                   \
+    printf x;                                     \
+    putchar('\n');                                \
+    fflush(stdout);                               \
+  } while(0)
 #else
 #define DBG(x)
 #endif

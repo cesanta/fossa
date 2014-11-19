@@ -9,7 +9,7 @@
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "internal.h"
 
 struct proto_data_http {
@@ -202,7 +202,8 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
 
   for (i = 0; i < ARRAY_SIZE(hm->header_names); i++) {
     struct ns_str *h = &hm->header_names[i], *v = &hm->header_values[i];
-    if (h->p != NULL && h->len == len && !ns_ncasecmp(h->p, name, len)) return v;
+    if (h->p != NULL && h->len == len && !ns_ncasecmp(h->p, name, len))
+      return v;
   }
 
   return NULL;
@@ -216,7 +217,8 @@ static int is_ws_first_fragment(unsigned char flags) {
   return (flags & 0x80) == 0 && (flags & 0x0f) != 0;
 }
 
-static void handle_incoming_websocket_frame(struct ns_connection *nc, struct websocket_message *wsm) {
+static void handle_incoming_websocket_frame(struct ns_connection *nc,
+                                            struct websocket_message *wsm) {
   if (wsm->flags & 0x8) {
     nc->handler(nc, NS_WEBSOCKET_CONTROL_FRAME, wsm);
   } else {
@@ -358,13 +360,13 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
   int len = 0;
-  for (i=0; i<strvcnt; i++) {
+  for (i = 0; i < strvcnt; i++) {
     len += strv[i].len;
   }
 
   ns_send_ws_header(nc, op, len);
 
-  for (i=0; i<strvcnt; i++) {
+  for (i = 0; i < strvcnt; i++) {
     ns_send(nc, strv[i].p, strv[i].len);
   }
 

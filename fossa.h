@@ -58,7 +58,7 @@
 #ifdef __va_copy
 #define va_copy __va_copy
 #else
-#define va_copy(x,y) (x) = (y)
+#define va_copy(x, y) (x) = (y)
 #endif
 #endif
 
@@ -121,8 +121,12 @@ typedef struct stat ns_stat_t;
 #endif /* _WIN32 */
 
 #ifdef NS_ENABLE_DEBUG
-#define DBG(x) do { printf("%-20s ", __func__); printf x; putchar('\n'); \
-  fflush(stdout); } while(0)
+#define DBG(x) do {           \
+    printf("%-20s ", __func__);                   \
+    printf x;                                     \
+    putchar('\n');                                \
+    fflush(stdout);                               \
+  } while(0)
 #else
 #define DBG(x)
 #endif
@@ -151,6 +155,8 @@ typedef struct stat ns_stat_t;
 
 #ifndef NS_IOBUF_HEADER_INCLUDED
 #define NS_IOBUF_HEADER_INCLUDED
+
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -233,8 +239,14 @@ struct ns_connection;
 typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
 /* Events. Meaning of event parameter (evp) is given in the comment. */
-#define NS_POLL    0  /* Sent to each connection on each call to ns_mgr_poll() */
-#define NS_ACCEPT  1  /* New connection accept()-ed. union socket_address *addr */
+#define NS_POLL    0  /*
+                       * Sent to each connection on each call
+                       * to ns_mgr_poll()
+                       */
+#define NS_ACCEPT  1  /*
+                       * New connection accept()-ed.
+                       * union socket_address *addr
+                       */
 #define NS_CONNECT 2  /* connect() succeeded or failed. int *success_status */
 #define NS_RECV    3  /* Data has benn received. int *num_bytes */
 #define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
@@ -299,12 +311,13 @@ void ns_broadcast(struct ns_mgr *, ns_event_handler_t, void *, size_t);
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 
 #define NS_COMMON_CONNECTION_OPTIONS \
-  void *user_data; \
-  unsigned int flags; \
-  char **error_string \
+  void *user_data;                   \
+  unsigned int flags;                \
+  char **error_string                \
 
 #define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
-  *((struct ns_connection_common_opts*)(dst)) = *((struct ns_connection_common_opts*)(src));
+  *((struct ns_connection_common_opts*)(dst)) =     \
+    *((struct ns_connection_common_opts*)(src));
 
 struct ns_connection_common_opts {
   NS_COMMON_CONNECTION_OPTIONS;
@@ -314,19 +327,26 @@ struct ns_add_sock_opts {
   NS_COMMON_CONNECTION_OPTIONS;
 };
 struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t, ns_event_handler_t);
-struct ns_connection *ns_add_sock_opt(struct ns_mgr *, sock_t, ns_event_handler_t, struct ns_add_sock_opts);
+struct ns_connection *ns_add_sock_opt(struct ns_mgr *, sock_t,
+                                      ns_event_handler_t,
+                                      struct ns_add_sock_opts);
 
 struct ns_bind_opts {
   NS_COMMON_CONNECTION_OPTIONS;
 };
-struct ns_connection *ns_bind(struct ns_mgr *, const char *, ns_event_handler_t);
-struct ns_connection *ns_bind_opt(struct ns_mgr *, const char *, ns_event_handler_t, struct ns_bind_opts);
+struct ns_connection *ns_bind(struct ns_mgr *, const char *,
+                              ns_event_handler_t);
+struct ns_connection *ns_bind_opt(struct ns_mgr *, const char *,
+                                  ns_event_handler_t, struct ns_bind_opts);
 
 struct ns_connect_opts {
   NS_COMMON_CONNECTION_OPTIONS;
 };
-struct ns_connection *ns_connect(struct ns_mgr *, const char *, ns_event_handler_t);
-struct ns_connection *ns_connect_opt(struct ns_mgr *, const char *, ns_event_handler_t, struct ns_connect_opts);
+struct ns_connection *ns_connect(struct ns_mgr *, const char *,
+                                 ns_event_handler_t);
+struct ns_connection *ns_connect_opt(struct ns_mgr *, const char *,
+                                     ns_event_handler_t,
+                                     struct ns_connect_opts);
 const char *ns_set_ssl(struct ns_connection *nc, const char *, const char *);
 
 int ns_send(struct ns_connection *, const void *buf, int len);
@@ -335,8 +355,8 @@ int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
 /* Utility functions */
 void *ns_start_thread(void *(*f)(void *), void *p);
-int ns_socketpair(sock_t [2]);
-int ns_socketpair2(sock_t [2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
+int ns_socketpair(sock_t[2]);
+int ns_socketpair2(sock_t[2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
@@ -720,7 +740,8 @@ struct ns_send_mqtt_handshake_opts {
 #define NS_MQTT_HAS_PASSWORD  0x40
 #define NS_MQTT_HAS_USER_NAME 0x80
 #define NS_MQTT_GET_WILL_QOS(flags) (((flags) & 0x18) >> 3)
-#define NS_MQTT_SET_WILL_QOS(flags, qos) (flags) = ((flags) & ~0x18) | ((qos) << 3)
+#define NS_MQTT_SET_WILL_QOS(flags, qos) (flags) = \
+      ((flags) & ~0x18) | ((qos) << 3)
 
 /* CONNACK return codes */
 #define NS_MQTT_CONNACK_ACCEPTED             0

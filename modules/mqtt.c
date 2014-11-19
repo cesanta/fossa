@@ -9,7 +9,7 @@
 
 #ifndef NS_DISABLE_MQTT
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "internal.h"
 
 static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
@@ -120,7 +120,9 @@ void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
 }
 
-void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id, struct ns_send_mqtt_handshake_opts opts) {
+void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
+                                const char *client_id,
+                                struct ns_send_mqtt_handshake_opts opts) {
   uint8_t header = NS_MQTT_CMD_CONNECT << 4;
   uint8_t rem_len;
   uint16_t keep_alive;
@@ -181,14 +183,14 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   uint16_t topic_len_n;
 
   size_t i;
-  for (i=0; i<topics_len; i++)
+  for (i = 0; i < topics_len; i++)
     rem_len += 2 + strlen(topics[i].topic) + 1;
 
   ns_send(nc, &header, 1);
   ns_send(nc, &rem_len, 1); /* TODO(mkm) implement variable length encoding */
   ns_send(nc, &message_id_n, 2);
 
-  for (i=0; i<topics_len; i++) {
+  for (i = 0; i < topics_len; i++) {
     topic_len_n = htons(strlen(topics[i].topic));
     ns_send(nc, &topic_len_n, 2);
     ns_send(nc, topics[i].topic, strlen(topics[i].topic));

@@ -1,6 +1,6 @@
 PROG = unit_test
 SSL=-DNS_ENABLE_SSL
-CFLAGS = -W -Wall -Werror -I.. $(SSL) -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -Werror $(SSL) -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 AMALGAMATED_SOURCES = $(PROG).c ../fossa.c
 EAT_MALLOC_WARNINGS=MallocLogFile=/dev/null
@@ -12,7 +12,7 @@ MINGW_GCC=/usr/local/gcc-4.8.0-qt-4.8.4-for-mingw32/win32-gcc/bin/i586-mingw32-g
 
 all: clean $(PROG)_ansi $(PROG)_c99 $(PROG) $(PROG)_coverage
 
-.PHONY: clean clean_coverage lcov valgrind docker $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
+.PHONY: clean clean_coverage lcov valgrind docker cpplint $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG).exe $(PROG)_mingw.exe
 
 $(PROG): Makefile
 	g++ -x c++ $(AMALGAMATED_SOURCES) -o $(PROG) $(CFLAGS) -lssl
@@ -27,7 +27,7 @@ $(PROG)_c99: Makefile
 	$(EAT_MALLOC_WARNINGS) ./$(PROG)_c99 $(TEST_FILTER)
 
 $(PROG)_mingw.exe: Makefile
-	$(MINGW_GCC) $(AMALGAMATED_SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror -I..
+	$(MINGW_GCC) $(AMALGAMATED_SOURCES) -o $(PROG)_mingw.exe -W -Wall -Werror
 
 $(PROG).exe:
 	wine cl $(AMALGAMATED_SOURCES) /MD /I.. /Zi $(CFLAGS_EXTRA) && echo "Compiled OK\n"
@@ -53,6 +53,9 @@ valgrind:
 #   docker run -v $(CURDIR)/../..:/cesanta -t -i --entrypoint=/bin/bash cesanta/fossa_test
 docker:
 	docker run -v $(CURDIR)/../..:/cesanta cesanta/fossa_test
+
+cpplint:
+	cpplint.py --verbose=0 --extensions=c,h ../modules/*.[ch] >/dev/null
 
 clean: clean_coverage
 	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt

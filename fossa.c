@@ -508,7 +508,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
 
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
-      /* http://msdn.microsoft.com/en-us/library/windows/desktop/ms740621(v=vs.85).aspx */
+      /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
       !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
                   (void *) &on, sizeof(on)) &&
 #endif
@@ -622,7 +622,8 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *srv, const char *str,
   } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
     DBG(("Failed to open listener: %d", errno));
     ns_set_error_string(opts.error_string, "failed to open listener");
-  } else if ((nc = ns_add_sock_opt(srv, sock, callback, add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(srv, sock, callback,
+                                   add_sock_opts)) == NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
@@ -711,7 +712,8 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
       /* Only Windoze Vista (and newer) have inet_ntop() */
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,(socklen_t)len);
+      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
+                (socklen_t)len);
 #endif
     }
     if (flags & 2) {
@@ -1073,7 +1075,8 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
     ns_set_error_string(opts.error_string, "cannot connect to socket");
     closesocket(sock);
     return NULL;
-  } else if ((nc = ns_add_sock_opt(mgr, sock, callback, add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback,
+                                   add_sock_opts)) == NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     closesocket(sock);
     return NULL;
@@ -1153,7 +1156,8 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
  * in event manager thread. Note that `ns_broadcast()` is the only function
  * that can be, and must be, called from a different thread.
  */
-void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
+                  void *data, size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
@@ -1172,7 +1176,10 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
   s->user_data = user_data;
 
 #ifdef _WIN32
-  { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
+  {
+    WSADATA data;
+    WSAStartup(MAKEWORD(2, 2), &data);
+  }
 #else
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
@@ -1186,7 +1193,13 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #endif
 
 #ifdef NS_ENABLE_SSL
-  {static int init_done; if (!init_done) { SSL_library_init(); init_done++; }}
+  {
+    static int init_done;
+    if (!init_done) {
+      SSL_library_init();
+      init_done++;
+    }
+  }
 #endif
 }
 
@@ -1910,7 +1923,8 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
 
   for (i = 0; i < ARRAY_SIZE(hm->header_names); i++) {
     struct ns_str *h = &hm->header_names[i], *v = &hm->header_values[i];
-    if (h->p != NULL && h->len == len && !ns_ncasecmp(h->p, name, len)) return v;
+    if (h->p != NULL && h->len == len && !ns_ncasecmp(h->p, name, len))
+      return v;
   }
 
   return NULL;
@@ -1924,7 +1938,8 @@ static int is_ws_first_fragment(unsigned char flags) {
   return (flags & 0x80) == 0 && (flags & 0x0f) != 0;
 }
 
-static void handle_incoming_websocket_frame(struct ns_connection *nc, struct websocket_message *wsm) {
+static void handle_incoming_websocket_frame(struct ns_connection *nc,
+                                            struct websocket_message *wsm) {
   if (wsm->flags & 0x8) {
     nc->handler(nc, NS_WEBSOCKET_CONTROL_FRAME, wsm);
   } else {
@@ -2066,13 +2081,13 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
   int len = 0;
-  for (i=0; i<strvcnt; i++) {
+  for (i = 0; i < strvcnt; i++) {
     len += strv[i].len;
   }
 
   ns_send_ws_header(nc, op, len);
 
-  for (i=0; i<strvcnt; i++) {
+  for (i = 0; i < strvcnt; i++) {
     ns_send(nc, strv[i].p, strv[i].len);
   }
 
@@ -3176,7 +3191,9 @@ void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
 }
 
-void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id, struct ns_send_mqtt_handshake_opts opts) {
+void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
+                                const char *client_id,
+                                struct ns_send_mqtt_handshake_opts opts) {
   uint8_t header = NS_MQTT_CMD_CONNECT << 4;
   uint8_t rem_len;
   uint16_t keep_alive;
@@ -3237,14 +3254,14 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   uint16_t topic_len_n;
 
   size_t i;
-  for (i=0; i<topics_len; i++)
+  for (i = 0; i < topics_len; i++)
     rem_len += 2 + strlen(topics[i].topic) + 1;
 
   ns_send(nc, &header, 1);
   ns_send(nc, &rem_len, 1); /* TODO(mkm) implement variable length encoding */
   ns_send(nc, &message_id_n, 2);
 
-  for (i=0; i<topics_len; i++) {
+  for (i = 0; i < topics_len; i++) {
     topic_len_n = htons(strlen(topics[i].topic));
     ns_send(nc, &topic_len_n, 2);
     ns_send(nc, topics[i].topic, strlen(topics[i].topic));

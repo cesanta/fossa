@@ -78,7 +78,8 @@ struct ns_send_mqtt_handshake_opts {
 #define NS_MQTT_HAS_PASSWORD  0x40
 #define NS_MQTT_HAS_USER_NAME 0x80
 #define NS_MQTT_GET_WILL_QOS(flags) (((flags) & 0x18) >> 3)
-#define NS_MQTT_SET_WILL_QOS(flags, qos) (flags) = ((flags) & ~0x18) | ((qos) << 3)
+#define NS_MQTT_SET_WILL_QOS(flags, qos) (flags) = \
+      ((flags) & ~0x18) | ((qos) << 3)
 
 /* CONNACK return codes */
 #define NS_MQTT_CONNACK_ACCEPTED             0

@@ -7,7 +7,7 @@
 
 #ifndef NS_DISABLE_JSON_RPC
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "json-rpc.h"
 
 /*

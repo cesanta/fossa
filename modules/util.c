@@ -7,7 +7,7 @@
  * == Utilities
  */
 
-#include "fossa.h"
+#include "../fossa.h"
 #include "internal.h"
 
 /*

@@ -6,7 +6,7 @@
 #ifndef NS_HTTP_HEADER_DEFINED
 #define NS_HTTP_HEADER_DEFINED
 
-#include "skeleton.h"
+#include "net.h"
 
 #ifdef __cplusplus
 extern "C" {

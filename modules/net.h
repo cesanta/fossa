@@ -15,8 +15,8 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-#ifndef NS_SKELETON_HEADER_INCLUDED
-#define NS_SKELETON_HEADER_INCLUDED
+#ifndef NS_NET_HEADER_INCLUDED
+#define NS_NET_HEADER_INCLUDED
 
 #include "common.h"
 #include "iobuf.h"
@@ -58,7 +58,7 @@ size_t strvbuf_append(struct iobuf *, const void *data, size_t data_size);
 struct ns_str *strvbuf_extract(struct iobuf *, size_t *len);
 
 /* Callback function (event handler) prototype, must be defined by user. */
-/* Net skeleton will call event handler, passing events defined above. */
+/* Fossa will call event handler, passing events defined above. */
 struct ns_connection;
 typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
@@ -193,4 +193,4 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
 }
 #endif /* __cplusplus */
 
-#endif /* NS_SKELETON_HEADER_INCLUDED */
+#endif /* NS_NET_HEADER_INCLUDED */

@@ -398,7 +398,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 
 #ifdef NS_ENABLE_SSL
 /* Certificate generation script is at */
-/* https://github.com/cesanta/net_skeleton/blob/master/scripts/gen_certs.sh */
+/* https://github.com/cesanta/fossa/blob/master/scripts/gen_certs.sh */
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -1006,7 +1006,7 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
  *
  * Must be called from a different thread.
  *
- * Skeleton manager has a socketpair, `struct ns_mgr::ctl`,
+ * Fossa manager has a socketpair, `struct ns_mgr::ctl`,
  * where `ns_broadcast()` pushes the message.
  * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
  * specified callback for each connection. Thus the callback function executes
@@ -1061,7 +1061,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 }
 
 /*
- * De-initializes skeleton manager.
+ * De-initializes fossa manager.
  *
  * Closes and deallocates all active connections.
  */

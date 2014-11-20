@@ -10,7 +10,7 @@ include::concept.adoc[]
 include::tutorial.adoc[]
 include::build_opts.adoc[]
 
-include::skeleton.adoc[]
+include::net.adoc[]
 include::iobuf.adoc[]
 include::http.adoc[]
 include::json-rpc.adoc[]

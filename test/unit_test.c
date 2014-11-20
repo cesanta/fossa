@@ -739,6 +739,106 @@ static const char *test_websocket_big(void) {
   return NULL;
 }
 
+static const char *test_mqtt_publish(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  char data[] = "dummy";
+  const char *got;
+
+  ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data, sizeof(data));
+  got = nc->send_iobuf.buf;
+  ASSERT(nc->send_iobuf.len > 0);
+
+  ASSERT(got[0] & NS_MQTT_RETAIN);
+  ASSERT(got[0] & (NS_MQTT_CMD_PUBLISH << 4));
+  ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
+  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+
+  ASSERT(got[2] == 0);
+  ASSERT(got[3] == 5);
+  ASSERT(strncmp(&got[4], "/test", 5) == 0);
+
+  ASSERT(got[9] == 0);
+  ASSERT(got[10] == 42);
+
+  ASSERT(strncmp(&got[11], data, sizeof(data)) == 0);
+
+  free(nc);
+  return NULL;
+}
+
+static const char *test_mqtt_subscribe(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  const char *got;
+  const int qos = 1;
+  struct ns_mqtt_topic_expression topic_expressions[] = {
+    {"/stuff", qos}
+  };
+
+  ns_mqtt_subscribe(nc, topic_expressions, 1, 42);
+  got = nc->send_iobuf.buf;
+  ASSERT(nc->send_iobuf.len > 0);
+  ASSERT(got[0] & (NS_MQTT_CMD_SUBSCRIBE << 4));
+  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT(got[2] == 0);
+  ASSERT(got[3] == 42);
+
+  ASSERT(got[4] == 0);
+  ASSERT(got[5] == 6);
+  ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
+  ASSERT(got[12] == qos);
+
+  free(nc);
+  return NULL;
+}
+
+static const char *test_mqtt_suback(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  const char *got;
+  ns_mqtt_suback(nc, 42);
+  got = nc->send_iobuf.buf;
+  ASSERT(nc->send_iobuf.len > 0);
+  ASSERT(got[0] & (NS_MQTT_CMD_SUBACK << 4));
+  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT(got[2] == 0);
+  ASSERT(got[3] == 42);
+
+  free(nc);
+  return NULL;
+}
+
+static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
+  (void) nc;
+  (void) ev_data;
+
+  switch (ev) {
+    case NS_MQTT_SUBACK:
+      *((int*)nc->user_data) = 1;
+      break;
+  }
+}
+
+static const char *test_mqtt_parse_mqtt(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  char msg[] = {(char)(NS_MQTT_CMD_SUBACK << 4), 2};
+  int check = 0;
+  int num_bytes = sizeof(msg);
+
+  nc->user_data = &check;
+  nc->handler = mqtt_eh;
+  ns_set_protocol_mqtt(nc);
+
+  iobuf_append(&nc->recv_iobuf, msg, num_bytes);
+  nc->proto_handler(nc, NS_RECV, &num_bytes);
+
+  ASSERT(check == 1);
+
+  /*
+   * TODO(mkm): add tests that excercise variable length encoding
+   * and other command codes.
+   */
+  return NULL;
+}
+
 static int rpc_sum(char *buf, int len, struct ns_rpc_request *req) {
   double sum = 0;
   int i;
@@ -1011,6 +1111,10 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
   RUN_TEST(test_http_chunk);
+  RUN_TEST(test_mqtt_publish);
+  RUN_TEST(test_mqtt_subscribe);
+  RUN_TEST(test_mqtt_suback);
+  RUN_TEST(test_mqtt_parse_mqtt);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

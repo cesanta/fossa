@@ -233,6 +233,10 @@ struct ns_str {
 
 #define NS_STR(str_literal) { str_literal, sizeof(str_literal) - 1 }
 
+/* Constructs and appends a ns_str structure to an iobuf. */
+size_t strvbuf_append(struct iobuf *, const void *data, size_t data_size);
+struct ns_str *strvbuf_extract(struct iobuf *, size_t *len);
+
 /* Callback function (event handler) prototype, must be defined by user. */
 /* Net skeleton will call event handler, passing events defined above. */
 struct ns_connection;
@@ -765,6 +769,8 @@ void ns_mqtt_publish(struct ns_connection *, const char *, uint16_t, int,
 void ns_mqtt_subscribe(struct ns_connection *,
                        const struct ns_mqtt_topic_expression *, size_t,
                        uint16_t);
+
+void ns_mqtt_suback(struct ns_connection *, uint16_t);
 
 #ifdef __cplusplus
 }

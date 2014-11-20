@@ -18,7 +18,7 @@
 #ifndef NS_MQTT_HEADER_INCLUDED
 #define NS_MQTT_HEADER_INCLUDED
 
-#include "skeleton.h"
+#include "net.h"
 
 struct ns_mqtt_message {
   int cmd;

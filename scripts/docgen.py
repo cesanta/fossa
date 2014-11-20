@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Usage: ./docgen.py ../modules/skeleton.c
+# Usage: ./docgen.py ../modules/net.c
 
 import argparse
 import subprocess

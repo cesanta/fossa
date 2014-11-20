@@ -782,6 +782,8 @@ void ns_mqtt_publish(struct ns_connection *, const char *, uint16_t, int,
 void ns_mqtt_subscribe(struct ns_connection *,
                        const struct ns_mqtt_topic_expression *, size_t,
                        uint16_t);
+void ns_mqtt_unsubscribe(struct ns_connection *, char **, size_t,
+                         uint16_t);
 
 void ns_mqtt_ping(struct ns_connection *);
 

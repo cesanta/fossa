@@ -800,6 +800,28 @@ static const char *test_mqtt_subscribe(void) {
   return NULL;
 }
 
+static const char *test_mqtt_unsubscribe(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  const char *got;
+  char *topics[] = {(char *) "/stuff"};
+
+  ns_mqtt_unsubscribe(nc, topics, 1, 42);
+  got = nc->send_iobuf.buf;
+  ASSERT(nc->send_iobuf.len == 12);
+  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_UNSUBSCRIBE << 4));
+  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT(got[2] == 0);
+  ASSERT(got[3] == 42);
+
+  ASSERT(got[4] == 0);
+  ASSERT(got[5] == 6);
+  ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
+
+  iobuf_free(&nc->send_iobuf);
+  free(nc);
+  return NULL;
+}
+
 static const char *test_mqtt_connack(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   const char *got;
@@ -1255,6 +1277,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_chunk);
   RUN_TEST(test_mqtt_publish);
   RUN_TEST(test_mqtt_subscribe);
+  RUN_TEST(test_mqtt_unsubscribe);
   RUN_TEST(test_mqtt_connack);
   RUN_TEST(test_mqtt_suback);
   RUN_TEST(test_mqtt_simple_acks);

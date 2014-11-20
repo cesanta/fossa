@@ -6,6 +6,8 @@
 #if !defined(NS_SHA1_HEADER_INCLUDED) && !defined(NS_DISABLE_SHA1)
 #define NS_SHA1_HEADER_INCLUDED
 
+#include "common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

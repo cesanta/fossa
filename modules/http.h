@@ -6,6 +6,8 @@
 #ifndef NS_HTTP_HEADER_DEFINED
 #define NS_HTTP_HEADER_DEFINED
 
+#include "skeleton.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

@@ -18,7 +18,7 @@
 #ifndef NS_IOBUF_HEADER_INCLUDED
 #define NS_IOBUF_HEADER_INCLUDED
 
-#include <sys/types.h>
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {

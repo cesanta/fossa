@@ -156,7 +156,6 @@ typedef struct stat ns_stat_t;
 #ifndef NS_IOBUF_HEADER_INCLUDED
 #define NS_IOBUF_HEADER_INCLUDED
 
-#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -200,6 +199,7 @@ void iobuf_resize(struct iobuf *, size_t new_size);
 
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
+
 
 #ifdef NS_ENABLE_SSL
 #ifdef __APPLE__
@@ -280,11 +280,11 @@ struct ns_connection {
   struct iobuf send_iobuf;    /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  time_t last_io_time;        /* Timestamp of the last socket IO */
-  ns_event_handler_t proto_handler;   /* Protocol-specific event handler */
-  void *proto_data;                   /* Protocol-specific data */
-  ns_event_handler_t handler; /* Event handler function */
-  void *user_data;            /* User-specific data */
+  time_t last_io_time;               /* Timestamp of the last socket IO */
+  ns_event_handler_t proto_handler;  /* Protocol-specific event handler */
+  void *proto_data;                  /* Protocol-specific data */
+  ns_event_handler_t handler;        /* Event handler function */
+  void *user_data;                   /* User-specific data */
 
   unsigned long flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)
@@ -450,6 +450,7 @@ int json_emit_va(char *buf, int buf_len, const char *fmt, va_list);
 #if !defined(NS_SHA1_HEADER_INCLUDED) && !defined(NS_DISABLE_SHA1)
 #define NS_SHA1_HEADER_INCLUDED
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -475,6 +476,7 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
 
 #ifndef NS_UTIL_HEADER_DEFINED
 #define NS_UTIL_HEADER_DEFINED
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -508,6 +510,7 @@ void ns_set_error_string(char **e, const char *s);
 
 #ifndef NS_HTTP_HEADER_DEFINED
 #define NS_HTTP_HEADER_DEFINED
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -683,6 +686,7 @@ int ns_rpc_dispatch(const char *buf, int, char *dst, int dst_len,
 
 #ifndef NS_MQTT_HEADER_INCLUDED
 #define NS_MQTT_HEADER_INCLUDED
+
 
 struct ns_mqtt_message {
   int cmd;

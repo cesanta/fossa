@@ -3172,8 +3172,6 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
       }
       iobuf_remove(io, mm.payload_len);
       break;
-    default:
-      break;
   }
 }
 

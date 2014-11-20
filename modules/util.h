@@ -6,6 +6,8 @@
 #ifndef NS_UTIL_HEADER_DEFINED
 #define NS_UTIL_HEADER_DEFINED
 
+#include "common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

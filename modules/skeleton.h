@@ -18,6 +18,9 @@
 #ifndef NS_SKELETON_HEADER_INCLUDED
 #define NS_SKELETON_HEADER_INCLUDED
 
+#include "common.h"
+#include "iobuf.h"
+
 #ifdef NS_ENABLE_SSL
 #ifdef __APPLE__
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -97,11 +100,11 @@ struct ns_connection {
   struct iobuf send_iobuf;    /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  time_t last_io_time;        /* Timestamp of the last socket IO */
-  ns_event_handler_t proto_handler;   /* Protocol-specific event handler */
-  void *proto_data;                   /* Protocol-specific data */
-  ns_event_handler_t handler; /* Event handler function */
-  void *user_data;            /* User-specific data */
+  time_t last_io_time;               /* Timestamp of the last socket IO */
+  ns_event_handler_t proto_handler;  /* Protocol-specific event handler */
+  void *proto_data;                  /* Protocol-specific data */
+  ns_event_handler_t handler;        /* Event handler function */
+  void *user_data;                   /* User-specific data */
 
   unsigned long flags;
 #define NSF_FINISHED_SENDING_DATA   (1 << 0)

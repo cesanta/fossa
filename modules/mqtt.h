@@ -44,27 +44,35 @@ struct ns_send_mqtt_handshake_opts {
 };
 
 /* Message types */
-#define NS_MQTT_CMD_CONNECT   1
-#define NS_MQTT_CMD_CONNACK   2
-#define NS_MQTT_CMD_PUBLISH   3
-#define NS_MQTT_CMD_PUBACK    4
-#define NS_MQTT_CMD_PUBREC    5
-#define NS_MQTT_CMD_PUBREL    6
-#define NS_MQTT_CMD_PUBCOMP   7
-#define NS_MQTT_CMD_SUBSCRIBE 8
-#define NS_MQTT_CMD_SUBACK    9
+#define NS_MQTT_CMD_CONNECT     1
+#define NS_MQTT_CMD_CONNACK     2
+#define NS_MQTT_CMD_PUBLISH     3
+#define NS_MQTT_CMD_PUBACK      4
+#define NS_MQTT_CMD_PUBREC      5
+#define NS_MQTT_CMD_PUBREL      6
+#define NS_MQTT_CMD_PUBCOMP     7
+#define NS_MQTT_CMD_SUBSCRIBE   8
+#define NS_MQTT_CMD_SUBACK      9
+#define NS_MQTT_CMD_UNSUBSCRIBE 10
+#define NS_MQTT_CMD_UNSUBACK    11
+#define NS_MQTT_CMD_PINGREQ     12
+#define NS_MQTT_CMD_PINGRESP    13
 
 /* MQTT event types */
-#define NS_MQTT_EVENT_BASE 200
-#define NS_MQTT_CONNECT (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_CONNECT)
-#define NS_MQTT_CONNACK (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_CONNACK)
-#define NS_MQTT_PUBLISH (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBLISH)
-#define NS_MQTT_PUBACK  (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBACK)
-#define NS_MQTT_PUBREC  (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBREC)
-#define NS_MQTT_PUBREL  (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBREL)
-#define NS_MQTT_PUBCOMP (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBCOMP)
-#define NS_MQTT_SUBSCRIBE (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_SUBSCRIBE)
-#define NS_MQTT_SUBACK (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_SUBACK)
+#define NS_MQTT_EVENT_BASE  200
+#define NS_MQTT_CONNECT     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_CONNECT)
+#define NS_MQTT_CONNACK     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_CONNACK)
+#define NS_MQTT_PUBLISH     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBLISH)
+#define NS_MQTT_PUBACK      (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBACK)
+#define NS_MQTT_PUBREC      (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBREC)
+#define NS_MQTT_PUBREL      (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBREL)
+#define NS_MQTT_PUBCOMP     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PUBCOMP)
+#define NS_MQTT_SUBSCRIBE   (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_SUBSCRIBE)
+#define NS_MQTT_SUBACK      (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_SUBACK)
+#define NS_MQTT_UNSUBSCRIBE (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_UNSUBSCRIBE)
+#define NS_MQTT_UNSUBACK    (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_UNSUBACK)
+#define NS_MQTT_PINGREQ     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PINGREQ)
+#define NS_MQTT_PINGRESP    (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PINGRESP)
 
 /* Message flags */
 #define NS_MQTT_RETAIN 0x1
@@ -100,13 +108,24 @@ void ns_send_mqtt_handshake(struct ns_connection *, const char *);
 void ns_send_mqtt_handshake_opt(struct ns_connection *, const char *,
                                 struct ns_send_mqtt_handshake_opts);
 
+/* requests */
 void ns_mqtt_publish(struct ns_connection *, const char *, uint16_t, int,
                      const void *, size_t);
 void ns_mqtt_subscribe(struct ns_connection *,
                        const struct ns_mqtt_topic_expression *, size_t,
                        uint16_t);
 
-void ns_mqtt_suback(struct ns_connection *, uint16_t);
+void ns_mqtt_ping(struct ns_connection *);
+
+/* replies */
+void ns_mqtt_connack(struct ns_connection *, uint8_t);
+void ns_mqtt_puback(struct ns_connection *, uint16_t);
+void ns_mqtt_pubrec(struct ns_connection *, uint16_t);
+void ns_mqtt_pubrel(struct ns_connection *, uint16_t);
+void ns_mqtt_pubcomp(struct ns_connection *, uint16_t);
+void ns_mqtt_suback(struct ns_connection *, uint8_t *, size_t, uint16_t);
+void ns_mqtt_unsuback(struct ns_connection *, uint16_t);
+void ns_mqtt_pong(struct ns_connection *);
 
 #ifdef __cplusplus
 }

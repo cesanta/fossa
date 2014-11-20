@@ -753,10 +753,10 @@ static const char *test_mqtt_publish(void) {
 
   ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data, sizeof(data));
   got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len > 0);
+  ASSERT(nc->send_iobuf.len == 17);
 
   ASSERT(got[0] & NS_MQTT_RETAIN);
-  ASSERT(got[0] & (NS_MQTT_CMD_PUBLISH << 4));
+  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_PUBLISH << 4));
   ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
   ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
 
@@ -784,8 +784,8 @@ static const char *test_mqtt_subscribe(void) {
 
   ns_mqtt_subscribe(nc, topic_expressions, 1, 42);
   got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len > 0);
-  ASSERT(got[0] & (NS_MQTT_CMD_SUBSCRIBE << 4));
+  ASSERT(nc->send_iobuf.len == 13);
+  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBSCRIBE << 4));
   ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
@@ -800,19 +800,98 @@ static const char *test_mqtt_subscribe(void) {
   return NULL;
 }
 
-static const char *test_mqtt_suback(void) {
+static const char *test_mqtt_connack(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   const char *got;
-  ns_mqtt_suback(nc, 42);
+  ns_mqtt_connack(nc, 42);
   got = nc->send_iobuf.buf;
   ASSERT(nc->send_iobuf.len > 0);
-  ASSERT(got[0] & (NS_MQTT_CMD_SUBACK << 4));
+  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_CONNACK << 4));
   ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
-  ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
   iobuf_free(&nc->send_iobuf);
   free(nc);
+  return NULL;
+}
+
+static const char *test_mqtt_suback(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  const char *got;
+
+  uint8_t qoss[] = {1};
+
+  ns_mqtt_suback(nc, qoss, 1, 42);
+
+  got = nc->send_iobuf.buf;
+  ASSERT(nc->send_iobuf.len == 5);
+  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBACK << 4));
+  ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
+  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT(got[2] == 0);
+  ASSERT(got[3] == 42);
+  ASSERT(got[4] == 1);
+
+  iobuf_free(&nc->send_iobuf);
+  free(nc);
+  return NULL;
+}
+
+static const char *test_mqtt_simple_acks(void) {
+  unsigned long i;
+  struct {
+    uint8_t cmd;
+    void (*f)(struct ns_connection *, uint16_t);
+  } cases[] = {
+    {NS_MQTT_CMD_PUBACK, ns_mqtt_puback},
+    {NS_MQTT_CMD_PUBREC, ns_mqtt_pubrec},
+    {NS_MQTT_CMD_PUBREL, ns_mqtt_pubrel},
+    {NS_MQTT_CMD_PUBCOMP, ns_mqtt_pubcomp},
+    {NS_MQTT_CMD_UNSUBACK, ns_mqtt_unsuback},
+  };
+
+  for (i = 0; i < ARRAY_SIZE(cases); i++) {
+    struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+    const char *got;
+
+    cases[i].f(nc, 42);
+
+    got = nc->send_iobuf.buf;
+    ASSERT(nc->send_iobuf.len == 4);
+    ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
+    ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
+    ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+    ASSERT(got[2] == 0);
+    ASSERT(got[3] == 42);
+
+    iobuf_free(&nc->send_iobuf);
+    free(nc);
+  }
+  return NULL;
+}
+
+static const char *test_mqtt_ping(void) {
+  unsigned long i;
+  struct {
+    uint8_t cmd;
+    void (*f)(struct ns_connection *);
+  } cases[] = {
+    {NS_MQTT_CMD_PINGREQ, ns_mqtt_ping},
+    {NS_MQTT_CMD_PINGRESP, ns_mqtt_pong},
+  };
+
+  for (i = 0; i < ARRAY_SIZE(cases); i++) {
+    struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+    const char *got;
+
+    cases[i].f(nc);
+
+    got = nc->send_iobuf.buf;
+    ASSERT(nc->send_iobuf.len == 2);
+    ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
+    ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+    free(nc);
+  }
   return NULL;
 }
 
@@ -1176,7 +1255,10 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_chunk);
   RUN_TEST(test_mqtt_publish);
   RUN_TEST(test_mqtt_subscribe);
+  RUN_TEST(test_mqtt_connack);
   RUN_TEST(test_mqtt_suback);
+  RUN_TEST(test_mqtt_simple_acks);
+  RUN_TEST(test_mqtt_ping);
   RUN_TEST(test_mqtt_parse_mqtt);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);

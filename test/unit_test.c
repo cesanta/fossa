@@ -762,6 +762,7 @@ static const char *test_mqtt_publish(void) {
 
   ASSERT(strncmp(&got[11], data, sizeof(data)) == 0);
 
+  iobuf_free(&nc->send_iobuf);
   free(nc);
   return NULL;
 }
@@ -787,6 +788,7 @@ static const char *test_mqtt_subscribe(void) {
   ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
   ASSERT(got[12] == qos);
 
+  iobuf_free(&nc->send_iobuf);
   free(nc);
   return NULL;
 }
@@ -802,11 +804,17 @@ static const char *test_mqtt_suback(void) {
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
+  iobuf_free(&nc->send_iobuf);
   free(nc);
   return NULL;
 }
 
+static const int mqtt_long_payload_len = 200;
+static const int mqtt_very_long_payload_len = 20000;
+
 static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
+  struct ns_mqtt_message *mm = (struct ns_mqtt_message *) ev_data;
+  int i;
   (void) nc;
   (void) ev_data;
 
@@ -814,14 +822,29 @@ static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_MQTT_SUBACK:
       *((int*)nc->user_data) = 1;
       break;
+    case NS_MQTT_PUBLISH:
+      if (strncmp(mm->topic, "/topic", 6)) break;
+
+      for (i=0; i < mm->payload_len; i++) {
+        if (nc->recv_iobuf.buf[10 + i] != 'A') break;
+      }
+
+      if (mm->payload_len == mqtt_long_payload_len) {
+        *((int*)nc->user_data) = 2;
+      } else if (mm->payload_len == mqtt_very_long_payload_len) {
+        *((int*)nc->user_data) = 3;
+      }
+      break;
   }
 }
 
 static const char *test_mqtt_parse_mqtt(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   char msg[] = {(char)(NS_MQTT_CMD_SUBACK << 4), 2};
+  char *long_msg;
   int check = 0;
   int num_bytes = sizeof(msg);
+  int rest_len;
 
   nc->user_data = &check;
   nc->handler = mqtt_eh;
@@ -831,11 +854,44 @@ static const char *test_mqtt_parse_mqtt(void) {
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 1);
+  iobuf_free(&nc->recv_iobuf);
 
-  /*
-   * TODO(mkm): add tests that excercise variable length encoding
-   * and other command codes.
-   */
+  /* test a payload whose length encodes as two bytes */
+  rest_len = 8 + mqtt_long_payload_len;
+  long_msg = (char *) malloc(512);
+  long_msg[0] = (char)(NS_MQTT_CMD_PUBLISH << 4);
+  long_msg[1] = (rest_len & 127) | 0x80;
+  long_msg[2] = rest_len >> 7;
+  memcpy(&long_msg[3], "\0\006/topic", 8);
+  memset(&long_msg[11], 'A', mqtt_long_payload_len);
+
+  num_bytes = 2 + rest_len;
+  iobuf_append(&nc->recv_iobuf, long_msg, num_bytes);
+  nc->proto_handler(nc, NS_RECV, &num_bytes);
+
+  ASSERT(check == 2);
+  iobuf_free(&nc->recv_iobuf);
+  free(long_msg);
+
+  /* test a payload whose length encodes as two bytes */
+  rest_len = 8 + mqtt_very_long_payload_len;
+  long_msg = (char *) malloc(20100);
+  long_msg[0] = (char)(NS_MQTT_CMD_PUBLISH << 4);
+  long_msg[1] = (rest_len & 127) | 0x80;
+  long_msg[2] = ((rest_len >> 7) & 127) | 0x80;
+  long_msg[3] = (rest_len >> 14);
+  memcpy(&long_msg[4], "\0\006/topic", 8);
+  memset(&long_msg[12], 'A', mqtt_very_long_payload_len);
+
+  num_bytes = 2 + rest_len;
+  iobuf_append(&nc->recv_iobuf, long_msg, num_bytes);
+  nc->proto_handler(nc, NS_RECV, &num_bytes);
+
+  ASSERT(check == 3);
+  iobuf_free(&nc->recv_iobuf);
+  free(long_msg);
+
+  free(nc);
   return NULL;
 }
 

@@ -15,7 +15,7 @@
  *
  * Return length of the reply, which
  * can be larger then `len` that indicates an overflow.
-*/
+ */
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
   static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
@@ -96,7 +96,7 @@ int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
  * `JSON_RPC_PARSE_ERROR`, `JSON_RPC_INVALID_REQUEST_ERROR`,
  * `JSON_RPC_METHOD_NOT_FOUND_ERROR`, `JSON_RPC_INVALID_PARAMS_ERROR`,
  * `JSON_RPC_INTERNAL_ERROR`, `JSON_RPC_SERVER_ERROR`.
-*/
+ */
 int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
                             int code) {
   const char *message = NULL;
@@ -132,7 +132,7 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   n = parse_json(buf, len, tokens, sizeof(tokens) / sizeof(tokens[0]));
   if (n <= 0) {
     int err_code = (n == JSON_STRING_INVALID) ?
-      JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
+                   JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
     return ns_rpc_create_std_error(dst, dst_len, &req, err_code);
   }
 

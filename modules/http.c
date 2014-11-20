@@ -45,7 +45,7 @@ static const struct {
   MIME_ENTRY("ram", "audio/x-pn-realaudio"),
   MIME_ENTRY("xml", "text/xml"),
   MIME_ENTRY("ttf", "application/x-font-ttf"),
-  MIME_ENTRY("json",  "application/json"),
+  MIME_ENTRY("json", "application/json"),
   MIME_ENTRY("xslt", "application/xml"),
   MIME_ENTRY("xsl", "application/xml"),
   MIME_ENTRY("ra", "audio/x-pn-realaudio"),
@@ -119,7 +119,7 @@ static int get_request_len(const char *s, int buf_len) {
  *
  * Return number of bytes parsed. If HTTP message is
  * incomplete, `0` is returned. On parse error, negative number is returned.
-*/
+ */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end, *qs;
   int len, i, is_http_response;
@@ -229,12 +229,12 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
-  len, mask_len = 0, header_len = 0;
+         len, mask_len = 0, header_len = 0;
   unsigned char *p = (unsigned char *) nc->recv_iobuf.buf,
-    *buf = p, *e = p + buf_len;
+              *buf = p, *e = p + buf_len;
   unsigned *sizep = (unsigned *) &p[1];  /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
-    !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
+                  !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
 
   /* If that's a continuation frame that must be reassembled, handle it */
   if (reass && !is_ws_first_fragment(p[0]) && buf_len >= 1 + sizeof(*sizep) &&
@@ -255,7 +255,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     } else if (buf_len >= 10 + mask_len) {
       header_len = 10 + mask_len;
       data_len = (((uint64_t) ntohl(* (uint32_t *) &buf[2])) << 32) +
-        ntohl(* (uint32_t *) &buf[6]);
+                 ntohl(* (uint32_t *) &buf[6]);
     }
   }
 
@@ -340,7 +340,7 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
  * - WEBSOCKET_OP_PING
  * - WEBSOCKET_OP_PONG
  * `data` and `data_len` contain frame data.
-*/
+ */
 void ns_send_websocket_frame(struct ns_connection *nc, int op,
                              const void *data, size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -605,7 +605,7 @@ static void remove_double_dots(char *s) {
 }
 
 static int ns_url_decode(const char *src, int src_len, char *dst,
-                  int dst_len, int is_form_url_encoded) {
+                         int dst_len, int is_form_url_encoded) {
   int i, j, a, b;
 #define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
 

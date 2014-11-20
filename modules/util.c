@@ -155,7 +155,7 @@ int ns_open(const char *path, int flag, int mode) {
  */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
 
   for (i = j = 0; i < src_len; i += 3) {

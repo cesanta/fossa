@@ -143,22 +143,23 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
     io->buf = p;
   }
 }
-/* Copyright (c) 2014 Cesanta Software Limited
-* All rights reserved
-*
-* This software is dual-licensed: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation. For the terms of this
-* license, see <http://www.gnu.org/licenses/>.
-*
-* You are free to use this software under the terms of the GNU General
-* Public License, but WITHOUT ANY WARRANTY; without even the implied
-* warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See the GNU General Public License for more details.
-*
-* Alternatively, you can license this software under a commercial
-* license, as set out in <http://cesanta.com/>.
-*/
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ *
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ */
 
 /*
  * == Core API: TCP/UDP/SSL
@@ -316,7 +317,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
             dst, num_bytes);
     if (num_bytes > 0 && (buf = (char *) NS_MALLOC(buf_size)) != NULL) {
       ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
-        (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
+                 (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
       fprintf(fp, "%s", buf);
       NS_FREE(buf);
     }
@@ -407,7 +408,7 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
              (getsockname(sp[0], &sa.sa, &len) != 0 ||
               connect(sock, &sa.sa, len) != 0)) {
   } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
-             accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
+                       accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
   } else {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
@@ -501,7 +502,7 @@ static int ns_parse_address(const char *str, union socket_address *sa, int *p) {
 /* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
-    sizeof(sa->sin) : sizeof(sa->sin6);
+                     sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
   int on = 1;
 
@@ -606,8 +607,8 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
 }
 
 struct ns_connection *ns_bind_opt(struct ns_mgr *srv, const char *str,
-                              ns_event_handler_t callback,
-                              struct ns_bind_opts opts) {
+                                  ns_event_handler_t callback,
+                                  struct ns_bind_opts opts) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int proto;
@@ -674,12 +675,12 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 
 static int ns_is_error(int n) {
   return n == 0 ||
-    (n < 0 && errno != EINTR && errno != EINPROGRESS &&
-     errno != EAGAIN && errno != EWOULDBLOCK
+      (n < 0 && errno != EINTR && errno != EINPROGRESS &&
+       errno != EAGAIN && errno != EWOULDBLOCK
 #ifdef _WIN32
-     && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
+       && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
 #endif
-    );
+       );
 }
 
 /*
@@ -690,7 +691,7 @@ static int ns_is_error(int n) {
  * otherwise local address is stringified. If bit 0 is set, then IP
  * address is printed. If bit 1 is set, then port number is printed. If both
  * port number and IP address are printed, they are separated by `:`.
-*/
+ */
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
@@ -1011,7 +1012,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
         (nc->send_iobuf.len == 0 &&
-          (nc->flags & NSF_FINISHED_SENDING_DATA))) {
+         (nc->flags & NSF_FINISHED_SENDING_DATA))) {
       ns_close_conn(nc);
     }
   }
@@ -1046,7 +1047,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
  * parameters.
  *
  * Returns a new outbound connection, or `NULL` on error.
-*/
+ */
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {
@@ -1766,7 +1767,7 @@ static const struct {
   MIME_ENTRY("ram", "audio/x-pn-realaudio"),
   MIME_ENTRY("xml", "text/xml"),
   MIME_ENTRY("ttf", "application/x-font-ttf"),
-  MIME_ENTRY("json",  "application/json"),
+  MIME_ENTRY("json", "application/json"),
   MIME_ENTRY("xslt", "application/xml"),
   MIME_ENTRY("xsl", "application/xml"),
   MIME_ENTRY("ra", "audio/x-pn-realaudio"),
@@ -1840,7 +1841,7 @@ static int get_request_len(const char *s, int buf_len) {
  *
  * Return number of bytes parsed. If HTTP message is
  * incomplete, `0` is returned. On parse error, negative number is returned.
-*/
+ */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end, *qs;
   int len, i, is_http_response;
@@ -1950,12 +1951,12 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
   uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
-  len, mask_len = 0, header_len = 0;
+         len, mask_len = 0, header_len = 0;
   unsigned char *p = (unsigned char *) nc->recv_iobuf.buf,
-    *buf = p, *e = p + buf_len;
+              *buf = p, *e = p + buf_len;
   unsigned *sizep = (unsigned *) &p[1];  /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
-    !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
+                  !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
 
   /* If that's a continuation frame that must be reassembled, handle it */
   if (reass && !is_ws_first_fragment(p[0]) && buf_len >= 1 + sizeof(*sizep) &&
@@ -1976,7 +1977,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     } else if (buf_len >= 10 + mask_len) {
       header_len = 10 + mask_len;
       data_len = (((uint64_t) ntohl(* (uint32_t *) &buf[2])) << 32) +
-        ntohl(* (uint32_t *) &buf[6]);
+                 ntohl(* (uint32_t *) &buf[6]);
     }
   }
 
@@ -2061,7 +2062,7 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
  * - WEBSOCKET_OP_PING
  * - WEBSOCKET_OP_PONG
  * `data` and `data_len` contain frame data.
-*/
+ */
 void ns_send_websocket_frame(struct ns_connection *nc, int op,
                              const void *data, size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -2326,7 +2327,7 @@ static void remove_double_dots(char *s) {
 }
 
 static int ns_url_decode(const char *src, int src_len, char *dst,
-                  int dst_len, int is_form_url_encoded) {
+                         int dst_len, int is_form_url_encoded) {
   int i, j, a, b;
 #define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
 
@@ -2786,7 +2787,7 @@ int ns_open(const char *path, int flag, int mode) {
  */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
 
   for (i = j = 0; i < src_len; i += 3) {
@@ -2895,7 +2896,7 @@ void ns_set_error_string(char **e, const char *s) {
  *
  * Return length of the reply, which
  * can be larger then `len` that indicates an overflow.
-*/
+ */
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
   static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
@@ -2976,7 +2977,7 @@ int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
  * `JSON_RPC_PARSE_ERROR`, `JSON_RPC_INVALID_REQUEST_ERROR`,
  * `JSON_RPC_METHOD_NOT_FOUND_ERROR`, `JSON_RPC_INVALID_PARAMS_ERROR`,
  * `JSON_RPC_INTERNAL_ERROR`, `JSON_RPC_SERVER_ERROR`.
-*/
+ */
 int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
                             int code) {
   const char *message = NULL;
@@ -3012,7 +3013,7 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   n = parse_json(buf, len, tokens, sizeof(tokens) / sizeof(tokens[0]));
   if (n <= 0) {
     int err_code = (n == JSON_STRING_INVALID) ?
-      JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
+                   JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
     return ns_rpc_create_std_error(dst, dst_len, &req, err_code);
   }
 
@@ -3184,7 +3185,7 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
  * - NS_MQTT_PUBREL
  * - NS_MQTT_PUBCOMP
  * - NS_MQTT_SUBACK
-*/
+ */
 void ns_set_protocol_mqtt(struct ns_connection *nc) {
   nc->proto_handler = mqtt_handler;
 }
@@ -3226,7 +3227,7 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
 }
 
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
-                                 uint8_t flags, size_t len) {
+                                   uint8_t flags, size_t len) {
   uint8_t header = cmd << 4 | (uint8_t)flags;
 
   uint8_t buf[1 + sizeof(size_t)];
@@ -3263,7 +3264,7 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
   ns_send(nc, data, len);
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PUBLISH, flags,
-                       nc->send_iobuf.len - old_len);
+                         nc->send_iobuf.len - old_len);
 }
 
 /* Subscribe to a given channel. */
@@ -3284,7 +3285,7 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, NS_MQTT_QOS(1),
-                       nc->send_iobuf.len - old_len);
+                         nc->send_iobuf.len - old_len);
 }
 
 void ns_mqtt_suback(struct ns_connection *nc, uint16_t message_id) {

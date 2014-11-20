@@ -113,7 +113,7 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
  * - NS_MQTT_PUBREL
  * - NS_MQTT_PUBCOMP
  * - NS_MQTT_SUBACK
-*/
+ */
 void ns_set_protocol_mqtt(struct ns_connection *nc) {
   nc->proto_handler = mqtt_handler;
 }
@@ -155,7 +155,7 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
 }
 
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
-                                 uint8_t flags, size_t len) {
+                                   uint8_t flags, size_t len) {
   uint8_t header = cmd << 4 | (uint8_t)flags;
 
   uint8_t buf[1 + sizeof(size_t)];
@@ -192,7 +192,7 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
   ns_send(nc, data, len);
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PUBLISH, flags,
-                       nc->send_iobuf.len - old_len);
+                         nc->send_iobuf.len - old_len);
 }
 
 /* Subscribe to a given channel. */
@@ -213,7 +213,7 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, NS_MQTT_QOS(1),
-                       nc->send_iobuf.len - old_len);
+                         nc->send_iobuf.len - old_len);
 }
 
 void ns_mqtt_suback(struct ns_connection *nc, uint16_t message_id) {

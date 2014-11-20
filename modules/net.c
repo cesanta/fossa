@@ -1,19 +1,20 @@
-/* Copyright (c) 2014 Cesanta Software Limited
-* All rights reserved
-*
-* This software is dual-licensed: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation. For the terms of this
-* license, see <http://www.gnu.org/licenses/>.
-*
-* You are free to use this software under the terms of the GNU General
-* Public License, but WITHOUT ANY WARRANTY; without even the implied
-* warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See the GNU General Public License for more details.
-*
-* Alternatively, you can license this software under a commercial
-* license, as set out in <http://cesanta.com/>.
-*/
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ *
+ * This software is dual-licensed: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation. For the terms of this
+ * license, see <http://www.gnu.org/licenses/>.
+ *
+ * You are free to use this software under the terms of the GNU General
+ * Public License, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * Alternatively, you can license this software under a commercial
+ * license, as set out in <http://cesanta.com/>.
+ */
 
 /*
  * == Core API: TCP/UDP/SSL
@@ -173,7 +174,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
             dst, num_bytes);
     if (num_bytes > 0 && (buf = (char *) NS_MALLOC(buf_size)) != NULL) {
       ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
-        (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
+                 (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
       fprintf(fp, "%s", buf);
       NS_FREE(buf);
     }
@@ -264,7 +265,7 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
              (getsockname(sp[0], &sa.sa, &len) != 0 ||
               connect(sock, &sa.sa, len) != 0)) {
   } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
-             accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
+                       accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
   } else {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
@@ -358,7 +359,7 @@ static int ns_parse_address(const char *str, union socket_address *sa, int *p) {
 /* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
-    sizeof(sa->sin) : sizeof(sa->sin6);
+                     sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
   int on = 1;
 
@@ -463,8 +464,8 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
 }
 
 struct ns_connection *ns_bind_opt(struct ns_mgr *srv, const char *str,
-                              ns_event_handler_t callback,
-                              struct ns_bind_opts opts) {
+                                  ns_event_handler_t callback,
+                                  struct ns_bind_opts opts) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int proto;
@@ -531,12 +532,12 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 
 static int ns_is_error(int n) {
   return n == 0 ||
-    (n < 0 && errno != EINTR && errno != EINPROGRESS &&
-     errno != EAGAIN && errno != EWOULDBLOCK
+      (n < 0 && errno != EINTR && errno != EINPROGRESS &&
+       errno != EAGAIN && errno != EWOULDBLOCK
 #ifdef _WIN32
-     && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
+       && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
 #endif
-    );
+       );
 }
 
 /*
@@ -547,7 +548,7 @@ static int ns_is_error(int n) {
  * otherwise local address is stringified. If bit 0 is set, then IP
  * address is printed. If bit 1 is set, then port number is printed. If both
  * port number and IP address are printed, they are separated by `:`.
-*/
+ */
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
@@ -868,7 +869,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
         (nc->send_iobuf.len == 0 &&
-          (nc->flags & NSF_FINISHED_SENDING_DATA))) {
+         (nc->flags & NSF_FINISHED_SENDING_DATA))) {
       ns_close_conn(nc);
     }
   }
@@ -903,7 +904,7 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
  * parameters.
  *
  * Returns a new outbound connection, or `NULL` on error.
-*/
+ */
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {

@@ -46,8 +46,12 @@ lcov: clean $(PROG)_coverage
 	genhtml -o lcov lcov.info
 
 valgrind:
-	$(MAKE) $(PROG) SSL="" CFLAGS_EXTRA=-DNO_DNS_TEST
-	valgrind --leak-check=full ./unit_test
+	gcc $(PEDANTIC) -std=c99 $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_valgrind $(CFLAGS) -DNO_DNS_TEST -UNS_ENABLE_SSL -lssl
+	valgrind ./unit_test_valgrind
+
+valgrind-leak:
+	gcc $(PEDANTIC) -std=c99 $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_valgrind $(CFLAGS) -DNO_DNS_TEST -UNS_ENABLE_SSL -lssl
+	valgrind --leak-check=full ./unit_test_valgrind
 
 # Interactive:
 #   docker run -v $(CURDIR)/../..:/cesanta -t -i --entrypoint=/bin/bash cesanta/fossa_test

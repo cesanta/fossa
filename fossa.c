@@ -3102,7 +3102,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 
   if (io->len < (size_t)(len - 1)) return -1;
 
-  iobuf_remove(io, 2);
+  iobuf_remove(io, 1 + (vlen - &io->buf[1]));
   mm->cmd = cmd;
   mm->qos = NS_MQTT_GET_QOS(header);
 

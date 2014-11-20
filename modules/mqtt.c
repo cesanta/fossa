@@ -216,10 +216,74 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
                        nc->send_iobuf.len - old_len);
 }
 
-void ns_mqtt_suback(struct ns_connection *nc, uint16_t message_id) {
+/* Send a CONNACK command with a given `return_code`. */
+void ns_mqtt_connack(struct ns_connection *nc, uint8_t return_code) {
+  uint8_t unused = 0;
+  ns_send(nc, &unused, 1);
+  ns_send(nc, &return_code, 1);
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_CONNACK, 0, 2);
+}
+
+/*
+ * Sends a command which contains only a `message_id` and a QoS level of 1.
+ *
+ * Helper function.
+ */
+static void ns_send_mqtt_short_command(struct ns_connection *nc, uint8_t cmd,
+                                       uint16_t message_id) {
   uint16_t message_id_net = htons(message_id);
   ns_send(nc, &message_id_net, 2);
-  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, 0, 2);
+  ns_mqtt_prepend_header(nc, cmd, NS_MQTT_QOS(1), 2);
+}
+
+/* Send a PUBACK command with a given `message_id`. */
+void ns_mqtt_puback(struct ns_connection *nc, uint16_t message_id) {
+  ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBACK, message_id);
+}
+
+/* Send a PUBREC command with a given `message_id`. */
+void ns_mqtt_pubrec(struct ns_connection *nc, uint16_t message_id) {
+  ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREC, message_id);
+}
+
+/* Send a PUBREL command with a given `message_id`. */
+void ns_mqtt_pubrel(struct ns_connection *nc, uint16_t message_id) {
+  ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREL, message_id);
+}
+
+/* Send a PUBCOMP command with a given `message_id`. */
+void ns_mqtt_pubcomp(struct ns_connection *nc, uint16_t message_id) {
+  ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBCOMP, message_id);
+}
+
+/*
+ * Send a SUBACK command with a given `message_id`
+ * and a sequence of granted QoSs.
+ */
+void ns_mqtt_suback(struct ns_connection *nc, uint8_t *qoss, size_t qoss_len,
+                    uint16_t message_id) {
+  size_t i;
+  uint16_t message_id_net = htons(message_id);
+  ns_send(nc, &message_id_net, 2);
+  for (i = 0; i < qoss_len; i++) {
+    ns_send(nc, &qoss[i], 1);
+  }
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBACK, NS_MQTT_QOS(1), 2 + qoss_len);
+}
+
+/* Send a UNSUBACK command with a given `message_id`. */
+void ns_mqtt_unsuback(struct ns_connection *nc, uint16_t message_id) {
+  ns_send_mqtt_short_command(nc, NS_MQTT_CMD_UNSUBACK, message_id);
+}
+
+/* Send a PINGREQ command. */
+void ns_mqtt_ping(struct ns_connection *nc) {
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGREQ, 0, 0);
+}
+
+/* Send a PINGRESP command. */
+void ns_mqtt_pong(struct ns_connection *nc) {
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGRESP, 0, 0);
 }
 
 #endif  /* NS_DISABLE_MQTT */

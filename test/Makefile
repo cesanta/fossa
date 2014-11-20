@@ -56,7 +56,7 @@ valgrind-leak:
 # Interactive:
 #   docker run -v $(CURDIR)/../..:/cesanta -t -i --entrypoint=/bin/bash cesanta/fossa_test
 docker:
-	docker run -v $(CURDIR)/../..:/cesanta cesanta/fossa_test
+	docker run --rm -v $(CURDIR)/../..:/cesanta cesanta/fossa_test
 
 cpplint:
 	cpplint.py --verbose=0 --extensions=c,h ../modules/*.[ch] >/dev/null

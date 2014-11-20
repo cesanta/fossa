@@ -11,6 +11,10 @@ all: $(SUBDIRS)
 $(SUBDIRS): %:
 	@$(MAKE) -C $@
 
+# full test suite, requiring more dependencies on the dev's machine
+alltests: all
+	@$(MAKE) -C test docker valgrind cpplint
+
 difftest:
 	@TMP=`mktemp -t checkout-diff.XXXXXX`; \
 	git diff docs/index.html fossa.c fossa.h >$$TMP ; \

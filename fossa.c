@@ -3381,4 +3381,9 @@ void ns_mqtt_pong(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGRESP, 0, 0);
 }
 
+/* Send a DISCONNECT command. */
+void ns_mqtt_disconnect(struct ns_connection *nc) {
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_DISCONNECT, 0, 0);
+}
+
 #endif  /* NS_DISABLE_MQTT */

@@ -892,7 +892,7 @@ static const char *test_mqtt_simple_acks(void) {
   return NULL;
 }
 
-static const char *test_mqtt_ping(void) {
+static const char *test_mqtt_nullary(void) {
   unsigned long i;
   struct {
     uint8_t cmd;
@@ -900,6 +900,7 @@ static const char *test_mqtt_ping(void) {
   } cases[] = {
     {NS_MQTT_CMD_PINGREQ, ns_mqtt_ping},
     {NS_MQTT_CMD_PINGRESP, ns_mqtt_pong},
+    {NS_MQTT_CMD_DISCONNECT, ns_mqtt_disconnect},
   };
 
   for (i = 0; i < ARRAY_SIZE(cases); i++) {
@@ -1282,7 +1283,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_mqtt_connack);
   RUN_TEST(test_mqtt_suback);
   RUN_TEST(test_mqtt_simple_acks);
-  RUN_TEST(test_mqtt_ping);
+  RUN_TEST(test_mqtt_nullary);
   RUN_TEST(test_mqtt_parse_mqtt);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);

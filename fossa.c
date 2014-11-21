@@ -3291,6 +3291,24 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
                        nc->send_iobuf.len - old_len);
 }
 
+void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
+                         size_t topics_len, uint16_t message_id) {
+  size_t old_len = nc->send_iobuf.len;
+
+  uint16_t message_id_n = htons(message_id);
+  size_t i;
+
+  ns_send(nc, (char *) &message_id_n, 2);
+  for (i = 0; i < topics_len; i++) {
+    uint16_t topic_len_n = htons(strlen(topics[i]));
+    ns_send(nc, &topic_len_n, 2);
+    ns_send(nc, topics[i], strlen(topics[i]));
+  }
+
+  ns_mqtt_prepend_header(nc, NS_MQTT_CMD_UNSUBSCRIBE, NS_MQTT_QOS(1),
+                         nc->send_iobuf.len - old_len);
+}
+
 /* Send a CONNACK command with a given `return_code`. */
 void ns_mqtt_connack(struct ns_connection *nc, uint8_t return_code) {
   uint8_t unused = 0;

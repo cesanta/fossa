@@ -3,9 +3,7 @@
 
 #ifndef NS_DISABLE_SHA1
 
-#include <stdint.h>
-#include <string.h>
-#include "sha1.h"
+#include "internal.h"
 
 static int is_big_endian(void) {
   static const int n = 1;

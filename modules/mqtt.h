@@ -57,6 +57,7 @@ struct ns_send_mqtt_handshake_opts {
 #define NS_MQTT_CMD_UNSUBACK    11
 #define NS_MQTT_CMD_PINGREQ     12
 #define NS_MQTT_CMD_PINGRESP    13
+#define NS_MQTT_CMD_DISCONNECT  14
 
 /* MQTT event types */
 #define NS_MQTT_EVENT_BASE  200
@@ -73,6 +74,7 @@ struct ns_send_mqtt_handshake_opts {
 #define NS_MQTT_UNSUBACK    (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_UNSUBACK)
 #define NS_MQTT_PINGREQ     (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PINGREQ)
 #define NS_MQTT_PINGRESP    (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_PINGRESP)
+#define NS_MQTT_DISCONNECT  (NS_MQTT_EVENT_BASE + NS_MQTT_CMD_DISCONNECT)
 
 /* Message flags */
 #define NS_MQTT_RETAIN 0x1
@@ -116,8 +118,8 @@ void ns_mqtt_subscribe(struct ns_connection *,
                        uint16_t);
 void ns_mqtt_unsubscribe(struct ns_connection *, char **, size_t,
                          uint16_t);
-
 void ns_mqtt_ping(struct ns_connection *);
+void ns_mqtt_disconnect(struct ns_connection *);
 
 /* replies */
 void ns_mqtt_connack(struct ns_connection *, uint8_t);

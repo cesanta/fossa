@@ -746,6 +746,31 @@ static const char *test_websocket_big(void) {
   return NULL;
 }
 
+static const char *test_mqtt_handshake(void) {
+  struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
+  const char *client_id = "testclient";
+  const char *got;
+
+  ns_send_mqtt_handshake(nc, client_id);
+  got = nc->send_iobuf.buf;
+
+  /* handshake header + keepalive + client id len + client id */
+  ASSERT(nc->send_iobuf.len == 12 + 2 + 2 + strlen(client_id));
+
+  ASSERT(got[2] == 0 && got[3] == 6);
+  ASSERT(strncmp(&got[4], "MQIsdp", 6) == 0);
+  ASSERT(got[10] == 3);
+  ASSERT(got[11] == 0); /* connect flags, TODO */
+  ASSERT(got[12] == 0 && got[13] == 60);
+
+  ASSERT(got[14] == 0 && got[15] == (char) strlen(client_id));
+  ASSERT(strncmp(&got[16], client_id, strlen(client_id)) == 0);
+
+  iobuf_free(&nc->send_iobuf);
+  free(nc);
+  return NULL;
+}
+
 static const char *test_mqtt_publish(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   char data[] = "dummy";
@@ -913,6 +938,8 @@ static const char *test_mqtt_nullary(void) {
     ASSERT(nc->send_iobuf.len == 2);
     ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
     ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+
+    iobuf_free(&nc->send_iobuf);
     free(nc);
   }
   return NULL;
@@ -943,6 +970,9 @@ static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
       } else if (mm->payload_len == mqtt_very_long_payload_len) {
         *((int*)nc->user_data) = 3;
       }
+      break;
+    case NS_MQTT_CONNACK:
+      *((int*)nc->user_data) = 4;
       break;
   }
 }
@@ -999,6 +1029,29 @@ static const char *test_mqtt_parse_mqtt(void) {
   ASSERT(check == 3);
   iobuf_free(&nc->recv_iobuf);
   free(long_msg);
+
+  /* test encoding a large payload */
+  long_msg = (char *) malloc(mqtt_very_long_payload_len);
+  memset(long_msg, 'A', mqtt_very_long_payload_len);
+  ns_mqtt_publish(nc, "/topic", 0, 0, long_msg, mqtt_very_long_payload_len);
+  nc->recv_iobuf = nc->send_iobuf;
+  iobuf_init(&nc->send_iobuf, 0);
+  num_bytes = nc->recv_iobuf.len;
+  nc->proto_handler(nc, NS_RECV, &num_bytes);
+
+  ASSERT(check == 3);
+  iobuf_free(&nc->recv_iobuf);
+  free(long_msg);
+
+  /* test connack parsing */
+  ns_mqtt_connack(nc, 0);
+  nc->recv_iobuf = nc->send_iobuf;
+  iobuf_init(&nc->send_iobuf, 0);
+  num_bytes = 4;
+  nc->proto_handler(nc, NS_RECV, &num_bytes);
+
+  ASSERT(check == 4);
+  iobuf_free(&nc->recv_iobuf);
 
   free(nc);
   return NULL;
@@ -1277,6 +1330,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
   RUN_TEST(test_http_chunk);
+  RUN_TEST(test_mqtt_handshake);
   RUN_TEST(test_mqtt_publish);
   RUN_TEST(test_mqtt_subscribe);
   RUN_TEST(test_mqtt_unsubscribe);

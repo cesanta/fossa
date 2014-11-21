@@ -7,6 +7,7 @@
 #ifndef NS_INTERNAL_HEADER_INCLUDED
 #define NS_INTERNAL_HEADER_INCLUDED
 
+
 #ifndef NS_MALLOC
 #define NS_MALLOC malloc
 #endif

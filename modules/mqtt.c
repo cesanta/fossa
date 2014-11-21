@@ -9,7 +9,6 @@
 
 #ifndef NS_DISABLE_MQTT
 
-#include "../fossa.h"
 #include "internal.h"
 
 static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {

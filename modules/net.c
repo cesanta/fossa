@@ -26,7 +26,6 @@
  * event managers handled by different threads.
  */
 
-#include "../fossa.h"
 #include "internal.h"
 
 #define NS_CTL_MSG_MESSAGE_SIZE     8192

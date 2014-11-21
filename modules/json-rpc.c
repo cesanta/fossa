@@ -7,8 +7,7 @@
 
 #ifndef NS_DISABLE_JSON_RPC
 
-#include "../fossa.h"
-#include "json-rpc.h"
+#include "internal.h"
 
 /*
  * Create JSON-RPC reply in a given buffer.

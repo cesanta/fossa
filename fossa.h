@@ -135,6 +135,10 @@ typedef struct stat ns_stat_t;
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
+#ifndef NS_INTERNAL
+#define NS_INTERNAL static
+#endif
+
 #endif /* NS_COMMON_HEADER_INCLUDED */
 /*
  * Copyright (c) 2014 Cesanta Software Limited

@@ -1,6 +1,6 @@
 PROG = unit_test
 SSL=-DNS_ENABLE_SSL
-CFLAGS = -W -Wall -Werror $(SSL) -DNS_ENABLE_IPV6 -pthread -g -O0 $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -Werror $(SSL) -DNS_ENABLE_IPV6 -DNS_INTERNAL="" -pthread -g -O0 $(CFLAGS_EXTRA)
 PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 AMALGAMATED_SOURCES = $(PROG).c ../fossa.c
 EAT_MALLOC_WARNINGS=MallocLogFile=/dev/null

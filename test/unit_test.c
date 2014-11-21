@@ -17,6 +17,8 @@
 
 #include "../fossa.h"
 
+int ns_parse_address(const char *str, union socket_address *sa, int *p);
+
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
   return str;                                   \
@@ -186,40 +188,38 @@ static const char *test_to64(void) {
   return NULL;
 }
 
-#if 0
 static const char *test_parse_address(void) {
   static const char *valid[] = {
-    "1", "1.2.3.4:1", "tcp://123", "udp://0.0.0.0:99", "ssl://17",
-    "ssl://900:a.pem:b.pem", "ssl://1.2.3.4:9000:aa.pem",
+    "1", "1.2.3.4:1", "tcp://123", "udp://0.0.0.0:99", "tcp://localhost:99",
 #if defined(NS_ENABLE_IPV6)
     "udp://[::1]:123", "[3ffe:2a00:100:7031::1]:900",
 #endif
     NULL
   };
-  static const int protos[] = {SOCK_STREAM, SOCK_STREAM, SOCK_STREAM,
-    SOCK_DGRAM, SOCK_STREAM, SOCK_STREAM, SOCK_STREAM, SOCK_DGRAM, SOCK_STREAM};
-  static const int use_ssls[] = {0, 0, 0, 0, 1, 1, 1, 0, 0};
+  static const int protos[] = {
+    SOCK_STREAM, SOCK_STREAM, SOCK_STREAM, SOCK_DGRAM, SOCK_STREAM
+#if defined(NS_ENABLE_IPV6)
+    ,SOCK_DGRAM, SOCK_STREAM
+#endif
+  };
   static const char *invalid[] = {
     "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", "blah://12", NULL
   };
   union socket_address sa;
-  char cert[100], ca[100];
-  int i, proto, use_ssl;
+  int i, proto;
 
   for (i = 0; valid[i] != NULL; i++) {
-    ASSERT(ns_parse_address(valid[i], &sa, &proto, &use_ssl, cert, ca) != 0);
+    ASSERT(ns_parse_address(valid[i], &sa, &proto) != 0);
     ASSERT(proto == protos[i]);
-    ASSERT(use_ssl == use_ssls[i]);
   }
 
   for (i = 0; invalid[i] != NULL; i++) {
-    ASSERT(ns_parse_address(invalid[i], &sa, &proto, &use_ssl, cert, ca) == 0);
+    ASSERT(ns_parse_address(invalid[i], &sa, &proto) == 0);
   }
-  ASSERT(ns_parse_address("0", &sa, &proto, &use_ssl, cert, ca) != 0);
+  ASSERT(ns_parse_address("0", &sa, &proto) != 0);
 
   return NULL;
 }
-#endif
 
 static int avt(char **buf, size_t buf_size, const char *fmt, ...) {
   int result;
@@ -1266,6 +1266,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
+  RUN_TEST(test_parse_address);
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);

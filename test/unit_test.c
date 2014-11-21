@@ -221,6 +221,29 @@ static const char *test_parse_address(void) {
   return NULL;
 }
 
+static const char *test_connection_errors(void) {
+  struct ns_mgr mgr;
+  struct ns_bind_opts bopts;
+  struct ns_connect_opts copts;
+  char *error_string;
+
+  ns_mgr_init(&mgr, NULL);
+
+  bopts.error_string = &error_string;
+  ASSERT(ns_bind_opt(&mgr, "blah://12", NULL, bopts) == 0);
+  ASSERT(strcmp(error_string, "cannot parse address") == 0);
+
+  ASSERT(ns_bind_opt(&mgr, "tcp://8.8.8.8:88", NULL, bopts) == 0);
+  ASSERT(strncmp(error_string, "failed to open listener: ", 25) == 0);
+
+  copts.error_string = &error_string;
+  ASSERT(ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts) == 0);
+  ASSERT(strncmp(error_string, "cannot connect to socket: ", 26) == 0);
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
 static int avt(char **buf, size_t buf_size, const char *fmt, ...) {
   int result;
   va_list ap;
@@ -1321,6 +1344,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
   RUN_TEST(test_parse_address);
+  RUN_TEST(test_connection_errors);
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);

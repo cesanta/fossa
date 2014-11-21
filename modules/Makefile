@@ -6,4 +6,4 @@ all: ../fossa.c ../fossa.h
 	@cat $(HEADERS) | sed '/^#include "/d' >$@
 
 ../fossa.c: Makefile $(SOURCES)
-	@(echo '#include "fossa.h"'; cat internal.h; (cat $(SOURCES) | sed '/^#include "/d')) >$@
+	@(echo '#include "fossa.h"'; (cat internal.h $(SOURCES) | sed '/^#include "/d')) >$@

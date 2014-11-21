@@ -9,7 +9,6 @@
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
-#include "../fossa.h"
 #include "internal.h"
 
 struct proto_data_http {

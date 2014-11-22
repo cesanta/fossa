@@ -82,7 +82,8 @@ void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
 struct ns_str *ns_get_http_header(struct http_message *, const char *);
 int ns_parse_http(const char *s, int n, struct http_message *req);
 int ns_get_http_var(const struct ns_str *, const char *, char *dst, size_t);
-
+struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
+                                      const char *, const char *);
 
 struct ns_serve_http_opts {
   const char *document_root;

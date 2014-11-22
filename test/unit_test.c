@@ -501,7 +501,7 @@ static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[20] = "", mime[20] = "";
+  char buf[20] = "", status[20] = "", mime[20] = "", url[100];
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -526,10 +526,9 @@ static const char *test_http(void) {
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", s_argv_0);
 
   /* Test mime type for static file */
-  ASSERT((nc = ns_connect(&mgr, local_addr, cb10)) != NULL);
-  ns_set_protocol_http_websocket(nc);
+  snprintf(url, sizeof(url), "http://%s/data/dummy.xml", local_addr);
+  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL)) != NULL);
   nc->user_data = mime;
-  ns_printf(nc, "%s", "GET /data/dummy.xml HTTP/1.0\n\n");
 
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 200);

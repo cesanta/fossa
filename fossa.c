@@ -2497,6 +2497,64 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     ns_send_http_file(nc, path, &st);
   }
 }
+
+/*
+ * Helper function that creates outbound HTTP connection.
+ *
+ * If `post_data` is NULL, then GET request is created. Otherwise, POST request
+ * is created with the specified POST data. Examples:
+ *
+ * [source,c]
+ * ----
+ *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL);
+ *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL);
+ *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
+ *                         "var_1=value_1&var_2=value_2");
+ * ----
+ */
+struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
+                                      ns_event_handler_t ev_handler,
+                                      const char *url, const char *post_data) {
+  struct ns_connection *nc;
+  char addr[1100], path[4096];  /* NOTE: keep sizes in sync with sscanf below */
+  int use_ssl = 0;
+
+  if (memcmp(url, "http://", 7) == 0) {
+    url += 7;
+  } else if (memcmp(url, "https://", 8) == 0) {
+    url += 8;
+    use_ssl = 1;
+#ifndef NS_ENABLE_SSL
+    return NULL;  /* SSL is not enabled, cannot do HTTPS URLs */
+#endif
+  }
+
+  addr[0] = path[0] = '\0';
+
+  /* addr buffer size made smaller to allow for port to be prepended */
+  sscanf(url, "%1095[^/]/%4095s", addr, path);
+  if (strchr(addr, ':') == NULL) {
+    strncat(addr, use_ssl ? ":443" : ":80",
+            sizeof(addr) - (strlen(addr) + 1));
+  }
+
+  if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
+    ns_set_protocol_http_websocket(nc);
+
+    if (use_ssl) {
+  #ifdef NS_ENABLE_SSL
+      ns_set_ssl(nc, NULL, NULL);
+  #endif
+    }
+
+    ns_printf(nc, "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n\r\n",
+              post_data == NULL ? "GET" : "POST", path, addr,
+              post_data == NULL ? 0 : strlen(post_data));
+  }
+
+  return nc;
+}
+
 #endif  /* NS_DISABLE_HTTP_WEBSOCKET */
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */

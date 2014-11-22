@@ -23,3 +23,6 @@ difftest:
 
 update-frozen:
 	git subtree pull --prefix deps/frozen https://github.com/cesanta/frozen master --squash
+
+setup-hooks:
+	for i in .hooks/*; do ln -s ../../.hooks/$$(basename $$i) .git/hooks; done

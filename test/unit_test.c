@@ -372,11 +372,16 @@ static const char *test_parse_http_message(void) {
   ASSERT(ns_parse_http("get\n\n", 5, &req) == -1);
   ASSERT(ns_parse_http(a, strlen(a) - 1, &req) == 0);
   ASSERT(ns_parse_http(a, strlen(a), &req) == (int) strlen(a));
+  ASSERT(req.message.len == strlen(a));
+  ASSERT(req.body.len == 0);
 
   ASSERT(ns_parse_http(b, strlen(b), &req) == (int) strlen(b));
   ASSERT(req.header_names[0].len == 3);
   ASSERT(req.header_values[0].len == 3);
   ASSERT(req.header_names[1].p == NULL);
+  ASSERT(req.query_string.len == 0);
+  ASSERT(req.message.len == strlen(b));
+  ASSERT(req.body.len == 0);
 
   ASSERT(ns_parse_http(c, strlen(c), &req) == (int) strlen(c) - 3);
   ASSERT(req.header_names[2].p == NULL);
@@ -458,7 +463,8 @@ static void cb2(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    memcpy(nc->user_data, hm->body.p, hm->body.len);
+    sprintf((char *) nc->user_data, "%.*s %lu", (int) hm->body.len, hm->body.p,
+            (unsigned long) hm->message.len);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 }
@@ -530,7 +536,7 @@ static const char *test_http(void) {
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "[/foo 10]") == 0);
+  ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
   ASSERT(strcmp(status, "success") == 0);
   ASSERT(strcmp(mime, "text/xml") == 0);
 

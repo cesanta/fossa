@@ -121,7 +121,7 @@ static int get_request_len(const char *s, int buf_len) {
  */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end, *qs;
-  int len, i, is_http_response;
+  int len, i;
 
   if ((len = get_request_len(s, n)) <= 0) return len;
 
@@ -183,9 +183,8 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
    * if it is HTTP request, and Content-Length is not set,
    * and method is not (PUT or POST) then reset body length to zero.
    */
-  is_http_response = req->method.len > 5 && !memcmp(req->method.p, "HTTP/", 5);
-  if (!is_http_response &&
-      req->body.len == (size_t) ~0 &&
+  if (req->body.len == (size_t) ~0 &&
+      !(req->method.len > 5 && !memcmp(req->method.p, "HTTP/", 5)) &&
       ns_vcasecmp(&req->method, "PUT") != 0 &&
       ns_vcasecmp(&req->method, "POST") != 0) {
     req->body.len = 0;
@@ -467,6 +466,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
    */
   if (ev == NS_CLOSE && io->len > 0 &&
       ns_parse_http(io->buf, io->len, &hm) > 0) {
+    hm.message.len = io->len;
     hm.body.len = io->buf + io->len - hm.body.p;
     nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
   }

@@ -2,6 +2,7 @@ index.html
 net.adoc
 http.adoc
 json-rpc.adoc
+dns.adoc
 mqtt.adoc
 sha1.adoc
 util.adoc

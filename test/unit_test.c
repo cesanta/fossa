@@ -1413,6 +1413,9 @@ static const char *test_dns_decode(void) {
   const char *hostname = "go.cesanta.com";
   const char *cname = "ghs.googlehosted.com";
   struct ns_dns_resource_record *r;
+  uint16_t small;
+  struct in_addr ina;
+  int n;
 
   /*
    * Response for a record A query host for `go.cesanta.com`.
@@ -1454,7 +1457,100 @@ static const char *test_dns_decode(void) {
   ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
          == strlen(cname));
   ASSERT(strncmp(name, cname, strlen(cname)) == 0);
+  ASSERT(ns_dns_parse_record_data(&msg, r, &small, sizeof(small)) == -1);
+  ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == 0);
+  ASSERT(ina.s_addr == inet_addr("74.125.136.121"));
 
+  /* Test iteration */
+  n = 0;
+  r = NULL;
+  while ((r = ns_dns_next_record(&msg, NS_DNS_A_RECORD, r))) {
+    n++;
+  }
+  ASSERT(n == 1);
+
+  n = 0;
+  r = NULL;
+  while ((r = ns_dns_next_record(&msg, NS_DNS_CNAME_RECORD, r))) {
+    n++;
+  }
+  ASSERT(n == 1);
+
+  /* Test unknown record type */
+  r = ns_dns_next_record(&msg, NS_DNS_A_RECORD, r);
+  r->rtype = 0xff;
+  ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == -1);
+
+  return NULL;
+}
+
+static void dns_resolve_cb(struct ns_dns_message *msg, void *data) {
+  struct ns_dns_resource_record *rr;
+  char cname[256];
+  struct in_addr got_addr;
+  in_addr_t want_addr;
+
+  rr = ns_dns_next_record(msg, NS_DNS_A_RECORD, NULL);
+  ns_dns_parse_record_data(msg, rr, &got_addr, sizeof(got_addr));
+
+  want_addr = inet_addr("54.194.65.250");
+
+  rr = ns_dns_next_record(msg, NS_DNS_CNAME_RECORD, NULL);
+  ns_dns_parse_record_data(msg, rr, cname, sizeof(cname));
+
+  if (want_addr == got_addr.s_addr && strcmp(cname, "cesanta.com") == 0) {
+    * (int *) data = 1;
+  }
+}
+
+static const char *test_dns_resolve(void) {
+  struct ns_mgr mgr;
+  int data = 0;
+  int i;
+  ns_mgr_init(&mgr, NULL);
+
+  ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
+                 dns_resolve_cb, &data);
+
+  for (i = 0; i < 500 && data != 1; i++) {
+    poll_mgr(&mgr, 100);
+  }
+
+  ASSERT(data == 1);
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
+static void dns_resolve_timeout_cb(struct ns_dns_message *msg, void *data) {
+  if (msg == NULL) {
+    * (int *) data = 1;
+  }
+}
+
+extern char ns_dns_server[256];
+
+static const char *test_dns_resolve_timeout(void) {
+  struct ns_mgr mgr;
+  struct ns_resolve_async_opts opts;
+  int data = 0;
+  int i;
+  ns_mgr_init(&mgr, NULL);
+  memset(&opts, 0, sizeof(opts));
+
+  opts.nameserver_url = "udp://7.7.7.7:53";
+  opts.timeout = -1; /* 0 would be the default timeout */
+  opts.max_retries = 1;
+  ns_resolve_async_opt(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
+                     dns_resolve_timeout_cb, &data, opts);
+
+  for (i = 0; i < 50000 && data != 1; i++) {
+    poll_mgr(&mgr, 1);
+  }
+
+  ASSERT(data == 1);
+
+  ns_mgr_free(&mgr);
   return NULL;
 }
 
@@ -1494,6 +1590,8 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_encode);
   RUN_TEST(test_dns_uncompress);
   RUN_TEST(test_dns_decode);
+  RUN_TEST(test_dns_resolve);
+  RUN_TEST(test_dns_resolve_timeout);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

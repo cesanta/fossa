@@ -99,6 +99,73 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   return ret;
 }
 
+/*
+ * Resolve a name from `/etc/hosts`.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+NS_INTERNAL int ns_dns_resolve_hosts(const char *name, struct in_addr *ina) {
+  /* TODO(mkm) cache /etc/hosts */
+  FILE *fp;
+  char line[1024];
+  char *p;
+  char alias[256];
+  unsigned int a, b, c, d;
+  int len = 0;
+
+  if ((fp = fopen("/etc/hosts", "r")) == NULL) {
+    return -1;
+  }
+
+  for (; fgets(line, sizeof(line), fp) != NULL; ) {
+    if (line[0] == '#') continue;
+
+    if (sscanf(line, "%u.%u.%u.%u%n", &a, &b, &c, &d, &len) == 0) {
+      /* TODO(mkm): handle ipv6 */
+      continue;
+    }
+    for (p = line + len; sscanf(p, "%s%n", alias, &len) == 1; p += len) {
+      if (strcmp(alias, name) == 0) {
+        ina->s_addr = htonl(a << 24 | b << 16 | c << 8 | d);
+        return 0;
+      }
+    }
+  }
+
+  return -1;
+}
+
+NS_INTERNAL int ns_resolve_async_local(const char *name, int query,
+                   ns_resolve_callback_t cb, void *data) {
+  struct in_addr ina;
+  struct ns_dns_message msg;
+
+  /* TODO(mkm) handle IPV6 */
+  if (query != NS_DNS_A_RECORD) {
+    return -1;
+  }
+
+  if (ns_dns_resolve_hosts(name, &ina) == -1) {
+    return -1;
+  }
+
+  memset(&msg, 0, sizeof(msg));
+  msg.num_questions = 1;
+  msg.num_answers = 1;
+
+  msg.questions[0].name.p = name;
+  msg.questions[0].name.len = strlen(name);
+  msg.questions[0].rtype = query;
+  msg.questions[0].rclass = 1;
+  msg.questions[0].ttl = 0;
+
+  msg.answers[0] = msg.questions[0];
+  msg.answers[0].rdata.p = (char *)&ina;
+
+  cb(&msg, data);
+  return 0;
+}
+
 static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   time_t now = time(NULL);
   struct ns_resolve_async_request *req;
@@ -164,6 +231,15 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   struct ns_resolve_async_request * req;
   struct ns_connection *nc;
   const char *nameserver = opts.nameserver_url;
+
+  /* resolve local name first */
+
+  if (ns_resolve_async_local(name, query, cb, data) == 0) {
+    return 0;
+  }
+
+  /* resolve with DNS */
+
   req = (struct ns_resolve_async_request *) calloc(1, sizeof(*req));
 
   strncpy(req->name, name, sizeof(req->name));

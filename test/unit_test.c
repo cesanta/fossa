@@ -18,6 +18,7 @@
 #include "../fossa.h"
 
 int ns_parse_address(const char *str, union socket_address *sa, int *p);
+int ns_dns_resolve_hosts(const char *name, struct in_addr *ina);
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
@@ -1522,6 +1523,37 @@ static const char *test_dns_resolve(void) {
   return NULL;
 }
 
+static void dns_resolve_local_cb(struct ns_dns_message *msg, void *data) {
+  struct ns_dns_resource_record *rr;
+  struct in_addr got_addr;
+  in_addr_t want_addr;
+
+  rr = ns_dns_next_record(msg, NS_DNS_A_RECORD, NULL);
+  ns_dns_parse_record_data(msg, rr, &got_addr, sizeof(got_addr));
+
+  want_addr = inet_addr("127.0.0.1");
+
+  if (got_addr.s_addr == want_addr) {
+    * (int *) data = 1;
+  }
+}
+
+static const char *test_dns_resolve_local(void) {
+  struct ns_mgr mgr;
+  int data = 0;
+  ns_mgr_init(&mgr, NULL);
+
+  ns_resolve_async(&mgr, "localhost", NS_DNS_A_RECORD,
+                 dns_resolve_local_cb, &data);
+
+  poll_mgr(&mgr, 1);
+
+  ASSERT(data == 1);
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
 static void dns_resolve_timeout_cb(struct ns_dns_message *msg, void *data) {
   if (msg == NULL) {
     * (int *) data = 1;
@@ -1551,6 +1583,20 @@ static const char *test_dns_resolve_timeout(void) {
   ASSERT(data == 1);
 
   ns_mgr_free(&mgr);
+  return NULL;
+}
+
+static const char *test_dns_resolve_hosts(void) {
+  struct in_addr got;
+  in_addr_t want = inet_addr("127.0.0.1");
+  memset(&got, 0, sizeof(got));
+
+  ASSERT(ns_dns_resolve_hosts("localhost", &got) == 0);
+  ASSERT(got.s_addr == want);
+
+  ASSERT(ns_dns_resolve_hosts("i_ll_hunt_you_down_if_you_name_a_host_like_this",
+                              &got) == -1);
+
   return NULL;
 }
 
@@ -1591,7 +1637,9 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_uncompress);
   RUN_TEST(test_dns_decode);
   RUN_TEST(test_dns_resolve);
+  RUN_TEST(test_dns_resolve_local);
   RUN_TEST(test_dns_resolve_timeout);
+  RUN_TEST(test_dns_resolve_hosts);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

@@ -115,6 +115,9 @@ typedef struct _stati64 ns_stat_t;
 #ifdef __APPLE__
 int64_t strtoll(const char * str, char ** endptr, int base);
 #endif
+#if defined(__FreeBSD__) && __ISO_C_VISIBLE < 1999 && !defined(LONG_LONG_SUPPORTED)
+long long strtoll(const char * str, char ** endptr, int base);
+#endif
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;

@@ -37,21 +37,28 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
 int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
+  int i;
 
   ns_mgr_init(&mgr, NULL);
 
-  if (argc > 1 && strcmp(argv[1], "--show_headers") == 0) {
-    s_show_headers = 1;
-    argv++;
-    argc--;
+  /* Process command line arguments */
+  for (i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--show-headers") == 0) {
+      s_show_headers = 1;
+    } else if (strcmp(argv[i], "--hexdump") == 0 && i + 1 < argc) {
+      mgr.hexdump_file = argv[++i];
+    } else {
+      break;
+    }
   }
 
-  if (argc != 2) {
-    fprintf(stderr, "Usage: [--show_headers] %s <URL>\n", argv[0]);
+  if (i + 1 != argc) {
+    fprintf(stderr, "Usage: %s [--show_headers] [--hexdump <file>] <URL>\n",
+            argv[0]);
     exit(EXIT_FAILURE);
   }
 
-  ns_connect_http(&mgr, ev_handler, argv[1], NULL);
+  ns_connect_http(&mgr, ev_handler, argv[i], NULL);
 
   while (s_exit_flag == 0) {
     ns_mgr_poll(&mgr, 1000);

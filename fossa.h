@@ -90,6 +90,7 @@ typedef unsigned short uint16_t;
 typedef unsigned __int64 uint64_t;
 typedef __int64   int64_t;
 typedef SOCKET sock_t;
+typedef uint32_t in_addr_t;
 #ifdef __MINGW32__
 typedef struct stat ns_stat_t;
 #else

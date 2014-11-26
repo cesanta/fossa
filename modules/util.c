@@ -137,13 +137,13 @@ FILE *ns_fopen(const char *path, const char *mode) {
  *
  * Return value is the same as for the `open()` syscall.
  */
-int ns_open(const char *path, int flag, int mode) {
+int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
   to_wchar(path, wpath, ARRAY_SIZE(wpath));
   return _wopen(wpath, flag, mode);
 #else
-  return open(path, flag, mode);
+  return open(path, flag, mode);  /* LCOV_EXCL_LINE */
 #endif
 }
 

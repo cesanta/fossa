@@ -100,7 +100,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
     /* eCos and Windows are not standard-compliant and return -1 when
      * the buffer is too small. Keep allocating larger buffers until we
      * succeed or out of memory. */
-    *buf = NULL;
+    *buf = NULL;  /* LCOV_EXCL_START */
     while (len < 0) {
       NS_FREE(*buf);
       size *= 2;
@@ -109,11 +109,12 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
+    /* LCOV_EXCL_STOP */
   } else if (len > (int) size) {
     /* Standard-compliant code path. Allocate a buffer that is large enough. */
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
-      len = -1;
-    } else {
+      len = -1;  /* LCOV_EXCL_LINE */
+    } else {     /* LCOV_EXCL_LINE */
       va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
@@ -136,8 +137,8 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
     ns_out(nc, buf, len);
   }
   if (buf != mem && buf != NULL) {
-    NS_FREE(buf);
-  }
+    NS_FREE(buf);  /* LCOV_EXCL_LINE */
+  }                /* LCOV_EXCL_LINE */
 
   return len;
 }
@@ -182,10 +183,12 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+  /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
+  /* LCOV_EXCL_STOP */
 
   /*
    * If protocol handler is specified, call it. Otherwise, call user-specified

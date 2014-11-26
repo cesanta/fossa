@@ -122,7 +122,7 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   msg->pkt = buf;
 
   if (len < (int)sizeof(*header)) {
-    return -1;
+    return -1;  /* LCOV_EXCL_LINE */
   }
 
   msg->num_questions = ntohs(header->num_questions);

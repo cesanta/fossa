@@ -245,7 +245,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
     /* eCos and Windows are not standard-compliant and return -1 when
      * the buffer is too small. Keep allocating larger buffers until we
      * succeed or out of memory. */
-    *buf = NULL;
+    *buf = NULL;  /* LCOV_EXCL_START */
     while (len < 0) {
       NS_FREE(*buf);
       size *= 2;
@@ -254,11 +254,12 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
       len = vsnprintf(*buf, size, fmt, ap_copy);
       va_end(ap_copy);
     }
+    /* LCOV_EXCL_STOP */
   } else if (len > (int) size) {
     /* Standard-compliant code path. Allocate a buffer that is large enough. */
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
-      len = -1;
-    } else {
+      len = -1;  /* LCOV_EXCL_LINE */
+    } else {     /* LCOV_EXCL_LINE */
       va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
@@ -281,8 +282,8 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
     ns_out(nc, buf, len);
   }
   if (buf != mem && buf != NULL) {
-    NS_FREE(buf);
-  }
+    NS_FREE(buf);  /* LCOV_EXCL_LINE */
+  }                /* LCOV_EXCL_LINE */
 
   return len;
 }
@@ -327,10 +328,12 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+  /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
+  /* LCOV_EXCL_STOP */
 
   /*
    * If protocol handler is specified, call it. Otherwise, call user-specified
@@ -2293,7 +2296,7 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
-    send_http_error(nc, 500, "Server Error");
+    send_http_error(nc, 500, "Server Error");  /* LCOV_EXCL_LINE */
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
@@ -2447,9 +2450,11 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
     ns_send_http_chunk(nc, buf, len);
   }
 
+  /* LCOV_EXCL_START */
   if (buf != mem && buf != NULL) {
     NS_FREE(buf);
   }
+  /* LCOV_EXCL_STOP */
 }
 
 /*
@@ -2832,13 +2837,13 @@ FILE *ns_fopen(const char *path, const char *mode) {
  *
  * Return value is the same as for the `open()` syscall.
  */
-int ns_open(const char *path, int flag, int mode) {
+int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
   to_wchar(path, wpath, ARRAY_SIZE(wpath));
   return _wopen(wpath, flag, mode);
 #else
-  return open(path, flag, mode);
+  return open(path, flag, mode);  /* LCOV_EXCL_LINE */
 #endif
 }
 
@@ -3565,7 +3570,7 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   msg->pkt = buf;
 
   if (len < (int)sizeof(*header)) {
-    return -1;
+    return -1;  /* LCOV_EXCL_LINE */
   }
 
   msg->num_questions = ntohs(header->num_questions);

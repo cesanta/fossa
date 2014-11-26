@@ -275,35 +275,35 @@ struct ns_mgr {
  */
 struct ns_connection {
   struct ns_connection *next, *prev;  /* ns_mgr::active_connections linkage */
-  struct ns_connection *listener;     /* Set only for accept()-ed connections */
-  struct ns_mgr *mgr;
+  struct ns_connection *listener;   /* Set only for accept()-ed connections */
+  struct ns_mgr *mgr;               /* Pointer to containing manager */
 
-  sock_t sock;                /* Socket */
-  union socket_address sa;    /* Peer address */
-  struct iobuf recv_iobuf;    /* Received data */
-  struct iobuf send_iobuf;    /* Data scheduled for sending */
+  sock_t sock;                      /* Socket to the remote peer */
+  union socket_address sa;          /* Remote peer address */
+  struct iobuf recv_iobuf;          /* Received data */
+  struct iobuf send_iobuf;          /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
-  time_t last_io_time;               /* Timestamp of the last socket IO */
-  ns_event_handler_t proto_handler;  /* Protocol-specific event handler */
-  void *proto_data;                  /* Protocol-specific data */
-  ns_event_handler_t handler;        /* Event handler function */
-  void *user_data;                   /* User-specific data */
+  time_t last_io_time;              /* Timestamp of the last socket IO */
+  ns_event_handler_t proto_handler; /* Protocol-specific event handler */
+  void *proto_data;                 /* Protocol-specific data */
+  ns_event_handler_t handler;       /* Event handler function */
+  void *user_data;                  /* User-specific data */
 
   unsigned long flags;
-#define NSF_FINISHED_SENDING_DATA   (1 << 0)
-#define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)
-#define NSF_SSL_HANDSHAKE_DONE      (1 << 2)
-#define NSF_CONNECTING              (1 << 3)
-#define NSF_CLOSE_IMMEDIATELY       (1 << 4)
-#define NSF_WANT_READ               (1 << 5)
-#define NSF_WANT_WRITE              (1 << 6)  /* NOTE(lsm): proto-specific */
-#define NSF_LISTENING               (1 << 7)  /* NOTE(lsm): proto-specific */
-#define NSF_UDP                     (1 << 8)
+#define NSF_FINISHED_SENDING_DATA   (1 << 0)  /* Push remaining data and disconnect */
+#define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)  /* Do not send data */
+#define NSF_CONNECTING              (1 << 2)  /* connect() call in progress */
+#define NSF_CLOSE_IMMEDIATELY       (1 << 3)  /* Disconnect */
+#define NSF_SSL_HANDSHAKE_DONE      (1 << 4)  /* NOTE(lsm): SSL specific */
+#define NSF_WANT_READ               (1 << 5)  /* NOTE(lsm): SSL specific */
+#define NSF_WANT_WRITE              (1 << 6)  /* NOTE(lsm): SSL specific */
+#define NSF_LISTENING               (1 << 7)  /* This connection is listening */
+#define NSF_UDP                     (1 << 8)  /* This connection is UDP */
 #define NSF_IS_WEBSOCKET            (1 << 9)  /* NOTE(lsm): proto-specific */
 #define NSF_WEBSOCKET_NO_DEFRAG     (1 << 10) /* NOTE(lsm): proto-specific */
 
-#define NSF_USER_1                  (1 << 20)
+#define NSF_USER_1                  (1 << 20) /* Flags left for application */
 #define NSF_USER_2                  (1 << 21)
 #define NSF_USER_3                  (1 << 22)
 #define NSF_USER_4                  (1 << 23)

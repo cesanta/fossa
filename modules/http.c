@@ -568,7 +568,7 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
-    send_http_error(nc, 500, "Server Error");
+    send_http_error(nc, 500, "Server Error");  /* LCOV_EXCL_LINE */
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
@@ -722,9 +722,11 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
     ns_send_http_chunk(nc, buf, len);
   }
 
+  /* LCOV_EXCL_START */
   if (buf != mem && buf != NULL) {
     NS_FREE(buf);
   }
+  /* LCOV_EXCL_STOP */
 }
 
 /*

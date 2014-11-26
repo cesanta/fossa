@@ -834,8 +834,9 @@ typedef void (*ns_resolve_callback_t)(struct ns_dns_message *, void *);
 /* Options for `ns_resolve_async_opt`. */
 struct ns_resolve_async_opts {
   const char *nameserver_url;
-  int max_retries;  /* defaults to 2 if zero */
-  int timeout;      /* in seconds; defaults to 5 if zero */
+  int max_retries;    /* defaults to 2 if zero */
+  int timeout;        /* in seconds; defaults to 5 if zero */
+  int accept_literal; /* pseudo-resolve literal ipv4 and ipv6 addrs */
 };
 
 int ns_resolve_async(struct ns_mgr *mgr, const char *, int,

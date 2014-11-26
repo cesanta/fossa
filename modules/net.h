@@ -118,6 +118,8 @@ struct ns_connection {
 #define NSF_UDP                     (1 << 8)  /* This connection is UDP */
 #define NSF_IS_WEBSOCKET            (1 << 9)  /* NOTE(lsm): proto-specific */
 #define NSF_WEBSOCKET_NO_DEFRAG     (1 << 10) /* NOTE(lsm): proto-specific */
+#define NSF_RESOLVING               (1 << 11) /* Waiting for async resolver */
+#define NSF_BAD_CONNECTION          (1 << 12) /* Connection creation failed */
 
 #define NSF_USER_1                  (1 << 20) /* Flags left for application */
 #define NSF_USER_2                  (1 << 21)

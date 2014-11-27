@@ -1600,6 +1600,64 @@ static const char *test_dns_resolve_hosts(void) {
   return NULL;
 }
 
+static void dns_resolve_literal_cb(struct ns_dns_message *msg, void *data) {
+  struct ns_dns_resource_record *rr;
+  struct in_addr got_addr;
+  in_addr_t want_addr;
+#ifdef NS_ENABLE_IPV6
+  struct in6_addr got_addr6;
+  struct in6_addr want_addr6;
+#endif
+
+  if ((rr = ns_dns_next_record(msg, NS_DNS_A_RECORD, NULL))) {
+    ns_dns_parse_record_data(msg, rr, &got_addr, sizeof(got_addr));
+
+    want_addr = inet_addr("1.2.3.4");
+
+    if (got_addr.s_addr == want_addr) {
+      * (int *) data = 1;
+    }
+  }
+
+#ifdef NS_ENABLE_IPV6
+  if ((rr = ns_dns_next_record(msg, NS_DNS_AAAA_RECORD, NULL))) {
+    ns_dns_parse_record_data(msg, rr, &got_addr6, sizeof(got_addr6));
+
+    inet_pton(AF_INET6, "1:2::3", &want_addr6);
+
+    if (memcmp(&got_addr6, &want_addr6, sizeof(want_addr6)) == 0) {
+      * (int *) data = 2;
+    }
+  }
+#endif
+}
+
+static const char *test_dns_resolve_literal(void) {
+  struct ns_mgr mgr;
+  struct ns_resolve_async_opts opts;
+  int data = 0;
+  ns_mgr_init(&mgr, NULL);
+  memset(&opts, 0, sizeof(opts));
+
+  opts.accept_literal = 1;
+  ns_resolve_async_opt(&mgr, "1.2.3.4", NS_DNS_A_RECORD,
+                       dns_resolve_literal_cb, &data, opts);
+
+  poll_mgr(&mgr, 1);
+  ASSERT(data == 1);
+
+#ifdef NS_ENABLE_IPV6
+  ns_resolve_async_opt(&mgr, "1:2::3", NS_DNS_AAAA_RECORD,
+                       dns_resolve_literal_cb, &data, opts);
+
+  poll_mgr(&mgr, 1);
+  ASSERT(data == 2);
+#endif
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -1640,6 +1698,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_resolve_local);
   RUN_TEST(test_dns_resolve_timeout);
   RUN_TEST(test_dns_resolve_hosts);
+  RUN_TEST(test_dns_resolve_literal);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

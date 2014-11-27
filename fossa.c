@@ -3583,6 +3583,25 @@ NS_INTERNAL int ns_dns_resolve_hosts(const char *name, struct in_addr *ina) {
   return -1;
 }
 
+NS_INTERNAL void ns_dns_make_syntetic_message(const char *name, int query,
+                                              void *rdata,
+                                              size_t rdata_len,
+                                              struct ns_dns_message *msg) {
+  memset(msg, 0, sizeof(*msg));
+  msg->num_questions = 1;
+  msg->num_answers = 1;
+
+  msg->questions[0].name.p = name;
+  msg->questions[0].name.len = strlen(name);
+  msg->questions[0].rtype = query;
+  msg->questions[0].rclass = 1;
+  msg->questions[0].ttl = 0;
+
+  msg->answers[0] = msg->questions[0];
+  msg->answers[0].rdata.p = (char *) rdata;
+  msg->answers[0].rdata.len = rdata_len;
+}
+
 NS_INTERNAL int ns_resolve_async_local(const char *name, int query,
                    ns_resolve_callback_t cb, void *data) {
   struct in_addr ina;
@@ -3597,18 +3616,35 @@ NS_INTERNAL int ns_resolve_async_local(const char *name, int query,
     return -1;
   }
 
-  memset(&msg, 0, sizeof(msg));
-  msg.num_questions = 1;
-  msg.num_answers = 1;
+  ns_dns_make_syntetic_message(name, query, &ina, sizeof(ina), &msg);
+  cb(&msg, data);
+  return 0;
+}
 
-  msg.questions[0].name.p = name;
-  msg.questions[0].name.len = strlen(name);
-  msg.questions[0].rtype = query;
-  msg.questions[0].rclass = 1;
-  msg.questions[0].ttl = 0;
+NS_INTERNAL int ns_resolve_literal_address(const char *name,
+                                           ns_resolve_callback_t cb,
+                                           void *data) {
+  unsigned int a, b, c, d;
+  struct ns_dns_message msg;
+  struct in_addr ina;
+#ifdef NS_ENABLE_IPV6
+  struct in6_addr ina6;
+  char buf[100];
+#endif
 
-  msg.answers[0] = msg.questions[0];
-  msg.answers[0].rdata.p = (char *)&ina;
+  if (sscanf(name, "%u.%u.%u.%u", &a, &b, &c, &d) == 4) {
+    ina.s_addr = htonl(a << 24 | b << 16 | c << 8 | d);
+    ns_dns_make_syntetic_message(name, NS_DNS_A_RECORD, &ina, sizeof(ina),
+                                 &msg);
+#ifdef NS_ENABLE_IPV6
+  } else if (sscanf(name, "%99s", buf) == 1 &&
+             inet_pton(AF_INET6, buf, &ina6)) {
+    ns_dns_make_syntetic_message(name, NS_DNS_AAAA_RECORD, &ina6, sizeof(ina6),
+                                 &msg);
+#endif
+  } else {
+    return -1;
+  }
 
   cb(&msg, data);
   return 0;
@@ -3680,7 +3716,11 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   struct ns_connection *nc;
   const char *nameserver = opts.nameserver_url;
 
-  /* resolve local name first */
+  if (opts.accept_literal && ns_resolve_literal_address(name, cb, data) == 0) {
+    return 0;
+  }
+
+  /* resolve local name */
 
   if (ns_resolve_async_local(name, query, cb, data) == 0) {
     return 0;
@@ -3735,24 +3775,31 @@ struct ns_dns_resource_record *ns_dns_next_record(
  * Parses the record data from a DNS resource record.
  *
  *  - A:     struct in_addr *ina
+ *  - AAAA:  struct in6_addr *ina
  *  - CNAME: char buffer
  *
  * Returns -1 on error.
  *
- * TODO(mkm): MX, AAAA
+ * TODO(mkm): MX
  */
 int ns_dns_parse_record_data(struct ns_dns_message *msg,
                              struct ns_dns_resource_record *rr,
                              void *data, size_t data_len) {
-  struct in_addr *ina = (struct in_addr *) data;
-
   switch (rr->rtype) {
     case NS_DNS_A_RECORD:
-      if (data_len < sizeof(*ina)) {
+      if (data_len < sizeof(struct in_addr)) {
         return -1;
       }
-      memcpy(ina, rr->rdata.p, data_len);
+      memcpy(data, rr->rdata.p, data_len);
       return 0;
+#ifdef NS_ENABLE_IPV6
+    case NS_DNS_AAAA_RECORD:
+      if (data_len < sizeof(struct in6_addr)) {
+        return -1;
+      }
+      memcpy(data, rr->rdata.p, data_len);
+      return 0;
+#endif
     case NS_DNS_CNAME_RECORD:
       ns_dns_uncompress_name(msg, &rr->rdata, (char *) data, data_len);
       return 0;

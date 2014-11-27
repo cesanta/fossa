@@ -13,6 +13,9 @@
 
 #define MAX_DNS_PACKET_LEN  2048
 
+static const char *ns_default_dns_server = "udp://8.8.8.8:53";
+NS_INTERNAL char ns_dns_server[256];
+
 static int ns_dns_tid = 0xa0;
 
 struct ns_dns_header {
@@ -23,6 +26,216 @@ struct ns_dns_header {
   uint16_t num_authority_prs;
   uint16_t num_other_prs;
 };
+
+struct ns_resolve_async_request {
+  char name[1024];
+  int query;
+  ns_resolve_callback_t callback;
+  void *data;
+  time_t timeout;
+  int max_retries;
+
+  /* state */
+  time_t last_time;
+  int retries;
+};
+
+/*
+ * Find what nameserver to use.
+ *
+ * Return 0 if OK, -1 if error
+ */
+static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
+  int  ret = 0;
+
+#ifdef _WIN32
+  int  i;
+  LONG  err;
+  HKEY  hKey, hSub;
+  char  subkey[512], dhcpns[512], ns[512], value[128], *key =
+  "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
+
+  if ((err = RegOpenKey(HKEY_LOCAL_MACHINE,
+      key, &hKey)) != ERROR_SUCCESS) {
+    fprintf(stderr, "cannot open reg key %s: %d\n", key, err);
+    ret--;
+  } else {
+    for (ret--, i = 0; RegEnumKey(hKey, i, subkey,
+        sizeof(subkey)) == ERROR_SUCCESS; i++) {
+      DWORD type, len = sizeof(value);
+      if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
+          (RegQueryValueEx(hSub, "NameServer", 0,
+          &type, value, &len) == ERROR_SUCCESS ||
+          RegQueryValueEx(hSub, "DhcpNameServer", 0,
+          &type, value, &len) == ERROR_SUCCESS)) {
+        strncpy(name, value, name_len);
+        ret++;
+        RegCloseKey(hSub);
+        break;
+      }
+    }
+    RegCloseKey(hKey);
+  }
+#else
+  FILE  *fp;
+  char  line[512];
+
+  if ((fp = fopen("/etc/resolv.conf", "r")) == NULL) {
+    ret--;
+  } else {
+    /* Try to figure out what nameserver to use */
+    for (ret--; fgets(line, sizeof(line), fp) != NULL; ) {
+      char buf[256];
+      if (sscanf(line, "nameserver %256[^\n]s", buf) == 1) {
+        snprintf(name, name_len, "udp://%s:53", buf);
+        ret++;
+        break;
+      }
+    }
+    (void) fclose(fp);
+  }
+#endif /* _WIN32 */
+
+  return ret;
+}
+
+static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
+  time_t now = time(NULL);
+  struct ns_resolve_async_request *req;
+  req = (struct ns_resolve_async_request *) nc->user_data;
+
+  (void) data;
+  switch (ev) {
+    case NS_POLL:
+      if (req->retries > req->max_retries) {
+        req->callback(NULL, req->data);
+        nc->flags |= NSF_CLOSE_IMMEDIATELY;
+        break;
+      }
+      if (now - req->last_time > req->timeout) {
+        ns_send_dns_query(nc, req->name, req->query);
+        req->last_time = now;
+        req->retries++;
+      }
+      break;
+    case NS_RECV:
+      {
+        struct ns_dns_message msg;
+        ns_parse_dns(nc->recv_iobuf.buf, * (int *) data, &msg);
+
+        req->callback(&msg, req->data);
+
+        nc->flags |= NSF_CLOSE_IMMEDIATELY;
+      }
+      break;
+  }
+}
+
+/* See `ns_resolve_async_opt` */
+int ns_resolve_async(struct ns_mgr *mgr, const char *name, int query,
+                   ns_resolve_callback_t cb, void *data) {
+  static struct ns_resolve_async_opts opts;
+  return ns_resolve_async_opt(mgr, name, query, cb, data, opts);
+}
+
+/*
+ * Resolved a DNS name asynchronously.
+ *
+ * Upon successful resolution, the user callback will be invoked
+ * with the full DNS response message and a pointer to the user's
+ * context `data`.
+ *
+ * In case of timeout while performing the resolution the callback
+ * will receive a NULL `msg`.
+ *
+ * The DNS answers can be extracted with `ns_next_record` and
+ * `ns_dns_parse_record_data`:
+ *
+ * [source,c]
+ * ----
+ * struct in_addr ina;
+ * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD, NULL);
+ * ns_dns_parse_record_data(msg, rr, &ina, sizeof(ina));
+ * ----
+ */
+int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
+                       ns_resolve_callback_t cb, void *data,
+                       struct ns_resolve_async_opts opts) {
+  struct ns_resolve_async_request * req;
+  struct ns_connection *nc;
+  const char *nameserver = opts.nameserver_url;
+  req = (struct ns_resolve_async_request *) calloc(1, sizeof(*req));
+
+  strncpy(req->name, name, sizeof(req->name));
+  req->query = query;
+  req->callback = cb;
+  req->data = data;
+  /* TODO(mkm): parse defaults out of resolve.conf */
+  req->max_retries = opts.max_retries ? opts.max_retries : 2;
+  req->timeout = opts.timeout ? opts.timeout : 5;
+
+  /* Lazily initialize dns server */
+  if (!nameserver && ns_dns_server[0] == 0) {
+    if (ns_get_ip_address_of_nameserver(ns_dns_server,
+                                        sizeof(ns_dns_server)) == -1) {
+      strncpy(ns_dns_server, ns_default_dns_server, sizeof(ns_dns_server));
+    }
+  }
+  if (!nameserver) {
+    nameserver = ns_dns_server;
+  }
+
+  nc = ns_connect(mgr, nameserver, ns_resolve_async_eh);
+  if (nc == NULL) {
+    return -1;
+  }
+  nc->user_data = req;
+  return 0;
+}
+
+struct ns_dns_resource_record *ns_dns_next_record(
+    struct ns_dns_message *msg, int query,
+    struct ns_dns_resource_record *prev) {
+  struct ns_dns_resource_record *rr;
+
+  for (rr = (prev == NULL ? msg->answers : prev + 1);
+       rr - msg->answers < msg->num_answers; rr++) {
+    if (rr->rtype == query) {
+      return rr;
+    }
+  }
+  return NULL;
+}
+
+/*
+ * Parses the record data from a DNS resource record.
+ *
+ *  - A:     struct in_addr *ina
+ *  - CNAME: char buffer
+ *
+ * Returns -1 on error.
+ *
+ * TODO(mkm): MX, AAAA
+ */
+int ns_dns_parse_record_data(struct ns_dns_message *msg,
+                             struct ns_dns_resource_record *rr,
+                             void *data, size_t data_len) {
+  struct in_addr *ina = (struct in_addr *) data;
+
+  switch (rr->rtype) {
+    case NS_DNS_A_RECORD:
+      if (data_len < sizeof(*ina)) {
+        return -1;
+      }
+      memcpy(ina, rr->rdata.p, data_len);
+      return 0;
+    case NS_DNS_CNAME_RECORD:
+      ns_dns_uncompress_name(msg, &rr->rdata, (char *) data, data_len);
+      return 0;
+  }
+
+  return -1;
+}
 
 /*
  * Low-level: send a dns query to the remote end

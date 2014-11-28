@@ -364,7 +364,6 @@ int ns_printf(struct ns_connection *, const char *fmt, ...);
 int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
 /* Utility functions */
-void *ns_start_thread(void *(*f)(void *), void *p);
 int ns_socketpair(sock_t[2]);
 int ns_socketpair2(sock_t[2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);
@@ -504,6 +503,7 @@ FILE *ns_fopen(const char *path, const char *mode);
 int ns_open(const char *path, int flag, int mode);
 char *ns_error_string(const char *s);
 void ns_set_error_string(char **e, const char *s);
+void *ns_start_thread(void *(*thread_func)(void *), void *thread_func_param);
 
 #ifdef __cplusplus
 }

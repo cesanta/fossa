@@ -1,6 +1,6 @@
 PROG = publish_subscribe
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -pthread $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. -DNS_ENABLE_THREADS -pthread $(CFLAGS_EXTRA)
 
 all: $(PROG)
 

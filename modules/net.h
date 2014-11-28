@@ -180,7 +180,6 @@ int ns_printf(struct ns_connection *, const char *fmt, ...);
 int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
 /* Utility functions */
-void *ns_start_thread(void *(*f)(void *), void *p);
 int ns_socketpair(sock_t[2]);
 int ns_socketpair2(sock_t[2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);

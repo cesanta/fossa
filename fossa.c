@@ -223,30 +223,6 @@ static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   }
 }
 
-#ifndef NS_DISABLE_THREADS
-/* Starts a new thread. */
-void *ns_start_thread(void *(*f)(void *), void *p) {
-#ifdef _WIN32
-  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
-#else
-  pthread_t thread_id = (pthread_t) 0;
-  pthread_attr_t attr;
-
-  (void) pthread_attr_init(&attr);
-  (void) pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-#if defined(NS_STACK_SIZE) && NS_STACK_SIZE > 1
-  (void) pthread_attr_setstacksize(&attr, NS_STACK_SIZE);
-#endif
-
-  pthread_create(&thread_id, &attr, f, p);
-  pthread_attr_destroy(&attr);
-
-  return (void *) thread_id;
-#endif
-}
-#endif  /* NS_DISABLE_THREADS */
-
 static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
   mgr->active_connections = c;
@@ -3104,6 +3080,30 @@ void ns_set_error_string(char **e, const char *s) {
     *e = ns_error_string(s);
   }
 }
+
+#ifdef NS_ENABLE_THREADS
+/* Starts a new thread. */
+void *ns_start_thread(void *(*f)(void *), void *p) {
+#ifdef _WIN32
+  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
+#else
+  pthread_t thread_id = (pthread_t) 0;
+  pthread_attr_t attr;
+
+  (void) pthread_attr_init(&attr);
+  (void) pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+#if defined(NS_STACK_SIZE) && NS_STACK_SIZE > 1
+  (void) pthread_attr_setstacksize(&attr, NS_STACK_SIZE);
+#endif
+
+  pthread_create(&thread_id, &attr, f, p);
+  pthread_attr_destroy(&attr);
+
+  return (void *) thread_id;
+#endif
+}
+#endif  /* NS_ENABLE_THREADS */
 /* Copyright (c) 2014 Cesanta Software Limited */
 /* All rights reserved */
 

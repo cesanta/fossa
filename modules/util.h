@@ -28,6 +28,7 @@ FILE *ns_fopen(const char *path, const char *mode);
 int ns_open(const char *path, int flag, int mode);
 char *ns_error_string(const char *s);
 void ns_set_error_string(char **e, const char *s);
+void *ns_start_thread(void *(*thread_func)(void *), void *thread_func_param);
 
 #ifdef __cplusplus
 }

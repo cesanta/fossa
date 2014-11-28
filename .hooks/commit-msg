@@ -3,7 +3,7 @@ TMP=$(mktemp -t commit-msg)
 grep -ve '^#' $1 >$TMP
 cat $TMP >/tmp/dumpmsg
 
-function abort {
+abort() {
     echo "Re-edit with:\n\ngit ci --amend -F .git/COMMIT_EDITMSG -e"
     exit 1
 }
@@ -13,7 +13,7 @@ if [ "$(head -n 1 $TMP | wc -c)" -gt 50 ]; then
     abort
 fi
 
-if [ "$(head -n 1 $TMP | tail -c -2)" == "." ]; then
+if [ "$(head -n 1 $TMP | tail -c -2)" != "." ]; then
     echo "Commit summary should end with period"
     abort
 fi

@@ -15,10 +15,10 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
+#define NS_INTERNAL
 #include "../fossa.h"
-
-int ns_parse_address(const char *str, union socket_address *sa, int *p);
-int ns_dns_resolve_hosts(const char *name, struct in_addr *ina);
+#include "../modules/net-internal.h"
+#include "../modules/dns-internal.h"
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
@@ -189,6 +189,8 @@ static const char *test_to64(void) {
   return NULL;
 }
 
+#if 0
+/* TODO(mkm) port these test cases to the new async parse_address */
 static const char *test_parse_address(void) {
   static const char *valid[] = {
     "1", "1.2.3.4:1", "tcp://123", "udp://0.0.0.0:99", "tcp://localhost:99",
@@ -221,11 +223,13 @@ static const char *test_parse_address(void) {
 
   return NULL;
 }
+#endif
 
 static const char *test_connection_errors(void) {
   struct ns_mgr mgr;
   struct ns_bind_opts bopts;
   struct ns_connect_opts copts;
+  struct ns_connection *nc;
   char *error_string;
 
   ns_mgr_init(&mgr, NULL);
@@ -238,7 +242,8 @@ static const char *test_connection_errors(void) {
   ASSERT(strncmp(error_string, "failed to open listener: ", 25) == 0);
 
   copts.error_string = &error_string;
-  ASSERT(ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts) == 0);
+  ASSERT((nc = ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts)) != 0);
+  ASSERT(nc->flags & NSF_BAD_CONNECTION);
   ASSERT(strncmp(error_string, "cannot connect to socket: ", 26) == 0);
 
   ns_mgr_free(&mgr);
@@ -1236,7 +1241,8 @@ static const char *test_connect_opts_error_string(void) {
   opts.error_string = &error_string;
 
   ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
+  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) != NULL);
+  ASSERT(nc->flags & NSF_BAD_CONNECTION);
   ASSERT(error_string != NULL);
   ASSERT(strcmp(error_string, "cannot parse address") == 0);
   free(error_string);
@@ -1658,6 +1664,88 @@ static const char *test_dns_resolve_literal(void) {
   return NULL;
 }
 
+static void test_dns_parse_address_cb(struct ns_mgr *mgr, int success,
+                                      union socket_address sa, int proto,
+                                      void *data) {
+#ifdef NS_ENABLE_IPV6
+  struct in6_addr want_addr6;
+#endif
+
+  (void) mgr;
+
+  if (!success) {
+    * (int *) data = -1;
+    return;
+  }
+
+  if (sa.sin.sin_family == AF_INET) {
+    if (sa.sin.sin_addr.s_addr == inet_addr("1.2.3.4")) {
+      * (int *) data = 1;
+    } else if (sa.sin.sin_addr.s_addr == 0 && proto == SOCK_STREAM) {
+      * (int *) data = 3;
+    } else if (sa.sin.sin_addr.s_addr == inet_addr("127.0.0.1")) {
+      * (int *) data = 4;
+    } else if (sa.sin.sin_addr.s_addr == inet_addr("54.194.65.250")) {
+      * (int *) data = 5;
+    }
+#ifdef NS_ENABLE_IPV6
+  } else if (sa.sin.sin_family == AF_INET6) {
+    inet_pton(AF_INET6, "1:2::3", &want_addr6);
+    if (memcmp(&sa.sin6.sin6_addr, &want_addr6, sizeof(want_addr6)) == 0) {
+      * (int *) data = 2;
+    }
+#endif
+  }
+}
+
+static const char *test_dns_parse_address(void) {
+  int i, got = 0;
+  struct ns_mgr mgr;
+  ns_mgr_init(&mgr, NULL);
+
+  ns_parse_address(&mgr, "udp://1.2.3.4:56", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  ASSERT(got == 1);
+
+#ifdef NS_ENABLE_IPV6
+  ns_parse_address(&mgr, "udp://[1:2::3]:56", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  ASSERT(got == 2);
+#endif
+
+  ns_parse_address(&mgr, "tcp://12", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  assert(got == 3);
+  ns_parse_address(&mgr, ":8080", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  ASSERT(got == 3);
+
+  ns_parse_address(&mgr, "udp://missingport", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  ASSERT(got == -1);
+
+  ns_parse_address(&mgr, "localhost:80", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  ASSERT(got == 4);
+
+  ns_parse_address(&mgr, "www.cesanta.com:80", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  for (i = 0; i < 50000 && got != 5; i++) {
+    poll_mgr(&mgr, 1);
+  }
+  ASSERT(got == 5);
+
+  ns_parse_address(&mgr, "in.va.lid:80", NULL, 0,
+                         test_dns_parse_address_cb, &got);
+  for (i = 0; i < 50000 && got != -1; i++) {
+    poll_mgr(&mgr, 1);
+  }
+  ASSERT(got == -1);
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
 #if 0
@@ -1671,7 +1759,6 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
-  RUN_TEST(test_parse_address);
   RUN_TEST(test_connection_errors);
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
@@ -1699,6 +1786,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_resolve_timeout);
   RUN_TEST(test_dns_resolve_hosts);
   RUN_TEST(test_dns_resolve_literal);
+  RUN_TEST(test_dns_parse_address);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

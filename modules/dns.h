@@ -27,6 +27,7 @@ struct ns_resolve_async_opts {
   int max_retries;    /* defaults to 2 if zero */
   int timeout;        /* in seconds; defaults to 5 if zero */
   int accept_literal; /* pseudo-resolve literal ipv4 and ipv6 addrs */
+  int only_literal;   /* only resolves literal addrs; sync cb invocation */
 };
 
 int ns_resolve_async(struct ns_mgr *mgr, const char *, int,

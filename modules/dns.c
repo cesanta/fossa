@@ -10,6 +10,7 @@
 #ifndef NS_DISABLE_DNS
 
 #include "internal.h"
+#include "dns-internal.h"
 
 #define MAX_DNS_PACKET_LEN  2048
 
@@ -268,7 +269,8 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   struct ns_connection *nc;
   const char *nameserver = opts.nameserver_url;
 
-  if (opts.accept_literal && ns_resolve_literal_address(name, cb, data) == 0) {
+  if ((opts.accept_literal || opts.only_literal) &&
+      ns_resolve_literal_address(name, cb, data) == 0) {
     return 0;
   }
 
@@ -276,6 +278,10 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   if (ns_resolve_async_local(name, query, cb, data) == 0) {
     return 0;
+  }
+
+  if (opts.only_literal) {
+    return -1;
   }
 
   /* resolve with DNS */

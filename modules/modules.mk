@@ -1,3 +1,3 @@
 FR = ../deps/frozen
-HEADERS = common.h iobuf.h net.h $(FR)/frozen.h sha1.h util.h http.h json-rpc.h mqtt.h dns.h
-SOURCES = iobuf.c net.c $(FR)/frozen.c http.c sha1.c util.c json-rpc.c mqtt.c dns.c
+HEADERS = common.h iobuf.h net.h $(FR)/frozen.h sha1.h util.h http.h json-rpc.h mqtt.h dns.h resolv.h
+SOURCES = iobuf.c net.c $(FR)/frozen.c http.c sha1.c util.c json-rpc.c mqtt.c dns.c resolv.c

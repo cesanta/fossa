@@ -18,7 +18,7 @@
 #define NS_INTERNAL
 #include "../fossa.h"
 #include "../modules/net-internal.h"
-#include "../modules/dns-internal.h"
+#include "../modules/resolv-internal.h"
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
@@ -1597,10 +1597,10 @@ static const char *test_dns_resolve_hosts(void) {
   in_addr_t want = inet_addr("127.0.0.1");
   memset(&got, 0, sizeof(got));
 
-  ASSERT(ns_dns_resolve_hosts("localhost", &got) == 0);
+  ASSERT(ns_resolve_etc_hosts("localhost", &got) == 0);
   ASSERT(got.s_addr == want);
 
-  ASSERT(ns_dns_resolve_hosts("i_ll_hunt_you_down_if_you_name_a_host_like_this",
+  ASSERT(ns_resolve_etc_hosts("i_ll_hunt_you_down_if_you_name_a_host_like_this",
                               &got) == -1);
 
   return NULL;

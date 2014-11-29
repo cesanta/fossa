@@ -120,7 +120,7 @@ void ns_send_dns_query(struct ns_connection* nc, const char *name,
   /* TCP DNS requires messages to be prefixed with len */
   if (!(nc->flags & NSF_UDP)) {
     uint16_t len = htons(pkt.len);
-    iobuf_prepend(&pkt, &len, 2);
+    iobuf_insert(&pkt, 0, &len, 2);
   }
 
   ns_send(nc, pkt.buf, pkt.len);

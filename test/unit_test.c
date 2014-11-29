@@ -83,17 +83,23 @@ static const char *test_iobuf(void) {
   ASSERT(io.size == 10);
   ASSERT(io.len == strlen(data));
 
-  ASSERT(iobuf_prepend(&io, prefix, strlen(prefix)) == strlen(prefix));
+  ASSERT(iobuf_insert(&io, 0, prefix, strlen(prefix)) == strlen(prefix));
   ASSERT(io.size == 10);
   ASSERT(io.len == strlen(data) + strlen(prefix));
 
-  ASSERT(iobuf_prepend(&io, big_prefix, strlen(big_prefix)) == strlen(big_prefix));
+  ASSERT(iobuf_insert(&io, 0, big_prefix, strlen(big_prefix)) == strlen(big_prefix));
   ASSERT(io.size == strlen(big_prefix) + strlen(prefix) + strlen(data));
+  ASSERT(strncmp(io.buf, "Some long prefix: MYTEST", 24) == 0);
+
+  ASSERT(iobuf_insert(&io, strlen(big_prefix), data, strlen(data)) == strlen(data));
+  ASSERT(io.size == strlen(big_prefix) + strlen(data) + strlen(prefix) + strlen(data));
+  ASSERT(strncmp(io.buf, "Some long prefix: TESTMYTEST", 28) == 0);
+
+  /* test allocation failure */
+  ASSERT(iobuf_insert(&io, 0, NULL, 1125899906842624) == 0);
 
   /* test overflow */
-  ASSERT(iobuf_prepend(&io, NULL, -1) == 0);
-  /* test allocation failure */
-  ASSERT(iobuf_prepend(&io, NULL, 1125899906842624) == 0);
+  ASSERT(iobuf_insert(&io, 0, NULL, -1) == 0);
   iobuf_free(&io);
   return NULL;
 }

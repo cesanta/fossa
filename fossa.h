@@ -175,7 +175,7 @@ struct iobuf {
 void iobuf_init(struct iobuf *, size_t initial_size);
 void iobuf_free(struct iobuf *);
 size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
-size_t iobuf_prepend(struct iobuf *, const void *data, size_t data_size);
+size_t iobuf_insert(struct iobuf *, size_t, const void *, size_t);
 void iobuf_remove(struct iobuf *, size_t data_size);
 void iobuf_resize(struct iobuf *, size_t new_size);
 

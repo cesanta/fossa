@@ -42,51 +42,35 @@ void iobuf_free(struct iobuf *iobuf) {
  * It returns the amount of bytes appended.
  */
 size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
-  char *p = NULL;
-
-  assert(io != NULL);
-  assert(io->len <= io->size);
-
-  if (io->len + len <= io->size) {
-    memcpy(io->buf + io->len, buf, len);
-    io->len += len;
-  } else if ((p = (char *) NS_REALLOC(io->buf, io->len + len)) != NULL) {
-    io->buf = p;
-    memcpy(io->buf + io->len, buf, len);
-    io->len += len;
-    io->size = io->len;
-  } else {
-    len = 0;
-  }
-
-  return len;
+  return iobuf_insert(io, io->len, buf, len);
 }
 
 /*
- * Inserts data at the beginning of the IO buffer
+ * Inserts data at a specified offset in the IO buffer.
  *
  * Existing data will be shifted forwards and the buffer will
  * be grown if necessary.
- * It returns the amount of bytes prepended.
+ * It returns the amount of bytes inserted.
  */
-size_t iobuf_prepend(struct iobuf *io, const void *buf, size_t len) {
+size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
   assert(io != NULL);
   assert(io->len <= io->size);
+  assert(off <= io->len);
 
   /* check overflow */
   if (~(size_t)0 - (size_t)io->buf < len)
     return 0;
 
   if (io->len + len <= io->size) {
-    memmove(io->buf + len, io->buf, io->len);
-    memcpy(io->buf, buf, len);
+    memmove(io->buf + off + len, io->buf + off, io->len - off);
+    memcpy(io->buf + off, buf, len);
     io->len += len;
   } else if ((p = (char *) NS_REALLOC(io->buf, io->len + len)) != NULL) {
     io->buf = p;
-    memmove(io->buf + len, io->buf, io->len);
-    memcpy(io->buf, buf, len);
+    memmove(io->buf + off + len, io->buf + off, io->len - off);
+    memcpy(io->buf + off, buf, len);
     io->len += len;
     io->size = io->len;
   } else {

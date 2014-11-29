@@ -153,10 +153,13 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
 
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
                                    uint8_t flags, size_t len) {
+  size_t off = nc->send_iobuf.len - len;
   uint8_t header = cmd << 4 | (uint8_t)flags;
 
   uint8_t buf[1 + sizeof(size_t)];
   uint8_t *vlen = &buf[1];
+
+  assert(nc->send_iobuf.len >= len);
 
   buf[0] = header;
 
@@ -169,7 +172,7 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
     vlen++;
   } while (len > 0);
 
-  iobuf_prepend(&nc->send_iobuf, buf, vlen - buf);
+  iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
 }
 
 /* Publish a message to a given channel. */

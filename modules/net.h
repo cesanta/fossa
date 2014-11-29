@@ -183,8 +183,7 @@ int ns_printf(struct ns_connection *, const char *fmt, ...);
 int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 
 /* Utility functions */
-int ns_socketpair(sock_t[2]);
-int ns_socketpair2(sock_t[2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
+int ns_socketpair(sock_t[2], int sock_type);  /* SOCK_STREAM or SOCK_DGRAM */
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);

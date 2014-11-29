@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create a socketpair and give one end to the thread that reads stdin
-    ns_socketpair(fds);
+    ns_socketpair(fds, SOCK_STREAM);
     ns_start_thread(stdin_thread, &fds[1]);
 
     // The other end of a pair goes inside the server

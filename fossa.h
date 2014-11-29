@@ -291,7 +291,10 @@ struct ns_connection {
   void *user_data;                  /* User-specific data */
 
   unsigned long flags;
-#define NSF_FINISHED_SENDING_DATA   (1 << 0)  /* Push remaining data and disconnect */
+#define NSF_FINISHED_SENDING_DATA   (1 << 0)  /*
+                                               * Push remaining data and
+                                               * disconnect
+                                               */
 #define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)  /* Do not send data */
 #define NSF_CONNECTING              (1 << 2)  /* connect() call in progress */
 #define NSF_CLOSE_IMMEDIATELY       (1 << 3)  /* Disconnect */

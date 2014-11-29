@@ -68,45 +68,6 @@ static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->next) conn->next->prev = conn->prev;
 }
 
-/* Print message to buffer. If buffer is large enough to hold the message,
- * return buffer. If buffer is to small, allocate large enough buffer on heap,
- * and return allocated buffer. */
-int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
-  va_list ap_copy;
-  int len;
-
-  va_copy(ap_copy, ap);
-  len = vsnprintf(*buf, size, fmt, ap_copy);
-  va_end(ap_copy);
-
-  if (len < 0) {
-    /* eCos and Windows are not standard-compliant and return -1 when
-     * the buffer is too small. Keep allocating larger buffers until we
-     * succeed or out of memory. */
-    *buf = NULL;  /* LCOV_EXCL_START */
-    while (len < 0) {
-      NS_FREE(*buf);
-      size *= 2;
-      if ((*buf = (char *) NS_MALLOC(size)) == NULL) break;
-      va_copy(ap_copy, ap);
-      len = vsnprintf(*buf, size, fmt, ap_copy);
-      va_end(ap_copy);
-    }
-    /* LCOV_EXCL_STOP */
-  } else if (len > (int) size) {
-    /* Standard-compliant code path. Allocate a buffer that is large enough. */
-    if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
-      len = -1;  /* LCOV_EXCL_LINE */
-    } else {     /* LCOV_EXCL_LINE */
-      va_copy(ap_copy, ap);
-      len = vsnprintf(*buf, len + 1, fmt, ap_copy);
-      va_end(ap_copy);
-    }
-  }
-
-  return len;
-}
-
 /*
  * Send `printf`-style formatted data to the connection.
  *
@@ -138,31 +99,6 @@ int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   len = ns_vprintf(conn, fmt, ap);
   va_end(ap);
   return len;
-}
-
-void ns_hexdump_connection(struct ns_connection *nc, const char *path,
-                           int num_bytes, int ev) {
-  const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
-  FILE *fp;
-  char *buf, src[60], dst[60];
-  int buf_size = num_bytes * 5 + 100;
-
-  if ((fp = fopen(path, "a")) != NULL) {
-    ns_sock_to_str(nc->sock, src, sizeof(src), 3);
-    ns_sock_to_str(nc->sock, dst, sizeof(dst), 7);
-    fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL),
-            nc->user_data, src,
-            ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" :
-            ev == NS_ACCEPT ? "<A" : ev == NS_CONNECT ? "C>" : "XX",
-            dst, num_bytes);
-    if (num_bytes > 0 && (buf = (char *) NS_MALLOC(buf_size)) != NULL) {
-      ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
-                 (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
-      fprintf(fp, "%s", buf);
-      NS_FREE(buf);
-    }
-    fclose(fp);
-  }
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
@@ -200,15 +136,6 @@ static void ns_close_conn(struct ns_connection *conn) {
   ns_call(conn, NS_CLOSE, NULL);
   ns_remove_conn(conn);
   ns_destroy_conn(conn);
-}
-
-/* Set close-on-exec bit for a given socket. */
-void ns_set_close_on_exec(sock_t sock) {
-#ifdef _WIN32
-  (void) SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0);
-#else
-  fcntl(sock, F_SETFD, FD_CLOEXEC);
-#endif
 }
 
 static void ns_set_non_blocking_mode(sock_t sock) {
@@ -625,75 +552,6 @@ static int ns_is_error(int n) {
        && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
 #endif
        );
-}
-
-/*
- * Converts socket's local or remote address into string.
- *
- * The `flags` parameter is a bit mask that controls the behavior.
- * If bit 2 is set (`flags & 4`) then the remote address is stringified,
- * otherwise local address is stringified. If bit 0 is set, then IP
- * address is printed. If bit 1 is set, then port number is printed. If both
- * port number and IP address are printed, they are separated by `:`.
- */
-void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
-  union socket_address sa;
-  socklen_t slen = sizeof(sa);
-
-  if (buf != NULL && len > 0) {
-    buf[0] = '\0';
-    memset(&sa, 0, sizeof(sa));
-    if (flags & 4) {
-      getpeername(sock, &sa.sa, &slen);
-    } else {
-      getsockname(sock, &sa.sa, &slen);
-    }
-    if (flags & 1) {
-#if defined(NS_ENABLE_IPV6)
-      inet_ntop(sa.sa.sa_family, sa.sa.sa_family == AF_INET ?
-                (void *) &sa.sin.sin_addr :
-                (void *) &sa.sin6.sin6_addr, buf, len);
-#elif defined(_WIN32)
-      /* Only Windoze Vista (and newer) have inet_ntop() */
-      strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
-#else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
-                (socklen_t)len);
-#endif
-    }
-    if (flags & 2) {
-      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s%d",
-               flags & 1 ? ":" : "", (int) ntohs(sa.sin.sin_port));
-    }
-  }
-}
-
-/*
- * Generates a hexdump.
- *
- * Takes a memory buffer `buf` of length `len` and creates a hex dump of that
- * buffer in `dst`.
- */
-int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
-  const unsigned char *p = (const unsigned char *) buf;
-  char ascii[17] = "";
-  int i, idx, n = 0;
-
-  for (i = 0; i < len; i++) {
-    idx = i % 16;
-    if (idx == 0) {
-      if (i > 0) n += snprintf(dst + n, dst_len - n, "  %s\n", ascii);
-      n += snprintf(dst + n, dst_len - n, "%04x ", i);
-    }
-    n += snprintf(dst + n, dst_len - n, " %02x", p[i]);
-    ascii[idx] = p[i] < 0x20 || p[i] > 0x7e ? '.' : p[i];
-    ascii[idx + 1] = '\0';
-  }
-
-  while (i++ % 16) n += snprintf(dst + n, dst_len - n, "%s", "   ");
-  n += snprintf(dst + n, dst_len - n, "  %s\n\n", ascii);
-
-  return n;
 }
 
 static void ns_read_from_socket(struct ns_connection *conn) {

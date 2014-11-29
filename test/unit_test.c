@@ -279,7 +279,7 @@ static const char *test_socketpair(void) {
   static const char foo[] = "hi there";
   char buf[20];
 
-  ASSERT(ns_socketpair2(sp, SOCK_DGRAM) == 1);
+  ASSERT(ns_socketpair(sp, SOCK_DGRAM) == 1);
   ASSERT(sizeof(foo) < sizeof(buf));
 
   /* Send string in one direction */
@@ -321,7 +321,7 @@ static const char *test_thread(void) {
   sock_t sp[2];
   char buf[20];
 
-  ASSERT(ns_socketpair(sp) == 1);
+  ASSERT(ns_socketpair(sp, SOCK_STREAM) == 1);
   ns_start_thread(thread_func, &sp[1]);
 
   ns_mgr_init(&mgr, NULL);

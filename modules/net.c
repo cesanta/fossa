@@ -227,7 +227,7 @@ static void ns_set_non_blocking_mode(sock_t sock) {
  * `proto` can be either `SOCK_STREAM` or `SOCK_DGRAM`.
  * Return 0 on failure, 1 on success.
  */
-int ns_socketpair2(sock_t sp[2], int sock_type) {
+int ns_socketpair(sock_t sp[2], int sock_type) {
   union socket_address sa;
   sock_t sock;
   socklen_t len = sizeof(sa.sin);
@@ -266,10 +266,6 @@ int ns_socketpair2(sock_t sp[2], int sock_type) {
   }
 
   return ret;
-}
-
-int ns_socketpair(sock_t sp[2]) {
-  return ns_socketpair2(sp, SOCK_STREAM);
 }
 #endif  /* NS_DISABLE_SOCKETPAIR */
 
@@ -1158,7 +1154,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 
 #ifndef NS_DISABLE_SOCKETPAIR
   do {
-    ns_socketpair2(s->ctl, SOCK_DGRAM);
+    ns_socketpair(s->ctl, SOCK_DGRAM);
   } while (s->ctl[0] == INVALID_SOCKET);
 #endif
 

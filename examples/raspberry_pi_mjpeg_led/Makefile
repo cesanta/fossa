@@ -1,6 +1,6 @@
 NS=../../fossa.c
 FLAGS = ../../fossa.c -I../..
-CFLAGS=-W -Wall -pthread $(CFLAGS_EXTRA)
+CFLAGS=-W -Wall -DNS_ENABLE_THREADS -pthread $(CFLAGS_EXTRA)
 PROGS = device_side cloud_side
 
 all: $(PROGS)

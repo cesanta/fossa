@@ -220,39 +220,6 @@ static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->next) conn->next->prev = conn->prev;
 }
 
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
-int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
-  char mem[NS_VPRINTF_BUFFER_SIZE], *buf = mem;
-  int len;
-
-  if ((len = ns_avprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
-    ns_out(nc, buf, len);
-  }
-  if (buf != mem && buf != NULL) {
-    NS_FREE(buf);  /* LCOV_EXCL_LINE */
-  }                /* LCOV_EXCL_LINE */
-
-  return len;
-}
-
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
-int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
-  int len;
-  va_list ap;
-  va_start(ap, fmt);
-  len = ns_vprintf(conn, fmt, ap);
-  va_end(ap);
-  return len;
-}
-
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
@@ -288,6 +255,96 @@ static void ns_close_conn(struct ns_connection *conn) {
   ns_call(conn, NS_CLOSE, NULL);
   ns_remove_conn(conn);
   ns_destroy_conn(conn);
+}
+
+/* Initializes Fossa manager. */
+void ns_mgr_init(struct ns_mgr *s, void *user_data) {
+  memset(s, 0, sizeof(*s));
+  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
+  s->user_data = user_data;
+
+#ifdef _WIN32
+  {
+    WSADATA data;
+    WSAStartup(MAKEWORD(2, 2), &data);
+  }
+#else
+  /* Ignore SIGPIPE signal, so if client cancels the request, it
+   * won't kill the whole process. */
+  signal(SIGPIPE, SIG_IGN);
+#endif
+
+#ifndef NS_DISABLE_SOCKETPAIR
+  do {
+    ns_socketpair(s->ctl, SOCK_DGRAM);
+  } while (s->ctl[0] == INVALID_SOCKET);
+#endif
+
+#ifdef NS_ENABLE_SSL
+  {
+    static int init_done;
+    if (!init_done) {
+      SSL_library_init();
+      init_done++;
+    }
+  }
+#endif
+}
+
+/*
+ * De-initializes fossa manager.
+ *
+ * Closes and deallocates all active connections.
+ */
+void ns_mgr_free(struct ns_mgr *s) {
+  struct ns_connection *conn, *tmp_conn;
+
+  DBG(("%p", s));
+  if (s == NULL) return;
+  /* Do one last poll, see https://github.com/cesanta/mongoose/issues/286 */
+  ns_mgr_poll(s, 0);
+
+  if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
+  if (s->ctl[1] != INVALID_SOCKET) closesocket(s->ctl[1]);
+  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
+
+  for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
+    tmp_conn = conn->next;
+    ns_close_conn(conn);
+  }
+}
+
+/*
+ * Send `printf`-style formatted data to the connection.
+ *
+ * See `ns_send` for more details on send semantics.
+ */
+int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
+  char mem[NS_VPRINTF_BUFFER_SIZE], *buf = mem;
+  int len;
+
+  if ((len = ns_avprintf(&buf, sizeof(mem), fmt, ap)) > 0) {
+    ns_out(nc, buf, len);
+  }
+  if (buf != mem && buf != NULL) {
+    NS_FREE(buf);  /* LCOV_EXCL_LINE */
+  }                /* LCOV_EXCL_LINE */
+
+  return len;
+}
+
+/*
+ * Send `printf`-style formatted data to the connection.
+ *
+ * See `ns_send` for more details on send semantics.
+ */
+int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
+  int len;
+  va_list ap;
+  va_start(ap, fmt);
+  len = ns_vprintf(conn, fmt, ap);
+  va_end(ap);
+  return len;
 }
 
 static void ns_set_non_blocking_mode(sock_t sock) {
@@ -1142,63 +1199,6 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
     send(mgr->ctl[0], (char *) &ctl_msg,
          offsetof(struct ctl_msg, message) + len, 0);
     recv(mgr->ctl[0], (char *) &len, 1, 0);
-  }
-}
-
-/* Initializes Fossa manager. */
-void ns_mgr_init(struct ns_mgr *s, void *user_data) {
-  memset(s, 0, sizeof(*s));
-  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
-  s->user_data = user_data;
-
-#ifdef _WIN32
-  {
-    WSADATA data;
-    WSAStartup(MAKEWORD(2, 2), &data);
-  }
-#else
-  /* Ignore SIGPIPE signal, so if client cancels the request, it
-   * won't kill the whole process. */
-  signal(SIGPIPE, SIG_IGN);
-#endif
-
-#ifndef NS_DISABLE_SOCKETPAIR
-  do {
-    ns_socketpair(s->ctl, SOCK_DGRAM);
-  } while (s->ctl[0] == INVALID_SOCKET);
-#endif
-
-#ifdef NS_ENABLE_SSL
-  {
-    static int init_done;
-    if (!init_done) {
-      SSL_library_init();
-      init_done++;
-    }
-  }
-#endif
-}
-
-/*
- * De-initializes fossa manager.
- *
- * Closes and deallocates all active connections.
- */
-void ns_mgr_free(struct ns_mgr *s) {
-  struct ns_connection *conn, *tmp_conn;
-
-  DBG(("%p", s));
-  if (s == NULL) return;
-  /* Do one last poll, see https://github.com/cesanta/mongoose/issues/286 */
-  ns_mgr_poll(s, 0);
-
-  if (s->ctl[0] != INVALID_SOCKET) closesocket(s->ctl[0]);
-  if (s->ctl[1] != INVALID_SOCKET) closesocket(s->ctl[1]);
-  s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
-
-  for (conn = s->active_connections; conn != NULL; conn = tmp_conn) {
-    tmp_conn = conn->next;
-    ns_close_conn(conn);
   }
 }
 /*

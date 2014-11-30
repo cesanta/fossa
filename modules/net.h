@@ -53,23 +53,17 @@ struct ns_str {
 
 #define NS_STR(str_literal) { str_literal, sizeof(str_literal) - 1 }
 
-/* Constructs and appends a ns_str structure to an iobuf. */
-size_t strvbuf_append(struct iobuf *, const void *data, size_t data_size);
-struct ns_str *strvbuf_extract(struct iobuf *, size_t *len);
-
-/* Callback function (event handler) prototype, must be defined by user. */
-/* Fossa will call event handler, passing events defined above. */
+/*
+ * Callback function (event handler) prototype, must be defined by user.
+ * Fossa calls event handler, passing events defined below.
+ */
 struct ns_connection;
 typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
 /* Events. Meaning of event parameter (evp) is given in the comment. */
-#define NS_POLL    0  /*
-                       * Sent to each connection on each call
-                       * to ns_mgr_poll()
-                       */
+#define NS_POLL    0  /* Sent to each connection on each ns_mgr_poll() call */
 #define NS_ACCEPT  1  /*
-                       * New connection accept()-ed.
-                       * union socket_address *addr
+                       * New connection accept()-ed. union socket_address *addr
                        */
 #define NS_CONNECT 2  /* connect() succeeded or failed. int *success_status */
 #define NS_RECV    3  /* Data has benn received. int *num_bytes */

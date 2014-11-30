@@ -22,7 +22,7 @@
 
 struct ns_mqtt_message {
   int cmd;
-  int payload_len;
+  struct ns_str payload;
   int qos;
   uint8_t connack_ret_code; /* connack */
   uint16_t message_id;      /* puback */
@@ -130,6 +130,12 @@ void ns_mqtt_pubcomp(struct ns_connection *, uint16_t);
 void ns_mqtt_suback(struct ns_connection *, uint8_t *, size_t, uint16_t);
 void ns_mqtt_unsuback(struct ns_connection *, uint16_t);
 void ns_mqtt_pong(struct ns_connection *);
+
+/* helpers */
+int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *,
+                                 struct ns_str *,
+                                 uint8_t *,
+                                 int);
 
 #ifdef __cplusplus
 }

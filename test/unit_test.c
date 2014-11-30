@@ -985,12 +985,12 @@ static const char *test_mqtt_nullary(void) {
   return NULL;
 }
 
-static const int mqtt_long_payload_len = 200;
-static const int mqtt_very_long_payload_len = 20000;
+static const size_t mqtt_long_payload_len = 200;
+static const size_t mqtt_very_long_payload_len = 20000;
 
 static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
   struct ns_mqtt_message *mm = (struct ns_mqtt_message *) ev_data;
-  int i;
+  size_t i;
   (void) nc;
   (void) ev_data;
 
@@ -1001,13 +1001,13 @@ static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_MQTT_PUBLISH:
       if (strncmp(mm->topic, "/topic", 6)) break;
 
-      for (i=0; i < mm->payload_len; i++) {
+      for (i=0; i < mm->payload.len; i++) {
         if (nc->recv_iobuf.buf[10 + i] != 'A') break;
       }
 
-      if (mm->payload_len == mqtt_long_payload_len) {
+      if (mm->payload.len == mqtt_long_payload_len) {
         *((int*)nc->user_data) = 2;
-      } else if (mm->payload_len == mqtt_very_long_payload_len) {
+      } else if (mm->payload.len == mqtt_very_long_payload_len) {
         *((int*)nc->user_data) = 3;
       }
       break;
@@ -1094,6 +1094,62 @@ static const char *test_mqtt_parse_mqtt(void) {
   iobuf_free(&nc->recv_iobuf);
 
   free(nc);
+  return NULL;
+}
+
+struct ns_mqtt_topic_expression brk_test_te[] = {
+  {"/dummy", 0},
+  {"/unit/#", 0}
+};
+
+static void brk_cln_cb1(struct ns_connection *nc, int ev, void *p) {
+  struct ns_mqtt_message *msg = (struct ns_mqtt_message *)p;
+
+  switch (ev) {
+    case NS_CONNECT:
+      ns_set_protocol_mqtt(nc);
+      ns_send_mqtt_handshake(nc, "dummy");
+      break;
+    case NS_MQTT_CONNACK:
+      ns_mqtt_subscribe(nc, brk_test_te, ARRAY_SIZE(brk_test_te), 42);
+      break;
+    case NS_MQTT_SUBACK:
+      ns_mqtt_publish(nc, "/unit/test", 0, NS_MQTT_QOS(0), "payload", 7);
+      break;
+    case NS_MQTT_PUBLISH:
+      if (strncmp(msg->topic, "/unit/test", 10) == 0 &&
+          msg->payload.len == 7 &&
+          ns_vcmp(&msg->payload, "payload") == 0) {
+        * (int *) nc->user_data = 1;
+      }
+      break;
+  }
+}
+
+static const char *test_mqtt_broker(void) {
+  struct ns_mgr mgr;
+  struct ns_mqtt_broker brk;
+  struct ns_connection *brk_nc;
+  struct ns_connection *cln_nc;
+  const char *brk_local_addr = "127.0.0.1:7777";
+  int brk_data = 0, cln_data = 0;
+
+  ns_mgr_init(&mgr, NULL);
+  ns_mqtt_broker_init(&brk, &brk_data);
+
+  ASSERT((brk_nc = ns_bind(&mgr, brk_local_addr, ns_mqtt_broker)) != NULL);
+  brk_nc->user_data = &brk;
+
+  ASSERT((cln_nc = ns_connect(&mgr, brk_local_addr, brk_cln_cb1)) != NULL);
+  cln_nc->user_data = &cln_data;
+
+  /* Run event loop. Use more cycles to let client and broker communicate. */
+  poll_mgr(&mgr, 200);
+
+  ASSERT(cln_data == 1);
+
+  ns_mgr_free(&mgr);
+
   return NULL;
 }
 
@@ -1784,6 +1840,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_mqtt_simple_acks);
   RUN_TEST(test_mqtt_nullary);
   RUN_TEST(test_mqtt_parse_mqtt);
+  RUN_TEST(test_mqtt_broker);
   RUN_TEST(test_dns_encode);
   RUN_TEST(test_dns_uncompress);
   RUN_TEST(test_dns_decode);

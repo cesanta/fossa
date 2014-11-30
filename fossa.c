@@ -3313,6 +3313,9 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
   mm->qos = NS_MQTT_GET_QOS(header);
 
   switch (cmd) {
+    case NS_MQTT_CMD_CONNECT:
+      /* TODO(mkm): parse keepalive and will */
+      break;
     case NS_MQTT_CMD_CONNACK:
       mm->connack_ret_code = io->buf[1];
       var_len = 2;
@@ -3333,17 +3336,19 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
 
-        /*
-         * TODO(mkm) it's not clear if this can happen
-         * The PUBLISH cmd is used for both client->server
-         * and server->client, but the message id seems to be only
-         * legal client->server while here we are parsing server->client.
-         */
         if (NS_MQTT_GET_QOS(header) > 0) {
           mm->message_id = ntohs(*(uint16_t*)io->buf);
           var_len += 2;
         }
       }
+      break;
+    case NS_MQTT_CMD_SUBSCRIBE:
+      /*
+       * topic expressions are left in the payload and can be parsed with
+       * `ns_mqtt_next_subscribe_topic`
+       */
+      mm->message_id = ntohs(* (uint16_t *) io->buf);
+      var_len = 2;
       break;
     default:
       printf("TODO: UNHANDLED COMMAND %d\n", cmd);
@@ -3355,6 +3360,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 }
 
 static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  int len;
   struct iobuf *io = &nc->recv_iobuf;
   struct ns_mqtt_message mm;
   memset(&mm, 0, sizeof(mm));
@@ -3363,15 +3369,17 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
-      mm.payload_len = parse_mqtt(io, &mm);
-      if (mm.payload_len == -1) break; /* not fully buffered */
+      len = parse_mqtt(io, &mm);
+      if (len == -1) break; /* not fully buffered */
+      mm.payload.p = io->buf;
+      mm.payload.len = len;
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
       if (mm.topic) {
         NS_FREE(mm.topic);
       }
-      iobuf_remove(io, mm.payload_len);
+      iobuf_remove(io, mm.payload.len);
       break;
   }
 }
@@ -3453,7 +3461,7 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
   iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
 }
 
-/* Publish a message to a given channel. */
+/* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags,
                      const void *data, size_t len) {
@@ -3473,7 +3481,7 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                          nc->send_iobuf.len - old_len);
 }
 
-/* Subscribe to a given channel. */
+/* Subscribe to a bunch of topics. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
@@ -3494,6 +3502,29 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
                          nc->send_iobuf.len - old_len);
 }
 
+/*
+ * Extract the next topic expression from a SUBSCRIBE command payload.
+ *
+ * Topic expression name will point to a string in the payload buffer.
+ * Return the pos of the next topic expression or -1 when the list
+ * of topics is exhausted.
+ */
+int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
+                                 struct ns_str *topic,
+                                 uint8_t *qos,
+                                 int pos) {
+  unsigned char *buf = (unsigned char *) msg->payload.p + pos;
+  if ((size_t) pos >= msg->payload.len) {
+    return -1;
+  }
+
+  topic->len = buf[0] << 8 | buf[1];
+  topic->p = (char *) buf + 2;
+  *qos = buf[2 + topic->len];
+  return pos + 2 + topic->len + 1;
+}
+
+/* Unsubscribe from a bunch of topics. */
 void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          size_t topics_len, uint16_t message_id) {
   size_t old_len = nc->send_iobuf.len;
@@ -3588,6 +3619,205 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
 }
 
 #endif  /* NS_DISABLE_MQTT */
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/*
+ * == MQTT Broker
+ */
+
+
+#ifdef NS_ENABLE_MQTT_BROKER
+
+static void ns_mqtt_session_init(struct ns_mqtt_broker *brk,
+                                 struct ns_mqtt_session *s,
+                                 struct ns_connection *nc) {
+  s->brk = brk;
+  s->subscriptions = NULL;
+  s->num_subscriptions = 0;
+  s->nc = nc;
+}
+
+static void ns_mqtt_add_session(struct ns_mqtt_session *s) {
+  s->next = s->brk->sessions;
+  s->brk->sessions = s;
+  s->prev = NULL;
+  if (s->next != NULL) s->next->prev = s;
+}
+
+static void ns_mqtt_remove_session(struct ns_mqtt_session *s) {
+  if (s->prev == NULL) s->brk->sessions = s->next;
+  if (s->prev) s->prev->next = s->next;
+  if (s->next) s->next->prev = s->prev;
+}
+
+static void ns_mqtt_destroy_session(struct ns_mqtt_session *s) {
+  size_t i;
+  for (i = 0; i < s->num_subscriptions; i++) {
+    NS_FREE((void *) s->subscriptions[i].topic);
+  }
+  NS_FREE(s);
+}
+
+static void ns_mqtt_close_session(struct ns_mqtt_session *s) {
+  ns_mqtt_remove_session(s);
+  ns_mqtt_destroy_session(s);
+}
+
+/* Initializes a MQTT broker. */
+void ns_mqtt_broker_init(struct ns_mqtt_broker *brk, void *user_data) {
+  brk->sessions = NULL;
+  brk->user_data = user_data;
+}
+
+static void ns_mqtt_broker_handle_connect(struct ns_mqtt_broker *brk,
+                                          struct ns_connection *nc) {
+  struct ns_mqtt_session *s = (struct ns_mqtt_session *) malloc(sizeof *s);
+  if (s == NULL) {
+    /* LCOV_EXCL_START */
+    ns_mqtt_connack(nc, NS_MQTT_CONNACK_SERVER_UNAVAILABLE);
+    return;
+    /* LCOV_EXCL_STOP */
+  }
+
+  /* TODO(mkm): check header (magic and version) */
+
+  ns_mqtt_session_init(brk, s, nc);
+  s->user_data = nc->user_data;
+  nc->user_data = s;
+  ns_mqtt_add_session(s);
+
+  ns_mqtt_connack(nc, NS_MQTT_CONNACK_ACCEPTED);
+}
+
+static void ns_mqtt_broker_handle_subscribe(struct ns_connection *nc,
+                                            struct ns_mqtt_message *msg) {
+  struct ns_mqtt_session *ss = (struct ns_mqtt_session *) nc->user_data;
+  uint8_t qoss[512];
+  size_t qoss_len = 0;
+  struct ns_str topic;
+  uint8_t qos;
+  int pos;
+  struct ns_mqtt_topic_expression *te;
+
+  for (pos = 0;
+       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1; ) {
+    qoss[qoss_len++] = qos;
+  }
+
+  ss->subscriptions = (struct ns_mqtt_topic_expression *)realloc(
+      ss->subscriptions, sizeof(*ss->subscriptions) * qoss_len);
+  for (pos = 0;
+       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1;
+       ss->num_subscriptions++) {
+    te = &ss->subscriptions[ss->num_subscriptions];
+    te->topic = (char *) malloc(topic.len + 1);
+    te->qos = qos;
+    strncpy((char *) te->topic, topic.p, topic.len + 1);
+  }
+
+  ns_mqtt_suback(nc, qoss, qoss_len, msg->message_id);
+}
+
+/*
+ * Matches a topic against a topic expression
+ *
+ * See http://goo.gl/iWk21X
+ *
+ * Returns 1 if it matches; 0 otherwise.
+ */
+static int ns_mqtt_match_topic_expression(const char *exp, const char *topic) {
+  /* TODO(mkm): implement real matching */
+  int len = strlen(exp);
+  if (strchr(exp, '#')) {
+    len -= 2;
+  }
+  return strncmp(exp, topic, len) == 0;
+}
+
+static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
+                                          struct ns_mqtt_message *msg) {
+  struct ns_mqtt_session *s;
+  size_t i;
+
+  for (s = ns_mqtt_next(brk, NULL); s != NULL; s = ns_mqtt_next(brk, s)) {
+    for (i = 0; i < s->num_subscriptions; i++) {
+      if (ns_mqtt_match_topic_expression(
+              s->subscriptions[i].topic, msg->topic)) {
+        ns_mqtt_publish(s->nc, msg->topic, 0, 0,
+                        msg->payload.p, msg->payload.len);
+        break;
+      }
+    }
+  }
+}
+
+/*
+ * Process a MQTT broker message.
+ *
+ * Listening connection expects a pointer to an initialized `ns_mqtt_broker`
+ * structure in the `user_data` field.
+ *
+ * Basic usage:
+ *
+ * [source,c]
+ * -----
+ * ns_mqtt_broker_init(&brk, NULL);
+ *
+ * if ((nc = ns_bind(&mgr, address, ns_mqtt_broker)) == NULL) {
+ *   // fail;
+ * }
+ * nc->user_data = &brk;
+ * -----
+ *
+ * New incoming connections will receive a `ns_mqtt_session` structure
+ * in the connection `user_data`. The original `user_data` will be stored
+ * in the `user_data` field of the session structure. This allows the user
+ * handler to store user data before `ns_mqtt_broker` creates the session.
+ *
+ * Since only the NS_ACCEPT message is processed by the listening socket,
+ * for most events the `user_data` will thus point to a `ns_mqtt_session`.
+ */
+void ns_mqtt_broker(struct ns_connection *nc, int ev, void *data) {
+  struct ns_mqtt_message *msg = (struct ns_mqtt_message *)data;
+  struct ns_mqtt_broker *brk;
+
+  if (nc->listener) {
+    brk = (struct ns_mqtt_broker *) nc->listener->user_data;
+  } else {
+    brk = (struct ns_mqtt_broker *) nc->user_data;
+  }
+
+  switch (ev) {
+    case NS_ACCEPT:
+      ns_set_protocol_mqtt(nc);
+      break;
+    case NS_MQTT_CONNECT:
+      ns_mqtt_broker_handle_connect(brk, nc);
+      break;
+    case NS_MQTT_SUBSCRIBE:
+      ns_mqtt_broker_handle_subscribe(nc, msg);
+      break;
+    case NS_MQTT_PUBLISH:
+      ns_mqtt_broker_handle_publish(brk, msg);
+      break;
+    case NS_CLOSE:
+      if (nc->listener) {
+        ns_mqtt_close_session((struct ns_mqtt_session *) nc->user_data);
+      }
+      break;
+  }
+}
+
+/* Iterates over all mqtt sessions connections. */
+struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
+                                     struct ns_mqtt_session *s) {
+  return s == NULL ? brk->sessions : s->next;
+}
+
+#endif /* NS_ENABLE_MQTT_BROKER */
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved

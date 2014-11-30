@@ -4,6 +4,7 @@ http.adoc
 json-rpc.adoc
 dns.adoc
 mqtt.adoc
+mqtt-broker.adoc
 sha1.adoc
 util.adoc
 iobuf.adoc

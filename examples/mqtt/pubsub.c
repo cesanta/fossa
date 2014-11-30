@@ -53,14 +53,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
       {
 #if 0
         char hex[1024] = {0};
-        ns_hexdump(nc->recv_iobuf.buf, msg->payload_len, hex, sizeof(hex));
+        ns_hexdump(nc->recv_iobuf.buf, msg->payload.len, hex, sizeof(hex));
         printf("Got incoming message %s:\n%s", msg->topic, hex);
 #else
-        printf("Got incoming message %s: %.*s\n", msg->topic, msg->payload_len, nc->recv_iobuf.buf);
+        printf("Got incoming message %s: %.*s\n", msg->topic, (int)msg->payload.len, msg->payload.p);
 #endif
 
         printf("Forwarding to /test\n");
-        ns_mqtt_publish(nc, "/test", 65, NS_MQTT_QOS(0), nc->recv_iobuf.buf, msg->payload_len);
+        ns_mqtt_publish(nc, "/test", 65, NS_MQTT_QOS(0), msg->payload.p, msg->payload.len);
       }
       break;
     case NS_CLOSE:

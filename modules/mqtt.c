@@ -35,6 +35,9 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
   mm->qos = NS_MQTT_GET_QOS(header);
 
   switch (cmd) {
+    case NS_MQTT_CMD_CONNECT:
+      /* TODO(mkm): parse keepalive and will */
+      break;
     case NS_MQTT_CMD_CONNACK:
       mm->connack_ret_code = io->buf[1];
       var_len = 2;
@@ -55,17 +58,19 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
         strncpy(mm->topic, io->buf + 2, topic_len);
         var_len = topic_len + 2;
 
-        /*
-         * TODO(mkm) it's not clear if this can happen
-         * The PUBLISH cmd is used for both client->server
-         * and server->client, but the message id seems to be only
-         * legal client->server while here we are parsing server->client.
-         */
         if (NS_MQTT_GET_QOS(header) > 0) {
           mm->message_id = ntohs(*(uint16_t*)io->buf);
           var_len += 2;
         }
       }
+      break;
+    case NS_MQTT_CMD_SUBSCRIBE:
+      /*
+       * topic expressions are left in the payload and can be parsed with
+       * `ns_mqtt_next_subscribe_topic`
+       */
+      mm->message_id = ntohs(* (uint16_t *) io->buf);
+      var_len = 2;
       break;
     default:
       printf("TODO: UNHANDLED COMMAND %d\n", cmd);
@@ -77,6 +82,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 }
 
 static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  int len;
   struct iobuf *io = &nc->recv_iobuf;
   struct ns_mqtt_message mm;
   memset(&mm, 0, sizeof(mm));
@@ -85,15 +91,17 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
-      mm.payload_len = parse_mqtt(io, &mm);
-      if (mm.payload_len == -1) break; /* not fully buffered */
+      len = parse_mqtt(io, &mm);
+      if (len == -1) break; /* not fully buffered */
+      mm.payload.p = io->buf;
+      mm.payload.len = len;
 
       nc->handler(nc, NS_MQTT_EVENT_BASE + mm.cmd, &mm);
 
       if (mm.topic) {
         NS_FREE(mm.topic);
       }
-      iobuf_remove(io, mm.payload_len);
+      iobuf_remove(io, mm.payload.len);
       break;
   }
 }
@@ -175,7 +183,7 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
   iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
 }
 
-/* Publish a message to a given channel. */
+/* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags,
                      const void *data, size_t len) {
@@ -195,7 +203,7 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                          nc->send_iobuf.len - old_len);
 }
 
-/* Subscribe to a given channel. */
+/* Subscribe to a bunch of topics. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
@@ -216,6 +224,29 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
                          nc->send_iobuf.len - old_len);
 }
 
+/*
+ * Extract the next topic expression from a SUBSCRIBE command payload.
+ *
+ * Topic expression name will point to a string in the payload buffer.
+ * Return the pos of the next topic expression or -1 when the list
+ * of topics is exhausted.
+ */
+int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
+                                 struct ns_str *topic,
+                                 uint8_t *qos,
+                                 int pos) {
+  unsigned char *buf = (unsigned char *) msg->payload.p + pos;
+  if ((size_t) pos >= msg->payload.len) {
+    return -1;
+  }
+
+  topic->len = buf[0] << 8 | buf[1];
+  topic->p = (char *) buf + 2;
+  *qos = buf[2 + topic->len];
+  return pos + 2 + topic->len + 1;
+}
+
+/* Unsubscribe from a bunch of topics. */
 void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          size_t topics_len, uint16_t message_id) {
   size_t old_len = nc->send_iobuf.len;

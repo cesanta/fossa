@@ -28,6 +28,9 @@ class Decl(object):
         else:
             return True
 
+    def key(self):
+        return "%s::%s" % (self.__class__.__name__, self.name)
+
 class FuncDecl(Decl):
     def __init__(self, pos, static, name):
         super(FuncDecl, self).__init__(pos)
@@ -108,7 +111,7 @@ def parse_tags(tags):
 
         decl = parse_tag(src, pos)
         if decl:
-            decls[decl.name] = decl
+            decls[decl.key()] = decl
     return decls
 
 def gen_file(path):

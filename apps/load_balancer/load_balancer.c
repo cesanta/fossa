@@ -87,7 +87,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
         /* TODO(lsm): mark backend as defunct, try it later on */
         fprintf(stderr, "connect(%s) failed\n",
                 s_http_backends[(int) nc->user_data].host_port);
-        ns_printf(nc, "%s%s\r\n", s_error_500, s_content_len_0);
+        ns_printf(nc->proto_data, "%s%s\r\n", s_error_500, s_content_len_0);
       }
       break;
     case NS_RECV:

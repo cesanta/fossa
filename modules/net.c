@@ -40,9 +40,9 @@ struct ctl_msg {
 };
 
 struct ns_connect_ctx {
-  ns_event_handler_t callback;
   char **error_string;
   struct ns_connection *nc;
+  int *connect_failed;
 };
 
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
@@ -84,7 +84,17 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {
-  closesocket(conn->sock);
+  if (conn->sock != INVALID_SOCKET) {
+    closesocket(conn->sock);
+    /*
+     * avoid users accidentally double close a socket
+     * because it can lead to difficult to debug situations.
+     * It would happen only if reusing a destroyed ns_connection
+     * but it's not always possible to run the code through an
+     * address sanitizer.
+     */
+    conn->sock = INVALID_SOCKET;
+  }
   iobuf_free(&conn->recv_iobuf);
   iobuf_free(&conn->send_iobuf);
 #ifdef NS_ENABLE_SSL
@@ -281,6 +291,7 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
   struct ns_connection *conn;
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
+    conn->sock = INVALID_SOCKET;
     conn->handler = callback;
     conn->mgr = mgr;
     conn->last_io_time = time(NULL);
@@ -516,14 +527,14 @@ static void ns_bind_cb(struct ns_mgr *mgr, int success,
   (void) mgr;
 
   if (!success) {
-    ctx->nc->flags |= NSF_BAD_CONNECTION;
+    *ctx->connect_failed = 1;
     errno = 0;
     ns_set_error_string(ctx->error_string, "cannot resolve address");
     goto fail;
   }
 
   if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
-    ctx->nc->flags |= NSF_BAD_CONNECTION;
+    *ctx->connect_failed = 1;
     DBG(("Failed to open listener: %d", errno));
     ns_set_error_string(ctx->error_string, "failed to open listener");
     goto fail;
@@ -866,16 +877,19 @@ static void ns_connect_cb(struct ns_mgr *mgr, int success,
   sock_t sock = INVALID_SOCKET;
   int rc;
   int sin_len = sa.sin.sin_family == AF_INET ? sizeof(sa.sin) : sizeof(sa.sin6);
+  int connect_failed = 0;
+
+  (void) mgr;
 
   if (!success) {
-    ctx->nc->flags |= NSF_BAD_CONNECTION;
+    connect_failed = 1;
     errno = 0;
     ns_set_error_string(ctx->error_string, "cannot resolve address");
     goto fail;
   }
 
   if ((sock = socket(sa.sin.sin_family, proto, 0)) == INVALID_SOCKET) {
-    ctx->nc->flags |= NSF_BAD_CONNECTION;
+    connect_failed = 1;
     ns_set_error_string(ctx->error_string, "cannot create socket");
     goto fail;
   }
@@ -884,7 +898,7 @@ static void ns_connect_cb(struct ns_mgr *mgr, int success,
   rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa.sa, sin_len);
 
   if (rc != 0 && ns_is_error(rc)) {
-    ctx->nc->flags |= NSF_BAD_CONNECTION;
+    connect_failed = 1;
     ns_set_error_string(ctx->error_string, "cannot connect to socket");
     closesocket(sock);
     goto fail;
@@ -895,15 +909,21 @@ static void ns_connect_cb(struct ns_mgr *mgr, int success,
   ctx->nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
 
 fail:
-  /* let the user detect an async set of NSF_BAD_CONNECTION */
-  if (ctx->nc->flags & NSF_BAD_CONNECTION) {
+  /* let the user detect an async connection failure */
+  if (connect_failed) {
     /*
      * some lay unit tests don't pass a handler when they check that the connection
      * creation should fail. TODO(mkm): fix the tests or fix the event loop to accept
      * NULL handlers.
      */
-    if (ctx->nc->handler != NULL)
-      ns_add_conn(mgr, ctx->nc);
+    if (ctx->nc->handler != NULL) {
+      int err = 0;
+      ctx->nc->handler(ctx->nc, NS_CONNECT, &err);
+      ctx->nc->handler(ctx->nc, NS_CLOSE, NULL);
+    } else {
+      /* let `nc_connect` know we have failed */
+      *ctx->connect_failed = connect_failed;
+    }
   }
 
   ctx->nc->flags &= ~NSF_RESOLVING;
@@ -933,22 +953,35 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   struct ns_connection *nc;
   struct ns_add_sock_opts add_sock_opts;
   struct ns_connect_ctx *ctx;
+  int connect_failed = 0;
 
   if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
     return NULL;
   }
 
   NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
-  if ((nc = ns_create_connection(mgr, callback, add_sock_opts)) == NULL) {
+
+  /*
+   * callback will be called only to signal async errors hence we need to
+   * avoid setting it here otherwise it will be called upon destroy.
+   */
+  if ((nc = ns_create_connection(mgr, NULL, add_sock_opts)) == NULL) {
     return NULL;
   }
   nc->flags |= NSF_RESOLVING;
 
-  ctx->callback = callback;
+  ctx->connect_failed = &connect_failed;
   ctx->error_string = opts.error_string;
   ctx->nc = nc;
 
   ns_parse_address(mgr, address, opts.error_string, 0, ns_connect_cb, ctx);
+
+  if (connect_failed) {
+    ns_destroy_conn(nc);
+    return NULL;
+  }
+
+  nc->handler = callback;
   return nc;
 }
 
@@ -985,6 +1018,7 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   struct ns_connection *nc;
   struct ns_add_sock_opts add_sock_opts;
   struct ns_connect_ctx *ctx;
+  int connect_failed = 0;
 
   if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
     return NULL;
@@ -996,11 +1030,12 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   }
   ctx->error_string = opts.error_string;
   ctx->nc = nc;
+  ctx->connect_failed = &connect_failed;
 
   ns_parse_address(mgr, address, opts.error_string, 0, ns_bind_cb, ctx);
 
   /* since ns_bind is always sync, we can return null on failure */
-  if (nc->flags & NSF_BAD_CONNECTION) {
+  if (connect_failed) {
     ns_destroy_conn(nc);
     return NULL;
   }

@@ -249,12 +249,28 @@ static const char *test_parse_address(void) {
 }
 #endif
 
+static void connect_fail_cb(struct ns_connection *nc, int ev, void *p) {
+  (void) nc;
+
+  switch (ev) {
+    case NS_CONNECT:
+      if (* (int *) p == 0) {
+        * (int *) nc->user_data |= 1;
+      }
+      break;
+    case NS_CLOSE:
+      * (int *) nc->user_data |= 2;
+      break;
+  }
+}
+
 static const char *test_connection_errors(void) {
   struct ns_mgr mgr;
   struct ns_bind_opts bopts;
   struct ns_connect_opts copts;
   struct ns_connection *nc;
   char *error_string;
+  int data = 0;
 
   ns_mgr_init(&mgr, NULL);
 
@@ -266,9 +282,22 @@ static const char *test_connection_errors(void) {
   ASSERT(strncmp(error_string, "failed to open listener: ", 25) == 0);
 
   copts.error_string = &error_string;
-  ASSERT((nc = ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts)) != 0);
-  ASSERT(nc->flags & NSF_BAD_CONNECTION);
+  ASSERT((nc = ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts)) == 0);
   ASSERT(strncmp(error_string, "cannot connect to socket: ", 26) == 0);
+
+  copts.user_data = &data;
+  ASSERT((nc = ns_connect_opt(&mgr, "tcp://255.255.255.255:0", connect_fail_cb, copts)) == 0);
+  ASSERT(strncmp(error_string, "cannot connect to socket: ", 26) == 0);
+  /* handler isn't invoked when it fails synchronously */
+  ASSERT(data == 0);
+
+  copts.user_data = &data;
+  ASSERT((nc = ns_connect_opt(&mgr, "tcp://does.not.exist:8080", connect_fail_cb, copts)) != 0);
+
+  /* handler is invoked when it fails asynchronously */
+  poll_mgr(&mgr, 500);
+  ASSERT(data & 1);
+  ASSERT(data & 2);
 
   test_calloc = failing_calloc;
   ASSERT(ns_bind(&mgr, ":1234", NULL) == 0);
@@ -1329,8 +1358,7 @@ static const char *test_connect_opts_error_string(void) {
   opts.error_string = &error_string;
 
   ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) != NULL);
-  ASSERT(nc->flags & NSF_BAD_CONNECTION);
+  ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
   ASSERT(error_string != NULL);
   ASSERT(strcmp(error_string, "cannot parse address") == 0);
   free(error_string);

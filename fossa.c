@@ -660,12 +660,6 @@ static int ns_ssl_err(struct ns_connection *conn, int res) {
 }
 #endif  /* NS_ENABLE_SSL */
 
-struct ns_connection *ns_bind(struct ns_mgr *srv, const char *str,
-                              ns_event_handler_t callback) {
-  static struct ns_bind_opts opts;
-  return ns_bind_opt(srv, str, callback, opts);
-}
-
 static void ns_bind_cb(struct ns_mgr *mgr, int success,
                        union socket_address sa, int proto, void *data) {
   struct ns_connect_ctx *ctx = (struct ns_connect_ctx *) data;
@@ -697,30 +691,6 @@ static void ns_bind_cb(struct ns_mgr *mgr, int success,
 
 fail:
   free(data);
-}
-
-struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
-                                  ns_event_handler_t callback,
-                                  struct ns_bind_opts opts) {
-  struct ns_connection *nc;
-  struct ns_add_sock_opts add_sock_opts;
-  struct ns_connect_ctx *ctx;
-
-  ctx = (struct ns_connect_ctx *) calloc(1, sizeof(*ctx));
-
-  NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
-  nc = ns_create_connection(mgr, callback, add_sock_opts);
-  ctx->error_string = opts.error_string;
-  ctx->nc = nc;
-
-  ns_parse_address(mgr, address, opts.error_string, 0, ns_bind_cb, ctx);
-
-  /* since ns_bind is always sync, we can return null on failure */
-  if (nc->flags & NSF_BAD_CONNECTION) {
-    ns_destroy_conn(nc);
-    return NULL;
-  }
-  return nc;
 }
 
 static struct ns_connection *accept_conn(struct ns_connection *ls) {
@@ -1130,6 +1100,56 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   return nc;
 }
 
+/*
+ * Create listening connection.
+ *
+ * See `ns_bind_opt` for full documentation.
+ */
+struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
+                              ns_event_handler_t event_handler) {
+  static struct ns_bind_opts opts;
+  return ns_bind_opt(srv, address, event_handler, opts);
+}
+
+/*
+ * Create listening connection.
+ *
+ * `address` parameter tells which address to bind to. It's format is the same
+ * as for the `ns_connect()` call, where `HOST` part is optional. `address`
+ * can be just a port number, e.g. `:8000`. To bind to a specific interface,
+ * an IP address can be specified, e.g. `1.2.3.4:8000`. By default, a TCP
+ * connection is created. To create UDP connection, prepend `udp://` prefix,
+ * e.g. `udp://:8000`. To summarize, `address` paramer has following format:
+ * `[PROTO://][IP_ADDRESS]:PORT`, where `PROTO` could be `tcp` or `udp`.
+ *
+ * See the `ns_bind_opts` structure for a description of the optional
+ * parameters.
+ *
+ * Returns a new listening connection, or `NULL` on error.
+ */
+struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
+                                  ns_event_handler_t event_handler,
+                                  struct ns_bind_opts opts) {
+  struct ns_connection *nc;
+  struct ns_add_sock_opts add_sock_opts;
+  struct ns_connect_ctx *ctx;
+
+  ctx = (struct ns_connect_ctx *) calloc(1, sizeof(*ctx));
+
+  NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
+  nc = ns_create_connection(mgr, event_handler, add_sock_opts);
+  ctx->error_string = opts.error_string;
+  ctx->nc = nc;
+
+  ns_parse_address(mgr, address, opts.error_string, 0, ns_bind_cb, ctx);
+
+  /* since ns_bind is always sync, we can return null on failure */
+  if (nc->flags & NSF_BAD_CONNECTION) {
+    ns_destroy_conn(nc);
+    return NULL;
+  }
+  return nc;
+}
 
 /*
  * Create a connection, associate it with the given socket and event handler, and

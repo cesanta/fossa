@@ -1086,10 +1086,14 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   struct ns_add_sock_opts add_sock_opts;
   struct ns_connect_ctx *ctx;
 
-  ctx = (struct ns_connect_ctx *) calloc(1, sizeof(*ctx));
+  if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
+    return NULL;
+  }
 
   NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
-  nc = ns_create_connection(mgr, callback, add_sock_opts);
+  if ((nc = ns_create_connection(mgr, callback, add_sock_opts)) == NULL) {
+    return NULL;
+  }
   nc->flags |= NSF_RESOLVING;
 
   ctx->callback = callback;
@@ -1134,10 +1138,14 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   struct ns_add_sock_opts add_sock_opts;
   struct ns_connect_ctx *ctx;
 
-  ctx = (struct ns_connect_ctx *) calloc(1, sizeof(*ctx));
+  if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
+    return NULL;
+  }
 
   NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
-  nc = ns_create_connection(mgr, event_handler, add_sock_opts);
+  if ((nc = ns_create_connection(mgr, event_handler, add_sock_opts)) == NULL) {
+    return NULL;
+  }
   ctx->error_string = opts.error_string;
   ctx->nc = nc;
 
@@ -4349,7 +4357,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   /* resolve with DNS */
 
-  req = (struct ns_resolve_async_request *) calloc(1, sizeof(*req));
+  req = (struct ns_resolve_async_request *) NS_CALLOC(1, sizeof(*req));
 
   strncpy(req->name, name, sizeof(req->name));
   req->query = query;

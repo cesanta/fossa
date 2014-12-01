@@ -273,7 +273,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   /* resolve with DNS */
 
-  req = (struct ns_resolve_async_request *) calloc(1, sizeof(*req));
+  req = (struct ns_resolve_async_request *) NS_CALLOC(1, sizeof(*req));
 
   strncpy(req->name, name, sizeof(req->name));
   req->query = query;

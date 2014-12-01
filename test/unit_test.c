@@ -19,6 +19,7 @@
 #include "../fossa.h"
 #include "../modules/net-internal.h"
 #include "../modules/resolv-internal.h"
+#include "unit_test.h"
 
 #define FAIL(str, line) do {                    \
   printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
@@ -42,6 +43,23 @@
 
 static int static_num_tests = 0;
 static const char *s_argv_0 = NULL;
+
+#define TEST_NS_MALLOC malloc
+#define TEST_NS_CALLOC calloc
+
+void * (*test_malloc)(size_t) = TEST_NS_MALLOC;
+void * (*test_calloc)(size_t, size_t) = TEST_NS_CALLOC;
+
+void * failing_malloc(size_t size) {
+  (void) size;
+  return NULL;
+}
+
+void * failing_calloc(size_t count, size_t size) {
+  (void) count;
+  (void) size;
+  return NULL;
+}
 
 static char *read_file(const char *path, size_t *size) {
   FILE *fp;
@@ -251,6 +269,14 @@ static const char *test_connection_errors(void) {
   ASSERT((nc = ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts)) != 0);
   ASSERT(nc->flags & NSF_BAD_CONNECTION);
   ASSERT(strncmp(error_string, "cannot connect to socket: ", 26) == 0);
+
+  test_calloc = failing_calloc;
+  ASSERT(ns_bind(&mgr, ":1234", NULL) == 0);
+  test_calloc = TEST_NS_CALLOC;
+
+  test_malloc = failing_malloc;
+  ASSERT(ns_bind(&mgr, ":4321", NULL) == 0);
+  test_malloc = TEST_NS_MALLOC;
 
   ns_mgr_free(&mgr);
   return NULL;

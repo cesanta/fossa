@@ -5,6 +5,15 @@ PEDANTIC=$(shell gcc --version 2>/dev/null | grep -q clang && echo -pedantic)
 AMALGAMATED_SOURCES = $(PROG).c ../fossa.c
 EAT_MALLOC_WARNINGS=MallocLogFile=/dev/null
 
+CLANG:=clang
+
+# OSX clang doesn't build ASAN. Use brew:
+#  $ brew tap homebrew/versions
+#  $ brew install llvm35 --with-clang --with-asan
+ifneq ("$(wildcard /usr/local/bin/clang-3.5)","")
+	CLANG:=/usr/local/bin/clang-3.5
+endif
+
 include ../modules/modules.mk
 
 # http://crossgcc.rts-software.org/doku.php?id=compiling_for_win32
@@ -58,11 +67,15 @@ valgrind-leak:
 docker:
 	docker run --rm -v $(CURDIR)/../..:/cesanta cesanta/fossa_test
 
+asan:
+	$(CLANG) -fsanitize=address -fcolor-diagnostics -std=c99 $(PROG).c $(addprefix ../modules/, $(SOURCES)) -o $(PROG)_asan $(CFLAGS) -DNO_DNS_TEST -UNS_ENABLE_SSL
+	ASAN_SYMBOLIZER_PATH=/usr/local/bin/llvm-symbolizer-3.5 ASAN_OPTIONS=allocator_may_return_null=1,symbolize=1 ./$(PROG)_asan
+
 cpplint:
 	cpplint.py --verbose=0 --extensions=c,h ../modules/*.[ch] >/dev/null
 
 clean: clean_coverage
-	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage *.txt *.exe *.obj *.o a.out *.pdb *.opt
+	rm -rf $(PROG) $(PROG)_ansi $(PROG)_c99 $(PROG)_coverage $(PROG)_asan *.txt *.exe *.obj *.o a.out *.pdb *.opt
 
 clean_coverage:
 	rm -rf *.gc* *.dSYM index.html

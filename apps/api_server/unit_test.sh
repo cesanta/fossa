@@ -1,8 +1,9 @@
 #!/bin/sh
 
 PROG=$1
+PORT=${2:-8000}  # If second param is given, this is load balancer port
 DB_FILE=/tmp/_$$.db
-URL=http://127.0.0.1:8000/api/v1
+URL=http://127.0.0.1:$PORT/api/v1
 
 cleanup() {
   rm -rf $DB_FILE

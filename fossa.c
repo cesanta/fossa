@@ -1085,19 +1085,45 @@ fail:
 /*
  * Connect to a remote host.
  *
- * If successful, `NS_CONNECT` event will be delivered
- * to the new connection. `addr` format is the same as for the `ns_bind()` call,
- * just an IP address becomes mandatory: `[PROTO://]HOST:PORT`.
- *
- * `PROTO` could be `tcp://` or `udp://`. If `HOST` is not an IP
- * address, Fossa will resolve it - beware that standard blocking resolver
- * will be used. It is a good practice to pre-resolve hosts beforehands and
- * use only IP addresses to avoid blockin an IO thread.
+ * `address` format is `[PROTO://]HOST:PORT`. `PROTO` could be `tcp` or `udp`.
+ * `HOST` could be an IP address,
+ * IPv6 address (if Fossa is compiled with `-DNS_ENABLE_IPV6`), or a host name.
+ * If `HOST` is a name, Fossa will resolve it asynchronously. Examples of
+ * valid addresses: `google.com:80`, `udp://1.2.3.4:53`, `10.0.0.1:443`.
  *
  * See the `ns_connect_opts` structure for a description of the optional
  * parameters.
  *
  * Returns a new outbound connection, or `NULL` on error.
+ *
+ * NOTE: New connection will receive `NS_CONNECT` as it's first event
+ * which will report connect success status.
+ * If asynchronous resolution fail, or `connect()` syscall fail for whatever
+ * reason (e.g. with `ECONNREFUSED` or `ENETUNREACH`), then `NS_CONNECT`
+ * event report failure. Code example below:
+ *
+ * [source,c]
+ * ----
+ * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+ *   int connect_status;
+ *
+ *   switch (ev) {
+ *     case NS_CONNECT:
+ *       connect_status = * (int *) ev_data;
+ *       if (connect_status == 0) {
+ *         // Success
+ *       } else  {
+ *         // Error
+ *         printf("connect() error: %s\n", strerror(connect_status));
+ *       }
+ *       break;
+ *     ...
+ *   }
+ * }
+ *
+ *   ...
+ *   ns_connect(mgr, "my_site.com:80", ev_handler);
+ * ----
  */
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,

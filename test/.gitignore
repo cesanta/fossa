@@ -3,6 +3,7 @@ unit_test_ansi
 unit_test_c99
 unit_test_coverage
 unit_test_valgrind
+unit_test_asan
 *.gcov
 *.gcno
 *.gcda

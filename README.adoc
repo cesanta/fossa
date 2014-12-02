@@ -8,13 +8,17 @@ Fossa is a
 http://cesanta.com/fossa.shtml[multi-protocol networking library] written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.
-Fossa releives developers from the burden of network programming
-complexity and let them concentrate on the logic, saving time and money.
+Fossa helps developers to manage the complexity of network programming
+and let them concentrate on the logic, saving time and money.
 
 Fossa has built-in support for several protocols, like
-HTTP and Websocket, and is ideal for embedded environments. Fossa
-has been designed as an open source platform for connecting devices and
-bringing them online.
+HTTP, Websocket, MQTT, mDNS. Example applications include
+Websocket-based chat server, JSON-RPC server,
+database server with RESTful API, MQTT broker, netcat with SSL and hexdump,
+Raspberry PI camera video feed + led control, and more.
+
+Fossa is ideal for the embedded environments, it has been designed as
+an open source platform for connecting devices and bringing them online.
 
 == Features
 

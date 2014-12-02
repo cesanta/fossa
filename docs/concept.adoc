@@ -78,27 +78,10 @@ NS_ACCEPT:: sent when new server connection is accepted by a
 listening connection. `void *ev_data` is `union socket_address`
 of the remote peer.
 NS_CONNECT:: sent when a new outbound connection created by `ns_connect()`
-either failed or succeeded. `void *ev_data` is `int *success`. If `success` is 0
-then connection has been established, otherwise it contains error code. Example
-code to check connection status:
-
-[source,c]
-----
-static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  int connect_status;
-
-  switch (ev) {
-    case NS_CONNECT:
-      connect_status = * (int *) ev_data;
-      if (connect_status == 0) {
-        /* Success */
-      } else  {
-        /* Error */
-        printf("connect() error: %s\n", strerror(connect_status));
-      }
-      break;
-    ...
-----
+either failed or succeeded. `void *ev_data` is `int *success`.
+If `success` is 0, then connection has been established,
+otherwise it contains error code. See `ns_connect_opt()` function for code
+example.
 
 NS_RECV:: New data is received and appended to the end of `recv_iobuf`.
 `void *ev_data` is `int *num_received_bytes`.

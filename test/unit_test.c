@@ -21,8 +21,15 @@
 #include "../modules/resolv-internal.h"
 #include "unit_test.h"
 
+#if defined ( WIN32 )
+#define __func__ __FUNCTION__
+#elif __STDC_VERSION__ < 199901L
+#define __func__ "unknown_function"
+#endif
+
 #define FAIL(str, line) do {                    \
-  printf("%s:%d:1 [%s]\n", __FILE__, line, str); \
+  printf("%s:%d:1 [%s] (in %s)\n", __FILE__,    \
+         line, str, __func__);                  \
   return str;                                   \
 } while (0)
 
@@ -1500,7 +1507,8 @@ static const char *test_dns_uncompress(void) {
   const char *cases[] = {"www.cesanta.com", "www", "ww", "www.", "www.c"};
 
   memset(&msg, 0, sizeof(msg));
-  msg.pkt = "dummy\07cesanta\3com";
+  msg.pkt.p = "dummy\07cesanta\3com";
+  msg.pkt.len = strlen(msg.pkt.p);
 
   for (i = 0; i < ARRAY_SIZE(cases); i++) {
     size_t l = strlen(cases[i]);
@@ -1604,6 +1612,63 @@ static const char *test_dns_decode(void) {
   r->rtype = 0xff;
   ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == -1);
 
+  return NULL;
+}
+
+static const char *test_dns_reply_encode(void) {
+  struct ns_dns_message msg;
+  struct ns_dns_resource_record *rr;
+  char name[256];
+  in_addr_t addr = inet_addr("1.2.3.4");
+  struct in_addr ina;
+  struct iobuf pkt;
+  struct ns_connection nc;
+
+  iobuf_init(&pkt, 0);
+  memset(&nc, 0, sizeof(nc));
+
+  /* create a fake query */
+
+  ns_send_dns_query(&nc, "www.cesanta.com", NS_DNS_A_RECORD);
+  /* remove message length from tcp buffer */
+  iobuf_remove(&nc.send_iobuf, 2);
+
+  ns_parse_dns(nc.send_iobuf.buf, nc.send_iobuf.len, &msg);
+
+  /* build an answer */
+
+  msg.num_answers = 1;
+  ns_dns_insert_header(&pkt, 0, &msg);
+  ns_dns_copy_body(&pkt, &msg);
+
+  ns_dns_uncompress_name(&msg, &msg.questions[0].name, name, sizeof(name));
+
+  rr = &msg.answers[0];
+  *rr = msg.questions[0];
+  rr->ttl = 3600;
+  rr->kind = NS_DNS_ANSWER;
+  ns_dns_uncompress_name(&msg, &msg.questions[0].name, name, sizeof(name));
+  ASSERT(ns_dns_encode_record(&pkt, rr, name, &addr, 4) != -1);
+
+  /* check the answer */
+
+  ns_parse_dns(pkt.buf, pkt.len, &msg);
+
+  memset(name, 0, sizeof(name));
+  ASSERT(ns_dns_uncompress_name(&msg, &msg.questions[0].name, name,
+                                sizeof(name)) > 0);
+  ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
+  memset(name, 0, sizeof(name));
+  ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[0].name, name,
+                                sizeof(name)) > 0);
+  ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
+
+  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], &ina,
+                                  sizeof(ina)) != -1);
+  ASSERT(ina.s_addr == addr);
+
+  iobuf_free(&pkt);
+  iobuf_free(&nc.send_iobuf);
   return NULL;
 }
 
@@ -1898,6 +1963,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_encode);
   RUN_TEST(test_dns_uncompress);
   RUN_TEST(test_dns_decode);
+  RUN_TEST(test_dns_reply_encode);
   RUN_TEST(test_dns_resolve);
   RUN_TEST(test_dns_resolve_local);
   RUN_TEST(test_dns_resolve_timeout);

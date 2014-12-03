@@ -3984,33 +3984,70 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
 }
 
 /*
- * Low-level: send a dns query to the remote end
+ * Insert a DNS header to an IO buffer.
+ *
+ * Returns number of bytes inserted.
  */
-void ns_send_dns_query(struct ns_connection* nc, const char *name,
-                       int query_type) {
+int ns_dns_insert_header(struct iobuf *io, size_t pos,
+                         struct ns_dns_message *msg) {
   struct ns_dns_header header;
-  const char *s;
-  int n, name_len;
-  uint16_t num;
-  struct iobuf pkt;
-
-  iobuf_init(&pkt, MAX_DNS_PACKET_LEN);
 
   memset(&header, 0, sizeof(header));
-  header.transaction_id = ++ns_dns_tid;
-  header.flags = htons(0x100);  /* recursion allowed */
-  header.num_questions = htons(1);
+  header.transaction_id = msg->transaction_id;
+  header.flags = htons(msg->flags);
+  header.num_questions = htons(msg->num_questions);
+  header.num_answers = htons(msg->num_answers);
 
-  iobuf_append(&pkt, &header, sizeof(header));
+  return iobuf_insert(io, pos, &header, sizeof(header));
+}
 
-  name_len = strlen(name);
+/*
+ * Append already encoded body from an existing message.
+ *
+ * This is useful when generating a DNS reply message which includes
+ * all question records.
+ *
+ * Returns number of appened bytes.
+ */
+int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
+  return iobuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
+                      msg->pkt.len - sizeof(struct ns_dns_header));
+}
+
+/*
+ * Encode and append a DNS resource record to an IO buffer.
+ *
+ * The record metadata is taken from the `rr` parameter, while the name and data
+ * are taken from the parameters, encoded in the appropriate format depending on
+ * record type, and stored in the IO buffer. The encoded values might contain
+ * offsets within the IO buffer. It's thus important that the IO buffer doesn't
+ * get trimmed while a sequence of records are encoded while preparing a DNS reply.
+ *
+ * This function doesn't update the `name` and `rdata` pointers in the `rr` struct
+ * because they might be invalidated as soon as the IO buffer grows again.
+ *
+ * Returns the number of bytes appened or -1 in case of error.
+ */
+int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
+                         const char *name, void *rdata, size_t len) {
+  size_t pos = io->len;
+  const char *s;
+  unsigned char n;
+  uint16_t u16;
+  uint32_t u32;
+  size_t name_len = strlen(name);
+
+  if (rr->kind == NS_DNS_INVALID_RECORD) {
+    return -1;  /* LCOV_EXCL_LINE */
+  }
+
   do {
     if ((s = strchr(name, '.')) == NULL)
       s = name + name_len;
 
-    n = s - name;              /* chunk length */
-    iobuf_append(&pkt, &n, 1); /* send length */
-    iobuf_append(&pkt, name, n);
+    n = s - name;            /* chunk length */
+    iobuf_append(io, &n, 1); /* send length */
+    iobuf_append(io, name, n);
 
     if (*s == '.')
       n++;
@@ -4018,12 +4055,51 @@ void ns_send_dns_query(struct ns_connection* nc, const char *name,
     name += n;
     name_len -= n;
   } while (*s != '\0');
-  iobuf_append(&pkt, "\0", 1);  /* Mark end of host name */
+  iobuf_append(io, "\0", 1);  /* Mark end of host name */
 
-  num = htons(query_type);
-  iobuf_append(&pkt, &num, 2);
-  num = htons(0x0001);  /* Class: inet */
-  iobuf_append(&pkt, &num, 2);
+  u16 = htons(rr->rtype);
+  iobuf_append(io, &u16, 2);
+  u16 = htons(rr->rclass);
+  iobuf_append(io, &u16, 2);
+
+  if (rr->kind == NS_DNS_ANSWER) {
+    u32 = htonl(rr->ttl);
+    iobuf_append(io, &u32, 4);
+
+    u16 = htons(len);
+    iobuf_append(io, &u16, 2);
+    iobuf_append(io, rdata, len);
+  }
+
+  return io->len - pos;
+}
+
+/*
+ * Send a DNS query to the remote end.
+ */
+void ns_send_dns_query(struct ns_connection* nc, const char *name,
+                       int query_type) {
+  struct ns_dns_message msg;
+  struct iobuf pkt;
+  struct ns_dns_resource_record *rr = &msg.questions[0];
+
+  iobuf_init(&pkt, MAX_DNS_PACKET_LEN);
+  memset(&msg, 0, sizeof(msg));
+
+  msg.transaction_id = ++ns_dns_tid;
+  msg.flags = 0x100;
+  msg.num_questions = 1;
+
+  ns_dns_insert_header(&pkt, 0, &msg);
+
+  rr->rtype = query_type;
+  rr->rclass = 1; /* Class: inet */
+  rr->kind = NS_DNS_QUESTION;
+
+  if (ns_dns_encode_record(&pkt, rr, name, NULL, 0) == -1) {
+    /* TODO(mkm): return an error code */
+    return; /* LCOV_EXCL_LINE */
+  }
 
   /* TCP DNS requires messages to be prefixed with len */
   if (!(nc->flags & NSF_UDP)) {
@@ -4059,6 +4135,7 @@ static unsigned char *ns_parse_dns_resource_record(
   rr->rclass = data[0] << 8 | data[1];
   data += 2;
 
+  rr->kind = reply ? NS_DNS_ANSWER : NS_DNS_QUESTION;
   if (reply) {
     rr->ttl = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
     data += 4;
@@ -4078,12 +4155,15 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   struct ns_dns_header *header = (struct ns_dns_header *) buf;
   unsigned char *data = (unsigned char *) buf + sizeof(*header);
   int i;
-  msg->pkt = buf;
+  msg->pkt.p = buf;
+  msg->pkt.len = len;
 
   if (len < (int)sizeof(*header)) {
     return -1;  /* LCOV_EXCL_LINE */
   }
 
+  msg->transaction_id = header->transaction_id;
+  msg->flags = ntohs(header->flags);
   msg->num_questions = ntohs(header->num_questions);
   msg->num_answers = ntohs(header->num_answers);
 
@@ -4124,7 +4204,7 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
     int leeway = dst_len - (dst - old_dst);
     if (chunk_len & 0xc0) {
       uint16_t off = (data[-1] & (~0xc0)) << 8 | data[0];
-      data = (unsigned char *)msg->pkt + off;
+      data = (unsigned char *)msg->pkt.p + off;
       continue;
     }
     if (chunk_len > leeway) {

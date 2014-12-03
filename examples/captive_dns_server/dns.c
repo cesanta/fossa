@@ -55,7 +55,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
         ns_dns_uncompress_name(&msg, &msg.questions[0].name, name,
                                sizeof(name));
-        if (ns_dns_encode_record(io, rr, name, &addr, 4) == -1) {
+        if (ns_dns_encode_record(io, rr, name, strlen(name), &addr, 4) == -1) {
           continue;
         }
         msg.num_answers++;

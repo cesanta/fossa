@@ -57,7 +57,7 @@ void ns_send_dns_query(struct ns_connection*, const char *, int);
 int ns_dns_insert_header(struct iobuf *, size_t, struct ns_dns_message *);
 int ns_dns_copy_body(struct iobuf *, struct ns_dns_message *);
 int ns_dns_encode_record(struct iobuf *, struct ns_dns_resource_record *,
-                         const char *, void *, size_t);
+                         const char *, size_t, void *, size_t);
 int ns_parse_dns(const char *, int, struct ns_dns_message *);
 
 size_t ns_dns_uncompress_name(struct ns_dns_message *, struct ns_str *,

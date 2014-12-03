@@ -20,6 +20,7 @@ compile the application `my_app.c` like this (assumed UNIX system):
 - `NS_ENABLE_IPV6` Enable IPV6 support
 - `NS_ENABLE_THREADS` enable `ns_start_thread()` API
 - `NS_ENABLE_MQTT_BROKER` enable MQTT broker
+- `NS_ENABLE_DNS_SERVER` enable DNS server
 
 
 === Flags to disable functionality that is enabled by default

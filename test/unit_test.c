@@ -1637,7 +1637,7 @@ static const char *test_dns_reply_encode(void) {
 
   /* build an answer */
 
-  msg.num_answers = 1;
+  msg.num_answers = 2;
   ns_dns_insert_header(&pkt, 0, &msg);
   ns_dns_copy_body(&pkt, &msg);
 
@@ -1645,13 +1645,20 @@ static const char *test_dns_reply_encode(void) {
 
   rr = &msg.answers[0];
   *rr = msg.questions[0];
+  rr->rtype = NS_DNS_CNAME_RECORD;
   rr->ttl = 3600;
   rr->kind = NS_DNS_ANSWER;
-  ns_dns_uncompress_name(&msg, &msg.questions[0].name, name, sizeof(name));
-  ASSERT(ns_dns_encode_record(&pkt, rr, name, &addr, 4) != -1);
+  ASSERT(ns_dns_encode_record(&pkt, rr, "www.cesanta.com", 15,
+                              (void *) "cesanta.com", 11) != -1);
+
+  rr = &msg.answers[1];
+  *rr = msg.questions[0];
+  rr->ttl = 3600;
+  rr->kind = NS_DNS_ANSWER;
+  ASSERT(ns_dns_encode_record(&pkt, rr, "cesanta.com", 11, &addr, 4) != -1);
 
   /* check the answer */
-
+  memset(&msg, 0, sizeof(msg));
   ns_parse_dns(pkt.buf, pkt.len, &msg);
 
   memset(name, 0, sizeof(name));
@@ -1662,8 +1669,16 @@ static const char *test_dns_reply_encode(void) {
   ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[0].name, name,
                                 sizeof(name)) > 0);
   ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
+  memset(name, 0, sizeof(name));
+  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], name,
+                                  sizeof(name)) != -1);
+  ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
+  memset(name, 0, sizeof(name));
+  ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[1].name, name,
+                                sizeof(name)) > 0);
+  ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
 
-  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], &ina,
+  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[1], &ina,
                                   sizeof(ina)) != -1);
   ASSERT(ina.s_addr == addr);
 

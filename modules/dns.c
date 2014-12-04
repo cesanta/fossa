@@ -62,7 +62,7 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
 #ifdef NS_ENABLE_IPV6
     case NS_DNS_AAAA_RECORD:
       if (data_len < sizeof(struct in6_addr)) {
-        return -1;
+        return -1;  /* LCOV_EXCL_LINE */
       }
       memcpy(data, rr->rdata.p, data_len);
       return 0;
@@ -106,6 +106,35 @@ int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
                       msg->pkt.len - sizeof(struct ns_dns_header));
 }
 
+static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
+  const char *s;
+  unsigned char n;
+  size_t pos = io->len;
+
+  do {
+    if ((s = strchr(name, '.')) == NULL) {
+      s = name + len;
+    }
+
+    if (s - name > 127) {
+      return -1;  /* TODO(mkm) cover */
+    }
+    n = s - name;            /* chunk length */
+    iobuf_append(io, &n, 1); /* send length */
+    iobuf_append(io, name, n);
+
+    if (*s == '.') {
+      n++;
+    }
+
+    name += n;
+    len -= n;
+  } while (*s != '\0');
+  iobuf_append(io, "\0", 1);  /* Mark end of host name */
+
+  return io->len - pos;
+}
+
 /*
  * Encode and append a DNS resource record to an IO buffer.
  *
@@ -121,33 +150,18 @@ int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
  * Returns the number of bytes appened or -1 in case of error.
  */
 int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
-                         const char *name, void *rdata, size_t len) {
+                         const char *name, size_t nlen, void *rdata, size_t rlen) {
   size_t pos = io->len;
-  const char *s;
-  unsigned char n;
   uint16_t u16;
   uint32_t u32;
-  size_t name_len = strlen(name);
 
   if (rr->kind == NS_DNS_INVALID_RECORD) {
     return -1;  /* LCOV_EXCL_LINE */
   }
 
-  do {
-    if ((s = strchr(name, '.')) == NULL)
-      s = name + name_len;
-
-    n = s - name;            /* chunk length */
-    iobuf_append(io, &n, 1); /* send length */
-    iobuf_append(io, name, n);
-
-    if (*s == '.')
-      n++;
-
-    name += n;
-    name_len -= n;
-  } while (*s != '\0');
-  iobuf_append(io, "\0", 1);  /* Mark end of host name */
+  if (ns_dns_encode_name(io, name, nlen) == -1) {
+    return -1;
+  }
 
   u16 = htons(rr->rtype);
   iobuf_append(io, &u16, 2);
@@ -158,9 +172,22 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
     u32 = htonl(rr->ttl);
     iobuf_append(io, &u32, 4);
 
-    u16 = htons(len);
-    iobuf_append(io, &u16, 2);
-    iobuf_append(io, rdata, len);
+    if (rr->rtype == NS_DNS_CNAME_RECORD) {
+      int clen;
+      /* fill size after encoding */
+      size_t off = io->len;
+      iobuf_append(io, &u16, 2);
+      if ((clen = ns_dns_encode_name(io, (const char *) rdata, rlen)) == -1) {
+        return -1;
+      }
+      u16 = clen;
+      io->buf[off] = u16 >> 8;
+      io->buf[off+1] = u16 & 0xff;
+    } else {
+      u16 = htons(rlen);
+      iobuf_append(io, &u16, 2);
+      iobuf_append(io, rdata, rlen);
+    }
   }
 
   return io->len - pos;
@@ -188,7 +215,7 @@ void ns_send_dns_query(struct ns_connection* nc, const char *name,
   rr->rclass = 1; /* Class: inet */
   rr->kind = NS_DNS_QUESTION;
 
-  if (ns_dns_encode_record(&pkt, rr, name, NULL, 0) == -1) {
+  if (ns_dns_encode_record(&pkt, rr, name, strlen(name), NULL, 0) == -1) {
     /* TODO(mkm): return an error code */
     return; /* LCOV_EXCL_LINE */
   }

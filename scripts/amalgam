@@ -1,0 +1,11 @@
+#!/bin/bash
+
+for i in "$@"; do
+    cat <<EOF
+#ifdef NS_MODULE_LINES
+#line 1 "modules/$i"
+/**/
+#endif
+EOF
+    cat "$i"
+done | sed '/^#include "/d'

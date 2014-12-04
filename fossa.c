@@ -1,4 +1,8 @@
 #include "fossa.h"
+#ifdef NS_MODULE_LINES
+#line 1 "modules/internal.h"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -25,6 +29,10 @@
 #endif
 
 #endif  /* NS_INTERNAL_HEADER_INCLUDED */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/net-internal.h"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -41,6 +49,10 @@ NS_INTERNAL void ns_parse_address(struct ns_mgr *,
                                         int,
                                         ns_parse_address_callback_t,
                                         void *);
+#ifdef NS_MODULE_LINES
+#line 1 "modules/resolv-internal.h"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -49,6 +61,10 @@ NS_INTERNAL void ns_parse_address(struct ns_mgr *,
 /* internals that need to be accessible in unit tests */
 
 NS_INTERNAL int ns_resolve_etc_hosts(const char *, struct in_addr *);
+#ifdef NS_MODULE_LINES
+#line 1 "modules/iobuf.c"
+/**/
+#endif
 /* Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  *
@@ -152,6 +168,10 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
     io->buf = p;
   }
 }
+#ifdef NS_MODULE_LINES
+#line 1 "modules/net.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -1290,6 +1310,10 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
     recv(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
+#ifdef NS_MODULE_LINES
+#line 1 "modules/../deps/frozen/frozen.c"
+/**/
+#endif
 /*
  * Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
  * Copyright (c) 2013 Cesanta Software Limited
@@ -1786,6 +1810,10 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 
   return len;
 }
+#ifdef NS_MODULE_LINES
+#line 1 "modules/http.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -2620,6 +2648,10 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
 }
 
 #endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/sha1.c"
+/**/
+#endif
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
@@ -2758,6 +2790,10 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   memset(&finalcount, '\0', sizeof(finalcount));
 }
 #endif  /* NS_DISABLE_SHA1 */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/util.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -3175,6 +3211,10 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     fclose(fp);
   }
 }
+#ifdef NS_MODULE_LINES
+#line 1 "modules/json-rpc.c"
+/**/
+#endif
 /* Copyright (c) 2014 Cesanta Software Limited */
 /* All rights reserved */
 
@@ -3366,6 +3406,10 @@ int ns_rpc_parse_reply(const char *buf, int len,
 }
 
 #endif  /* NS_DISABLE_JSON_RPC */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/mqtt.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -3708,6 +3752,10 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
 }
 
 #endif  /* NS_DISABLE_MQTT */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/mqtt-broker.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -3907,6 +3955,10 @@ struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
 }
 
 #endif /* NS_ENABLE_MQTT_BROKER */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/dns.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -4252,6 +4304,10 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
 }
 
 #endif  /* NS_DISABLE_DNS */
+#ifdef NS_MODULE_LINES
+#line 1 "modules/resolv.c"
+/**/
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved

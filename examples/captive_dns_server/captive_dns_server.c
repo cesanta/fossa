@@ -13,52 +13,42 @@
 #include <stdio.h>
 
 static int s_exit_flag = 0;
+static in_addr_t s_our_ip_addr;
+static const char *s_listening_addr = "udp://:5533";
 
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct ns_dns_message msg;
+  struct ns_dns_message *msg;
   struct ns_dns_resource_record *rr;
   struct iobuf *io = &nc->send_iobuf;;
-  in_addr_t addr = * (in_addr_t *) nc->user_data;
   char name[512];
   int i;
 
-  (void) ev_data;
-
   switch (ev) {
-    case NS_RECV:
-      if (ns_parse_dns(nc->recv_iobuf.buf, nc->recv_iobuf.len, &msg) == -1) {
-        fprintf(stderr, "cannot parse DNS request\n");
-
-        /* reply + recursion allowed + format error */
-        msg.flags |= 0x8081;
-        ns_dns_insert_header(io, 0, &msg);
-        ns_send(nc, io->buf, io->len);
-        iobuf_remove(io, io->len);
-        break;
-      }
+    case NS_DNS_MESSAGE:
+      msg = (struct ns_dns_message *) ev_data;
 
       /* reply + recursion allowed */
-      msg.flags |= 0x8080;
+      msg->flags |= 0x8080;
+      ns_dns_copy_body(io, msg);
 
-      ns_dns_copy_body(io, &msg);
-
-      msg.num_answers = 0;
-      for (i = 0; i < msg.num_questions; i++) {
-        if (msg.questions[0].rtype != NS_DNS_A_RECORD) {
+      msg->num_answers = 0;
+      for (i = 0; i < msg->num_questions; i++) {
+        if (msg->questions[0].rtype != NS_DNS_A_RECORD) {
           continue;
         }
 
-        rr = &msg.answers[msg.num_answers];
-        *rr = msg.questions[i];
+        rr = &msg->answers[msg->num_answers];
+        *rr = msg->questions[i];
         rr->ttl = 3600;
         rr->kind = NS_DNS_ANSWER;
 
-        ns_dns_uncompress_name(&msg, &msg.questions[0].name, name,
+        ns_dns_uncompress_name(msg, &msg->questions[0].name, name,
                                sizeof(name));
-        if (ns_dns_encode_record(io, rr, name, strlen(name), &addr, 4) == -1) {
+        if (ns_dns_encode_record(io, rr, name, strlen(name),
+            &s_our_ip_addr, 4) == -1) {
           continue;
         }
-        msg.num_answers++;
+        msg->num_answers++;
       }
 
       /*
@@ -69,10 +59,9 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
        */
 
       /* prepends header now that we know the number of answers */
-      ns_dns_insert_header(io, 0, &msg);
-
+      ns_dns_insert_header(io, 0, msg);
       ns_send(nc, io->buf, io->len);
-      iobuf_remove(io, io->len);
+
       break;
   }
 }
@@ -80,31 +69,28 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
-  in_addr_t addr = inet_addr("127.0.0.1");
-  char *bind_addr = ":5533";
-  char url[256];
   int i;
 
   ns_mgr_init(&mgr, NULL);
+  s_our_ip_addr = inet_addr("127.0.0.1");
 
   /* Parse command line arguments */
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-D") == 0) {
       mgr.hexdump_file = argv[++i];
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
-      bind_addr = argv[++i];
+      s_listening_addr = argv[++i];
     } else {
-      addr = inet_addr(argv[i]);
+      s_our_ip_addr = inet_addr(argv[i]);
     }
   }
 
-  snprintf(url, sizeof(url), "udp://%s", bind_addr);
-  fprintf(stderr, "Listening to '%s'\n", url);
-  if ((nc = ns_bind(&mgr, url, ev_handler)) == NULL) {
+  fprintf(stderr, "Listening on '%s'\n", s_listening_addr);
+  if ((nc = ns_bind(&mgr, s_listening_addr, ev_handler)) == NULL) {
     fprintf(stderr, "cannot bind to socket\n");
     exit(1);
   }
-  nc->user_data = &addr;
+  ns_set_protocol_dns(nc);
 
   while (s_exit_flag == 0) {
     ns_mgr_poll(&mgr, 1000);

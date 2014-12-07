@@ -343,4 +343,42 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
   return dst - old_dst;
 }
 
+static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  struct iobuf *io = &nc->recv_iobuf;
+  struct ns_dns_message msg;
+
+  /* Pass low-level events to the user handler */
+  nc->handler(nc, ev, ev_data);
+
+  switch (ev) {
+    case NS_RECV:
+      if (ns_parse_dns(nc->recv_iobuf.buf, nc->recv_iobuf.len, &msg) == -1) {
+        /* reply + recursion allowed + format error */
+        msg.flags |= 0x8081;
+        ns_dns_insert_header(io, 0, &msg);
+        ns_send(nc, io->buf, io->len);
+      } else {
+        /* Call user handler with parsed message */
+        nc->handler(nc, NS_DNS_MESSAGE, &msg);
+      }
+      iobuf_remove(io, io->len);
+      break;
+  }
+}
+
+/*
+ * Attach built-in DNS event handler to the given listening connection.
+ *
+ * DNS event handler parses incoming UDP packets, treating them as DNS
+ * requests. If incoming packet gets successfully parsed by the DNS event
+ * handler, a user event handler will receive `NS_DNS_REQUEST` event, with
+ * `ev_data` pointing to the parsed `struct ns_dns_message`.
+ *
+ * See https://github.com/cesanta/fossa/tree/master/examples/captive_dns_server[captive_dns_server]
+ * example on how to handle DNS request and send DNS reply.
+ */
+void ns_set_protocol_dns(struct ns_connection *nc) {
+  nc->proto_handler = dns_handler;
+}
+
 #endif  /* NS_DISABLE_DNS */

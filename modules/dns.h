@@ -20,6 +20,8 @@ extern "C" {
 #define NS_MAX_DNS_QUESTIONS 32
 #define NS_MAX_DNS_ANSWERS   32
 
+#define NS_DNS_MESSAGE      100   /* High-level DNS message event */
+
 enum ns_dns_resource_record_kind {
   NS_DNS_INVALID_RECORD = 0,
   NS_DNS_QUESTION,
@@ -62,6 +64,7 @@ int ns_parse_dns(const char *, int, struct ns_dns_message *);
 
 size_t ns_dns_uncompress_name(struct ns_dns_message *, struct ns_str *,
                               char *, int);
+void ns_set_protocol_dns(struct ns_connection *);
 
 #ifdef __cplusplus
 }

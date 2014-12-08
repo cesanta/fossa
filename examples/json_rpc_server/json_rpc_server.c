@@ -42,7 +42,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       ns_printf(nc, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n"
                 "Content-Type: application/json\r\n\r\n%s",
                 (int) strlen(buf), buf);
-      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      nc->flags |= NSF_SEND_AND_CLOSE;
       break;
     default:
       break;

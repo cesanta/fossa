@@ -345,7 +345,7 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   ns_send(nc, data, len);
 
   if (op == WEBSOCKET_OP_CLOSE) {
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    nc->flags |= NSF_SEND_AND_CLOSE;
   }
 }
 
@@ -369,7 +369,7 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 
   if (op == WEBSOCKET_OP_CLOSE) {
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    nc->flags |= NSF_SEND_AND_CLOSE;
   }
 }
 

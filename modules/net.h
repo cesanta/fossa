@@ -62,9 +62,7 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 
 /* Events. Meaning of event parameter (evp) is given in the comment. */
 #define NS_POLL    0  /* Sent to each connection on each ns_mgr_poll() call */
-#define NS_ACCEPT  1  /*
-                       * New connection accept()-ed. union socket_address *addr
-                       */
+#define NS_ACCEPT  1  /* New connection accepted. union socket_address *addr */
 #define NS_CONNECT 2  /* connect() succeeded or failed. int *success_status */
 #define NS_RECV    3  /* Data has benn received. int *num_bytes */
 #define NS_SEND    4  /* Data has been written to a socket. int *num_bytes */
@@ -101,28 +99,28 @@ struct ns_connection {
   void *user_data;                  /* User-specific data */
 
   unsigned long flags;
-#define NSF_FINISHED_SENDING_DATA   (1 << 0)  /*
-                                               * Push remaining data and
-                                               * disconnect
-                                               */
-#define NSF_BUFFER_BUT_DONT_SEND    (1 << 1)  /* Do not send data */
-#define NSF_CONNECTING              (1 << 2)  /* connect() call in progress */
-#define NSF_CLOSE_IMMEDIATELY       (1 << 3)  /* Disconnect */
-#define NSF_SSL_HANDSHAKE_DONE      (1 << 4)  /* NOTE(lsm): SSL specific */
-#define NSF_WANT_READ               (1 << 5)  /* NOTE(lsm): SSL specific */
-#define NSF_WANT_WRITE              (1 << 6)  /* NOTE(lsm): SSL specific */
-#define NSF_LISTENING               (1 << 7)  /* This connection is listening */
-#define NSF_UDP                     (1 << 8)  /* This connection is UDP */
-#define NSF_IS_WEBSOCKET            (1 << 9)  /* NOTE(lsm): proto-specific */
-#define NSF_WEBSOCKET_NO_DEFRAG     (1 << 10) /* NOTE(lsm): proto-specific */
-#define NSF_RESOLVING               (1 << 11) /* Waiting for async resolver */
+  /* Flags set by Fossa */
+#define NSF_LISTENING           (1 << 0)  /* This connection is listening */
+#define NSF_UDP                 (1 << 1)  /* This connection is UDP */
+#define NSF_RESOLVING           (1 << 2)  /* Waiting for async resolver */
+#define NSF_CONNECTING          (1 << 3)  /* connect() call in progress */
+#define NSF_SSL_HANDSHAKE_DONE  (1 << 4)  /* SSL specific */
+#define NSF_WANT_READ           (1 << 5)  /* SSL specific */
+#define NSF_WANT_WRITE          (1 << 6)  /* SSL specific */
+#define NSF_IS_WEBSOCKET        (1 << 7)  /* Websocket specific */
 
-#define NSF_USER_1                  (1 << 20) /* Flags left for application */
-#define NSF_USER_2                  (1 << 21)
-#define NSF_USER_3                  (1 << 22)
-#define NSF_USER_4                  (1 << 23)
-#define NSF_USER_5                  (1 << 24)
-#define NSF_USER_6                  (1 << 25)
+  /* Flags that are settable by user */
+#define NSF_SEND_AND_CLOSE      (1 << 10)  /* Push remaining data and close  */
+#define NSF_DONT_SEND           (1 << 11)  /* Do not send data to peer */
+#define NSF_CLOSE_IMMEDIATELY   (1 << 12)  /* Disconnect */
+#define NSF_WEBSOCKET_NO_DEFRAG (1 << 13) /* Websocket specific */
+
+#define NSF_USER_1              (1 << 20) /* Flags left for application */
+#define NSF_USER_2              (1 << 21)
+#define NSF_USER_3              (1 << 22)
+#define NSF_USER_4              (1 << 23)
+#define NSF_USER_5              (1 << 24)
+#define NSF_USER_6              (1 << 25)
 };
 
 void ns_mgr_init(struct ns_mgr *, void *user_data);

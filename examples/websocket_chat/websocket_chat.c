@@ -36,7 +36,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_HTTP_REQUEST:
       /* Usual HTTP request - serve static files */
       ns_serve_http(nc, hm, s_http_server_opts);
-      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      nc->flags |= NSF_SEND_AND_CLOSE;
       break;
     case NS_WEBSOCKET_HANDSHAKE_DONE:
       /* New websocket connection. Tell everybody. */

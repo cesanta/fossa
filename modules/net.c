@@ -400,6 +400,7 @@ NS_INTERNAL void ns_parse_address(struct ns_mgr *mgr, const char *str,
     snprintf(host, sizeof(host), "0.0.0.0");
   } else {
     union socket_address sa;
+    memset(&sa, 0, sizeof(sa));
     cb(mgr, 0, sa, ctx->proto, data);
     ns_set_error_string(error_string, "cannot parse address");
     return;
@@ -407,6 +408,7 @@ NS_INTERNAL void ns_parse_address(struct ns_mgr *mgr, const char *str,
 
   if (ctx->port >= 0xffff || str[ctx->len] != '\0') {
     union socket_address sa;
+    memset(&sa, 0, sizeof(sa));
     cb(mgr, 0, sa, ctx->proto, data);
     ns_set_error_string(error_string, "cannot parse address");
     return;

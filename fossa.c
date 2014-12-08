@@ -954,7 +954,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
     if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
         (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
-         !(nc->flags & NSF_BUFFER_BUT_DONT_SEND))) {
+         !(nc->flags & NSF_DONT_SEND))) {
       /*DBG(("%p write_set", nc)); */
       ns_add_to_set(nc->sock, &write_set, &max_fd);
       ns_add_to_set(nc->sock, &err_set, &max_fd);
@@ -1012,7 +1012,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
         nc->last_io_time = current_time;
         if (nc->flags & NSF_CONNECTING) {
           ns_read_from_socket(nc);
-        } else if (!(nc->flags & NSF_BUFFER_BUT_DONT_SEND) &&
+        } else if (!(nc->flags & NSF_DONT_SEND) &&
                    !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           ns_write_to_socket(nc);
         }
@@ -1024,7 +1024,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
         (nc->send_iobuf.len == 0 &&
-         (nc->flags & NSF_FINISHED_SENDING_DATA))) {
+         (nc->flags & NSF_SEND_AND_CLOSE))) {
       ns_close_conn(nc);
     }
   }
@@ -2160,7 +2160,7 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op,
   ns_send(nc, data, len);
 
   if (op == WEBSOCKET_OP_CLOSE) {
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    nc->flags |= NSF_SEND_AND_CLOSE;
   }
 }
 
@@ -2184,7 +2184,7 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 
   if (op == WEBSOCKET_OP_CLOSE) {
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    nc->flags |= NSF_SEND_AND_CLOSE;
   }
 }
 

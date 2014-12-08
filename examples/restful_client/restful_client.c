@@ -30,7 +30,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
     case NS_HTTP_REPLY:
       printf("Got reply:\n%.*s\n", (int) hm->body.len, hm->body.p);
-      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      nc->flags |= NSF_SEND_AND_CLOSE;
       s_exit_flag = 1;
       break;
     default:

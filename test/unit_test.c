@@ -524,7 +524,7 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
     if (ns_vcmp(&hm->uri, "/foo") == 0) {
       ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]",
                 (int) hm->uri.len, hm->uri.p, (int) hm->body.len);
-      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      nc->flags |= NSF_SEND_AND_CLOSE;
     } else {
       static struct ns_serve_http_opts opts;
       opts.document_root = ".";
@@ -1247,7 +1247,7 @@ static void rpc_server(struct ns_connection *nc, int ev, void *ev_data) {
       ns_printf(nc, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n"
                 "Content-Type: application/json\r\n\r\n%s",
                 (int) strlen(buf), buf);
-      nc->flags |= NSF_FINISHED_SENDING_DATA;
+      nc->flags |= NSF_SEND_AND_CLOSE;
       break;
     default:
       break;

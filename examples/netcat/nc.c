@@ -46,7 +46,7 @@ static void on_stdin_read(struct ns_connection *nc, int ev, void *p) {
 
   if (ch < 0) {
     // EOF is received from stdin. Schedule the connection to close
-    nc->flags |= NSF_FINISHED_SENDING_DATA;
+    nc->flags |= NSF_SEND_AND_CLOSE;
     if (nc->send_iobuf.len <= 0) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     }

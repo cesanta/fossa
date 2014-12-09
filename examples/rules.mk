@@ -1,5 +1,5 @@
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -DNS_ENABLE_IPV6 -DNS_ENABLE_THREADS -lssl $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -DNS_ENABLE_IPV6 -DNS_ENABLE_THREADS -lssl $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
 
 all: $(PROG)
 

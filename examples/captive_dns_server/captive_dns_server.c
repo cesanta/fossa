@@ -19,36 +19,20 @@ static const char *s_listening_addr = "udp://:5533";
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct ns_dns_message *msg;
   struct ns_dns_resource_record *rr;
-  struct iobuf *io = &nc->send_iobuf;;
-  char name[512];
+  struct ns_dns_reply reply;
   int i;
 
   switch (ev) {
     case NS_DNS_MESSAGE:
       msg = (struct ns_dns_message *) ev_data;
+      reply = ns_dns_create_reply(&nc->send_iobuf, msg);
 
-      /* reply + recursion allowed */
-      msg->flags |= 0x8080;
-      ns_dns_copy_body(io, msg);
-
-      msg->num_answers = 0;
       for (i = 0; i < msg->num_questions; i++) {
-        if (msg->questions[0].rtype != NS_DNS_A_RECORD) {
-          continue;
+        rr = &msg->questions[i];
+        if (rr->rtype == NS_DNS_A_RECORD) {
+          ns_dns_reply_record(&reply, rr, NULL, rr->rtype, 3600,
+                              &s_our_ip_addr, 4);
         }
-
-        rr = &msg->answers[msg->num_answers];
-        *rr = msg->questions[i];
-        rr->ttl = 3600;
-        rr->kind = NS_DNS_ANSWER;
-
-        ns_dns_uncompress_name(msg, &msg->questions[0].name, name,
-                               sizeof(name));
-        if (ns_dns_encode_record(io, rr, name, strlen(name),
-            &s_our_ip_addr, 4) == -1) {
-          continue;
-        }
-        msg->num_answers++;
       }
 
       /*
@@ -58,10 +42,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
        * See http://goo.gl/QWvufr for a distinction between NXDOMAIN and NODATA.
        */
 
-      /* prepends header now that we know the number of answers */
-      ns_dns_insert_header(io, 0, msg);
-      ns_send(nc, io->buf, io->len);
-
+      ns_dns_send_reply(nc, &reply);
       break;
   }
 }

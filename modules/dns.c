@@ -150,7 +150,8 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
  * Returns the number of bytes appened or -1 in case of error.
  */
 int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
-                         const char *name, size_t nlen, void *rdata, size_t rlen) {
+                         const char *name, size_t nlen,
+                         const void *rdata, size_t rlen) {
   size_t pos = io->len;
   uint16_t u16;
   uint32_t u32;
@@ -352,10 +353,18 @@ static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
+      if (!(nc->flags & NSF_UDP)) {
+        iobuf_remove(&nc->recv_iobuf, 2);
+      }
       if (ns_parse_dns(nc->recv_iobuf.buf, nc->recv_iobuf.len, &msg) == -1) {
         /* reply + recursion allowed + format error */
-        msg.flags |= 0x8081;
+        memset(&msg, 0, sizeof(msg));
+        msg.flags = 0x8081;
         ns_dns_insert_header(io, 0, &msg);
+        if (!(nc->flags & NSF_UDP)) {
+          uint16_t len = htons(io->len);
+          iobuf_insert(io, 0, &len, 2);
+        }
         ns_send(nc, io->buf, io->len);
       } else {
         /* Call user handler with parsed message */

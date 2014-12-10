@@ -9,6 +9,7 @@
 
 static int s_exit_flag = 0;
 static int s_show_headers = 0;
+static const char *s_show_headers_opt = "--show-headers";
 
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
 
   /* Process command line arguments */
   for (i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--show-headers") == 0) {
+    if (strcmp(argv[i], s_show_headers_opt) == 0) {
       s_show_headers = 1;
     } else if (strcmp(argv[i], "--hexdump") == 0 && i + 1 < argc) {
       mgr.hexdump_file = argv[++i];
@@ -53,8 +54,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (i + 1 != argc) {
-    fprintf(stderr, "Usage: %s [--show_headers] [--hexdump <file>] <URL>\n",
-            argv[0]);
+    fprintf(stderr, "Usage: %s [%s] [--hexdump <file>] <URL>\n",
+            argv[0], s_show_headers_opt);
     exit(EXIT_FAILURE);
   }
 

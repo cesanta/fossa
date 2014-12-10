@@ -136,10 +136,6 @@ typedef struct stat ns_stat_t;
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-#ifndef NS_INTERNAL
-#define NS_INTERNAL static
-#endif
-
 #endif /* NS_COMMON_HEADER_INCLUDED */
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -322,14 +318,14 @@ struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 struct ns_connection_common_opts {
   void *user_data;
   unsigned int flags;
-  char **error_string;
+  const char **error_string;
 };
 
 /* Optional parameters to ns_add_sock_opt() */
 struct ns_add_sock_opts {
-  void *user_data;      /* Initial value for connection's user_data */
-  unsigned int flags;   /* Connection flags */
-  char **error_string;  /* Placeholder for the error string */
+  void *user_data;            /* Initial value for connection's user_data */
+  unsigned int flags;         /* Connection flags */
+  const char **error_string;  /* Placeholder for the error string */
 };
 struct ns_connection *ns_add_sock(struct ns_mgr *, sock_t, ns_event_handler_t);
 struct ns_connection *ns_add_sock_opt(struct ns_mgr *, sock_t,
@@ -338,9 +334,9 @@ struct ns_connection *ns_add_sock_opt(struct ns_mgr *, sock_t,
 
 /* Optional parameters to ns_bind_opt() */
 struct ns_bind_opts {
-  void *user_data;      /* Initial value for connection's user_data */
-  unsigned int flags;   /* Extra connection flags */
-  char **error_string;  /* Placeholder for the error string */
+  void *user_data;            /* Initial value for connection's user_data */
+  unsigned int flags;         /* Extra connection flags */
+  const char **error_string;  /* Placeholder for the error string */
 };
 struct ns_connection *ns_bind(struct ns_mgr *, const char *,
                               ns_event_handler_t);
@@ -349,9 +345,9 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *, const char *,
 
 /* Optional parameters to ns_connect_opt() */
 struct ns_connect_opts {
-  void *user_data;      /* Initial value for connection's user_data */
-  unsigned int flags;   /* Extra connection flags */
-  char **error_string;  /* Placeholder for the error string */
+  void *user_data;            /* Initial value for connection's user_data */
+  unsigned int flags;         /* Extra connection flags */
+  const char **error_string;  /* Placeholder for the error string */
 };
 struct ns_connection *ns_connect(struct ns_mgr *, const char *,
                                  ns_event_handler_t);
@@ -495,8 +491,6 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
 int ns_stat(const char *path, ns_stat_t *st);
 FILE *ns_fopen(const char *path, const char *mode);
 int ns_open(const char *path, int flag, int mode);
-char *ns_error_string(const char *s);
-void ns_set_error_string(char **e, const char *s);
 void *ns_start_thread(void *(*thread_func)(void *), void *thread_func_param);
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
@@ -1005,11 +999,13 @@ struct ns_resolve_async_opts {
   int only_literal;   /* only resolves literal addrs; sync cb invocation */
 };
 
-int ns_resolve_async(struct ns_mgr *mgr, const char *, int,
-                   ns_resolve_callback_t, void *);
-int ns_resolve_async_opt(struct ns_mgr *mgr, const char *, int,
-                       ns_resolve_callback_t, void *,
-                       struct ns_resolve_async_opts opts);
+int ns_resolve_async(struct ns_mgr *, const char *, int,
+                     ns_resolve_callback_t, void *data);
+int ns_resolve_async_opt(struct ns_mgr *, const char *, int,
+                         ns_resolve_callback_t, void *data,
+                         struct ns_resolve_async_opts opts);
+
+int ns_resolve_from_hosts_file(const char *host, union socket_address *usa);
 
 #ifdef __cplusplus
 }

@@ -21,9 +21,7 @@
 #include "../modules/resolv-internal.h"
 #include "unit_test.h"
 
-#if defined ( WIN32 )
-#define __func__ __FUNCTION__
-#elif __STDC_VERSION__ < 199901L
+#if __STDC_VERSION__ < 199901L && !defined ( WIN32 )
 #define __func__ "unknown_function"
 #endif
 
@@ -1432,7 +1430,7 @@ static const char *test_hexdump_file(void) {
    * indeed it prints 0x0 on apple.
    */
   nc->user_data = (void *)0xbeef;
-  truncate(path, 0);
+  close(open(path, O_TRUNC | O_WRONLY));
 
   iobuf_append(&nc->send_iobuf, "foo", 3);
   iobuf_append(&nc->recv_iobuf, "bar", 3);
@@ -1551,7 +1549,7 @@ static const char *test_dns_decode(void) {
   const char *hostname = "go.cesanta.com";
   const char *cname = "ghs.googlehosted.com";
   struct ns_dns_resource_record *r;
-  uint16_t small;
+  uint16_t tiny;
   struct in_addr ina;
   int n;
 
@@ -1595,7 +1593,7 @@ static const char *test_dns_decode(void) {
   ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
          == strlen(cname));
   ASSERT(strncmp(name, cname, strlen(cname)) == 0);
-  ASSERT(ns_dns_parse_record_data(&msg, r, &small, sizeof(small)) == -1);
+  ASSERT(ns_dns_parse_record_data(&msg, r, &tiny, sizeof(tiny)) == -1);
   ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == 0);
   ASSERT(ina.s_addr == inet_addr("74.125.136.121"));
 

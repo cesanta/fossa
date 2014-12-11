@@ -23,11 +23,13 @@ struct ns_resolve_async_opts {
   int only_literal;   /* only resolves literal addrs; sync cb invocation */
 };
 
-int ns_resolve_async(struct ns_mgr *mgr, const char *, int,
-                   ns_resolve_callback_t, void *);
-int ns_resolve_async_opt(struct ns_mgr *mgr, const char *, int,
-                       ns_resolve_callback_t, void *,
-                       struct ns_resolve_async_opts opts);
+int ns_resolve_async(struct ns_mgr *, const char *, int,
+                     ns_resolve_callback_t, void *data);
+int ns_resolve_async_opt(struct ns_mgr *, const char *, int,
+                         ns_resolve_callback_t, void *data,
+                         struct ns_resolve_async_opts opts);
+
+int ns_resolve_from_hosts_file(const char *host, union socket_address *usa);
 
 #ifdef __cplusplus
 }

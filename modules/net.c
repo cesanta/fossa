@@ -33,27 +33,12 @@
 #define NS_READ_BUFFER_SIZE         2048
 #define NS_UDP_RECEIVE_BUFFER_SIZE  2000
 #define NS_VPRINTF_BUFFER_SIZE      500
+#define NS_MAX_HOST_LEN             200
 
 struct ctl_msg {
   ns_event_handler_t callback;
   char message[NS_CTL_MSG_MESSAGE_SIZE];
 };
-
-struct ns_connect_ctx {
-  char **error_string;
-  struct ns_connection *nc;
-  int *connect_failed;
-};
-
-static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
-  if (nc->flags & NSF_UDP) {
-    long n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));
-    DBG(("%p %d send %ld (%d %s)", nc, nc->sock, n, errno, strerror(errno)));
-    return n < 0 ? 0 : n;
-  } else {
-    return iobuf_append(&nc->send_iobuf, buf, len);
-  }
-}
 
 static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
@@ -69,6 +54,8 @@ static void ns_remove_conn(struct ns_connection *conn) {
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+  ns_event_handler_t ev_handler;
+
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
@@ -80,7 +67,21 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
    * If protocol handler is specified, call it. Otherwise, call user-specified
    * event handler.
    */
-  (nc->proto_handler ? nc->proto_handler : nc->handler)(nc, ev, ev_data);
+  ev_handler = nc->proto_handler ?  nc->proto_handler : nc->handler;
+  if (ev_handler != NULL) {
+    ev_handler(nc, ev, ev_data);
+  }
+}
+
+static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
+  if (nc->flags & NSF_UDP) {
+    int n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));
+    DBG(("%p %d %d %d %s:%hu", nc, nc->sock, n, errno,
+         inet_ntoa(nc->sa.sin.sin_addr), ntohs(nc->sa.sin.sin_port)));
+    return n < 0 ? 0 : n;
+  } else {
+    return iobuf_append(&nc->send_iobuf, buf, len);
+  }
 }
 
 static void ns_destroy_conn(struct ns_connection *conn) {
@@ -289,6 +290,7 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
     struct ns_mgr *mgr, ns_event_handler_t callback,
     struct ns_add_sock_opts opts) {
   struct ns_connection *conn;
+
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
     memset(conn, 0, sizeof(*conn));
     conn->sock = INVALID_SOCKET;
@@ -298,6 +300,7 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
     conn->flags = opts.flags;
     conn->user_data = opts.user_data;
   }
+
   return conn;
 }
 
@@ -310,114 +313,70 @@ NS_INTERNAL void ns_set_sock(struct ns_connection *nc, sock_t sock) {
   DBG(("%p %d", nc, sock));
 }
 
-struct ns_parse_address_context {
-  int proto;
-  int rtype;
-  int port;
-  int len;
-  ns_parse_address_callback_t cb;
-  void *data;
-  struct ns_mgr *mgr;
-};
-
-NS_INTERNAL void ns_parse_address_cb(struct ns_dns_message *msg, void *data) {
-  struct ns_parse_address_context *ctx;
-  struct ns_dns_resource_record *r;
-  union socket_address sa;
-  int success = 0;
-
-  ctx = (struct ns_parse_address_context *) data;
+/*
+ * Address format: [PROTO://][HOST]:PORT
+ *
+ * HOST could be IPv4/IPv6 address or a host name.
+ * `host` is a destination buffer to hold parsed HOST part. Shoud be at least
+ * NS_MAX_HOST_LEN bytes long.
+ * `proto` is a returned socket type, either SOCK_STREAM or SOCK_DGRAM
+ *
+ * Return:
+ *   -1   on parse error
+ *    0   if HOST needs DNS lookup
+ *   >0   length of the address string
+ */
+NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
+                                 int *proto, char *host, size_t host_len) {
+  unsigned int a, b, c, d, port = 0;
+  int len = 0;
+#ifdef NS_ENABLE_IPV6
+  char buf[100];
+#endif
 
   /*
    * MacOS needs that. If we do not zero it, subsequent bind() will fail.
    * Also, all-zeroes in the socket address means binding to all addresses
    * for both IPv4 and IPv6 (INADDR_ANY and IN6ADDR_ANY_INIT).
    */
-  memset(&sa, 0, sizeof(sa));
+  memset(sa, 0, sizeof(*sa));
+  sa->sin.sin_family = AF_INET;
 
-  if (msg == NULL) {
-    goto fail;  /* LCOV_EXCL_LINE */
-  }
+  *proto = SOCK_STREAM;
 
-  r = ns_dns_next_record(msg, ctx->rtype, NULL);
-  if (r == NULL) {
-    goto fail;
-  }
-
-  if (ctx->rtype == NS_DNS_A_RECORD) {
-    success = 1;
-    sa.sin.sin_family = AF_INET;
-    ns_dns_parse_record_data(msg, r, &sa.sin.sin_addr,
-                             sizeof(sa.sin.sin_addr));
-    sa.sin.sin_port = htons((uint16_t) ctx->port);
-#ifdef NS_ENABLE_IPV6
-  } else if (ctx->rtype == NS_DNS_AAAA_RECORD) {
-    success = 1;
-    sa.sin6.sin6_family = AF_INET6;
-    ns_dns_parse_record_data(msg, r, &sa.sin6.sin6_addr,
-                             sizeof(sa.sin6.sin6_addr));
-    sa.sin6.sin6_port = htons((uint16_t) ctx->port);
-#endif
-  }
-
-fail:
-  ctx->cb(ctx->mgr, success, sa, ctx->proto, ctx->data);
-  free(data);
-}
-
-/* Address format: [PROTO://][IP_ADDRESS:]PORT */
-NS_INTERNAL void ns_parse_address(struct ns_mgr *mgr, const char *str,
-                                  char **error_string, int force_sync,
-                                  ns_parse_address_callback_t cb,
-                                  void *data) {
-  char host[200];
-  struct ns_parse_address_context *ctx;
-  struct ns_resolve_async_opts opts;
-
-  ctx = (struct ns_parse_address_context *) calloc(1, sizeof(*ctx));
-  ctx->mgr = mgr;
-  ctx->cb = cb;
-  ctx->data = data;
-  ctx->proto = SOCK_STREAM;
-
-  if (memcmp(str, "udp://", 6) == 0) {
+  if (strncmp(str, "udp://", 6) == 0) {
     str += 6;
-    ctx->proto = SOCK_DGRAM;
-  } else if (memcmp(str, "tcp://", 6) == 0) {
+    *proto = SOCK_DGRAM;
+  } else if (strncmp(str, "tcp://", 6) == 0) {
     str += 6;
   }
 
-  ctx->rtype = NS_DNS_A_RECORD;
+  if (sscanf(str, "%u.%u.%u.%u:%u%n", &a, &b, &c, &d, &port, &len) == 5) {
+    /* Bind to a specific IPv4 address, e.g. 192.168.1.5:8080 */
+    sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
+    sa->sin.sin_port = htons((uint16_t) port);
 #ifdef NS_ENABLE_IPV6
-  if (sscanf(str, "[%99[^]]]:%u%n", host, &ctx->port, &ctx->len) == 2) {
-    ctx->rtype = NS_DNS_AAAA_RECORD;
-  } else
+  } else if (sscanf(str, "[%99[^]]]:%u%n", buf, &port, &len) == 2 &&
+             inet_pton(AF_INET6, buf, &sa->sin6.sin6_addr)) {
+    /* IPv6 address, e.g. [3ffe:2a00:100:7031::1]:8080 */
+    sa->sin6.sin6_family = AF_INET6;
+    sa->sin.sin_port = htons((uint16_t) port);
 #endif
-    if (sscanf(str, "%199[^ :]:%u%n", host, &ctx->port, &ctx->len) == 2) {
-  } else if (sscanf(str, ":%u%n", &ctx->port, &ctx->len) == 1 ||
-             sscanf(str, "%u%n", &ctx->port, &ctx->len) == 1) {
+  } else if (strlen(str) < host_len &&
+             sscanf(str, "%[^ :]:%u%n", host, &port, &len) == 2) {
+    sa->sin.sin_port = htons((uint16_t) port);
+    if (ns_resolve_from_hosts_file(host, sa) != 0) {
+      return 0;
+    }
+  } else if (sscanf(str, ":%u%n", &port, &len) == 1 ||
+             sscanf(str, "%u%n", &port, &len) == 1) {
     /* If only port is specified, bind to IPv4, INADDR_ANY */
-    snprintf(host, sizeof(host), "0.0.0.0");
+    sa->sin.sin_port = htons((uint16_t) port);
   } else {
-    union socket_address sa;
-    memset(&sa, 0, sizeof(sa));
-    cb(mgr, 0, sa, ctx->proto, data);
-    ns_set_error_string(error_string, "cannot parse address");
-    return;
+    return -1;
   }
 
-  if (ctx->port >= 0xffff || str[ctx->len] != '\0') {
-    union socket_address sa;
-    memset(&sa, 0, sizeof(sa));
-    cb(mgr, 0, sa, ctx->proto, data);
-    ns_set_error_string(error_string, "cannot parse address");
-    return;
-  }
-
-  memset(&opts, 0, sizeof(opts));
-  opts.accept_literal = 1;
-  opts.only_literal = force_sync;
-  ns_resolve_async_opt(mgr, host, ctx->rtype, ns_parse_address_cb, ctx, opts);
+  return port < 0xffffUL && str[len] == '\0' ? len : -1;
 }
 
 /* 'sa' must be an initialized address to bind to */
@@ -520,39 +479,6 @@ static int ns_ssl_err(struct ns_connection *conn, int res) {
   return ssl_err;
 }
 #endif  /* NS_ENABLE_SSL */
-
-static void ns_bind_cb(struct ns_mgr *mgr, int success,
-                       union socket_address sa, int proto, void *data) {
-  struct ns_connect_ctx *ctx = (struct ns_connect_ctx *) data;
-  sock_t sock = INVALID_SOCKET;
-
-  (void) mgr;
-
-  if (!success) {
-    *ctx->connect_failed = 1;
-    errno = 0;
-    ns_set_error_string(ctx->error_string, "cannot resolve address");
-    goto fail;
-  }
-
-  if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
-    *ctx->connect_failed = 1;
-    DBG(("Failed to open listener: %d", errno));
-    ns_set_error_string(ctx->error_string, "failed to open listener");
-    goto fail;
-  }
-
-  ns_set_sock(ctx->nc, sock);
-  ctx->nc->sa = sa;
-  ctx->nc->flags |= NSF_LISTENING;
-  if (proto == SOCK_DGRAM) {
-      ctx->nc->flags |= NSF_UDP;
-  }
-  DBG(("%p sock %d/%d", ctx->nc, sock, proto));
-
-fail:
-  free(data);
-}
 
 static struct ns_connection *accept_conn(struct ns_connection *ls) {
   struct ns_connection *c = NULL;
@@ -824,15 +750,15 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
       if (FD_ISSET(nc->sock, &read_set)) {
         nc->last_io_time = current_time;
-        if (nc->flags & NSF_LISTENING) {
-          if (nc->flags & NSF_UDP) {
-            ns_handle_udp(nc);
-          } else {
-            /* We're not looping here, and accepting just one connection at
-             * a time. The reason is that eCos does not respect non-blocking
-             * flag on a listening socket and hangs in a loop. */
-            accept_conn(nc);
-          }
+        if (nc->flags & NSF_UDP) {
+          ns_handle_udp(nc);
+        } else if (nc->flags & NSF_LISTENING) {
+          /*
+           * We're not looping here, and accepting just one connection at
+           * a time. The reason is that eCos does not respect non-blocking
+           * flag on a listening socket and hangs in a loop.
+           */
+          accept_conn(nc);
         } else {
           ns_read_from_socket(nc);
         }
@@ -863,6 +789,83 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 }
 
 /*
+ * Schedules an async connect for a resolved address and proto.
+ * Called from two places: `ns_connect_opt()` and from async resolver.
+ * When called from the async resolver, it must trigger `NS_CONNECT` event
+ * with a failure flag to indicate connection failure.
+ */
+NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
+                                                    int proto,
+                                                    union socket_address *sa,
+                                                    struct ns_add_sock_opts o) {
+  sock_t sock = INVALID_SOCKET;
+  int rc;
+
+  DBG(("%p %s://%s:%hu", nc, proto == SOCK_DGRAM ? "udp" : "tcp",
+       inet_ntoa(nc->sa.sin.sin_addr), ntohs(nc->sa.sin.sin_port)));
+
+  if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
+    int failure = errno;
+    NS_SET_PTRPTR(o.error_string, "cannot create socket");
+    ns_call(nc, NS_CONNECT, &failure);
+    ns_call(nc, NS_CLOSE, NULL);
+    ns_destroy_conn(nc);
+    return NULL;
+  }
+
+  ns_set_non_blocking_mode(sock);
+  rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa->sa, sizeof(sa->sin));
+
+  if (rc != 0 && ns_is_error(rc)) {
+    NS_SET_PTRPTR(o.error_string, "cannot connect to socket");
+    ns_call(nc, NS_CONNECT, &rc);
+    ns_call(nc, NS_CLOSE, NULL);
+    ns_destroy_conn(nc);
+    return NULL;
+  }
+
+  /* No ns_destroy_conn() call after this! */
+  ns_set_sock(nc, sock);
+
+  if (rc == 0) {
+    /* connect() succeeded. Trigger successful NS_CONNECT event */
+    ns_call(nc, NS_CONNECT, &rc);
+  } else {
+    nc->flags |= NSF_CONNECTING;
+  }
+
+  return nc;
+}
+
+/*
+ * Callback for the async resolver on ns_connect_opt() call.
+ * Main task of this function is to trigger NS_CONNECT event with
+ *    either failure (and dealloc the connection)
+ *    or success (and proceed with connect()
+ */
+static void resolve_cb(struct ns_dns_message *msg, void *data) {
+  struct ns_connection *nc = (struct ns_connection *) data;
+
+  if (msg == NULL || msg->answers[0].rtype != NS_DNS_A_RECORD) {
+    int failure = -1;
+    ns_call(nc, NS_CONNECT, &failure);
+    ns_call(nc, NS_CLOSE, NULL);
+    ns_destroy_conn(nc);
+  } else {
+    static struct ns_add_sock_opts opts;
+    /*
+     * Async resolver guarantees that there is at least one answer.
+     * TODO(lsm): handle IPv6 answers too
+     */
+
+    ns_dns_parse_record_data(msg, &msg->answers[0], &nc->sa.sin.sin_addr, 4);
+    /* ns_finish_connect() triggers NS_CONNECT on failure */
+    ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
+                      &nc->sa, opts);
+  }
+}
+
+/*
  * Connect to a remote host.
  *
  * See `ns_connect_opt` for full documentation.
@@ -871,65 +874,6 @@ struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
   static struct ns_connect_opts opts;
   return ns_connect_opt(mgr, address, callback, opts);
-}
-
-static void ns_connect_cb(struct ns_mgr *mgr, int success,
-                          union socket_address sa, int proto, void *data) {
-  struct ns_connect_ctx *ctx = (struct ns_connect_ctx *) data;
-  sock_t sock = INVALID_SOCKET;
-  int rc;
-  int sin_len = sa.sin.sin_family == AF_INET ? sizeof(sa.sin) : sizeof(sa.sin6);
-  int connect_failed = 0;
-
-  (void) mgr;
-
-  if (!success) {
-    connect_failed = 1;
-    errno = 0;
-    ns_set_error_string(ctx->error_string, "cannot resolve address");
-    goto fail;
-  }
-
-  if ((sock = socket(sa.sin.sin_family, proto, 0)) == INVALID_SOCKET) {
-    connect_failed = 1;
-    ns_set_error_string(ctx->error_string, "cannot create socket");
-    goto fail;
-  }
-
-  ns_set_non_blocking_mode(sock);
-  rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa.sa, sin_len);
-
-  if (rc != 0 && ns_is_error(rc)) {
-    connect_failed = 1;
-    ns_set_error_string(ctx->error_string, "cannot connect to socket");
-    closesocket(sock);
-    goto fail;
-  }
-
-  ns_set_sock(ctx->nc, sock);
-  ctx->nc->sa = sa; /* Important, cause UDP conns will use sendto() */
-  ctx->nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : NSF_CONNECTING;
-
-fail:
-  /* let the user detect an async connection failure */
-  if (connect_failed) {
-    /*
-     * some lay unit tests don't pass a handler when they check that the connection
-     * creation should fail. TODO(mkm): fix the tests or fix the event loop to accept
-     * NULL handlers.
-     */
-    if (ctx->nc->handler != NULL) {
-      int err = 0;
-      ctx->nc->handler(ctx->nc, NS_CONNECT, &err);
-      ctx->nc->handler(ctx->nc, NS_CLOSE, NULL);
-    } else {
-      /* let `nc_connect` know we have failed */
-      *ctx->connect_failed = connect_failed;
-    }
-  }
-
-  ctx->nc->flags &= ~NSF_RESOLVING;
-  free(data);
 }
 
 /*
@@ -978,39 +922,43 @@ fail:
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {
-  struct ns_connection *nc;
+  struct ns_connection *nc = NULL;
+  int proto, rc;
   struct ns_add_sock_opts add_sock_opts;
-  struct ns_connect_ctx *ctx;
-  int connect_failed = 0;
-
-  if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
-    return NULL;
-  }
+  char host[NS_MAX_HOST_LEN];
 
   NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
 
-  /*
-   * callback will be called only to signal async errors hence we need to
-   * avoid setting it here otherwise it will be called upon destroy.
-   */
-  if ((nc = ns_create_connection(mgr, NULL, add_sock_opts)) == NULL) {
+  if ((nc = ns_create_connection(mgr, callback, add_sock_opts)) == NULL) {
     return NULL;
-  }
-  nc->flags |= NSF_RESOLVING;
-
-  ctx->connect_failed = &connect_failed;
-  ctx->error_string = opts.error_string;
-  ctx->nc = nc;
-
-  ns_parse_address(mgr, address, opts.error_string, 0, ns_connect_cb, ctx);
-
-  if (connect_failed) {
+  } else if ((rc = ns_parse_address(address, &nc->sa, &proto, host,
+                                    sizeof(host))) < 0) {
+    /* Address is malformed */
+    NS_SET_PTRPTR(opts.error_string, "cannot parse address");
     ns_destroy_conn(nc);
     return NULL;
   }
 
-  nc->handler = callback;
-  return nc;
+  nc->flags |= opts.flags;
+  nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : 0;
+  nc->user_data = opts.user_data;
+
+  if (rc == 0) {
+    /*
+     * DNS resolution is required for host.
+     * ns_parse_address() fills port in nc->sa, which we pass to resolve_cb()
+     */
+
+    if (ns_resolve_async(nc->mgr, host, NS_DNS_A_RECORD, resolve_cb, nc) != 0) {
+      NS_SET_PTRPTR(opts.error_string, "cannot schedule DNS lookup");
+      ns_destroy_conn(nc);
+      return NULL;
+    }
+    return nc;
+  } else {
+    /* Address is parsed and resolved to IP. proceed with connect() */
+    return ns_finish_connect(nc, proto, &nc->sa, add_sock_opts);
+  }
 }
 
 /*
@@ -1041,38 +989,45 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
  * Returns a new listening connection, or `NULL` on error.
  */
 struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
-                                  ns_event_handler_t event_handler,
-                                  struct ns_bind_opts opts) {
-  struct ns_connection *nc;
+                              ns_event_handler_t callback,
+                              struct ns_bind_opts opts) {
+  union socket_address sa;
+  struct ns_connection *nc = NULL;
+  int proto;
+  sock_t sock;
   struct ns_add_sock_opts add_sock_opts;
-  struct ns_connect_ctx *ctx;
-  int connect_failed = 0;
-
-  if ((ctx = (struct ns_connect_ctx *) NS_CALLOC(1, sizeof(*ctx))) == NULL) {
-    return NULL;
-  }
+  char host[NS_MAX_HOST_LEN];
 
   NS_COPY_COMMON_CONNECTION_OPTIONS(&add_sock_opts, &opts);
-  if ((nc = ns_create_connection(mgr, event_handler, add_sock_opts)) == NULL) {
-    return NULL;
-  }
-  ctx->error_string = opts.error_string;
-  ctx->nc = nc;
-  ctx->connect_failed = &connect_failed;
 
-  ns_parse_address(mgr, address, opts.error_string, 0, ns_bind_cb, ctx);
+  if (ns_parse_address(address, &sa, &proto, host, sizeof(host)) <= 0) {
+    NS_SET_PTRPTR(opts.error_string, "cannot parse address");
+  } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
+    DBG(("Failed to open listener: %d", errno));
+    NS_SET_PTRPTR(opts.error_string, "failed to open listener");
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback,
+                                   add_sock_opts)) == NULL) {
+    /* opts.error_string set by ns_add_sock_opt */
+    DBG(("Failed to ns_add_sock"));
+    closesocket(sock);
+  } else {
+    nc->sa = sa;
+    nc->flags |= NSF_LISTENING;
+    nc->handler = callback;
 
-  /* since ns_bind is always sync, we can return null on failure */
-  if (connect_failed) {
-    ns_destroy_conn(nc);
-    return NULL;
+    if (proto == SOCK_DGRAM) {
+      nc->flags |= NSF_UDP;
+    }
+
+    DBG(("%p sock %d/%d", nc, sock, proto));
   }
+
   return nc;
 }
 
 /*
- * Create a connection, associate it with the given socket and event handler, and
- * add to the manager.
+ * Create a connection, associate it with the given socket and event handler,
+ * and add it to the manager.
  *
  * For more options see the `ns_add_sock_opt` variant.
  */

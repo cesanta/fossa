@@ -2,7 +2,7 @@
 # All rights reserved
 
 # Note: order is important
-SUBDIRS = modules docs test examples
+SUBDIRS = modules docs test examples apps
 
 .PHONY: all $(SUBDIRS)
 
@@ -26,3 +26,6 @@ update-frozen:
 
 setup-hooks:
 	for i in .hooks/*; do ln -s ../../.hooks/$$(basename $$i) .git/hooks; done
+
+clean:
+	@for i in $(SUBDIRS); do $(MAKE) -C $$i clean ; done

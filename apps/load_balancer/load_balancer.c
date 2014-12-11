@@ -108,7 +108,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       /* We're closing, detach our peer */
       if (peer != NULL) {
         peer->proto_data = NULL;
-        peer->flags |= NSF_FINISHED_SENDING_DATA;
+        peer->flags |= NSF_SEND_AND_CLOSE;
       }
       break;
   }

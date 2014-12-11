@@ -2,6 +2,14 @@ PROG = api_server
 SOURCES = $(PROG).c sqlite3.c db_plugin_sqlite.c ../../fossa.c
 CFLAGS = -W -Wall -pthread $(CFLAGS_EXTRA)
 
+ifeq ($(OS), Windows_NT)
+else
+  UNAME_S := $(shell uname -s)
+  ifeq ($(UNAME_S), Linux)
+    CFLAGS += -ldl -lm
+  endif
+endif
+
 all: $(PROG)
 
 $(PROG): $(SOURCES)

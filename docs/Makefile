@@ -19,7 +19,7 @@ index.html: $(ADOCS) Makefile style.css index-docinfo.html
 	  -a stylesheet=style.css \
 	  index.adoc -o index.html
 
-%.adoc: ../modules/%.c ../modules/%.h
+%.adoc: ../src/%.c ../src/%.h
 	$(DOCGEN) -o $@ $<
 
 index-docinfo.html: doc.js jquery.min.js Makefile

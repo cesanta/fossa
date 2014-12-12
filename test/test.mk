@@ -3,7 +3,7 @@
 #
 # = Requires:
 #
-# - MODULES_DIR = path to directory with source files
+# - SRC_DIR = path to directory with source files
 # - AMALGAMATED_SOURCES = path to amalgamated C file(s)
 # - PROG = name of main unit test source file
 #
@@ -61,7 +61,7 @@ CFLAGS_ansi=$(PEDANTIC) -ansi
 CFLAGS_c99=$(PEDANTIC) -std=c99
 
 CFLAGS_gcov=$(PEDANTIC) -std=c99 -fprofile-arcs -ftest-coverage
-SOURCES_gcov=$(addprefix $(MODULES_DIR)/, $(SOURCES))
+SOURCES_gcov=$(addprefix $(SRC_DIR)/, $(SOURCES))
 
 CC_asan=$(CLANG)
 CFLAGS_asan=-fsanitize=address -fcolor-diagnostics -std=c99 -DNO_DNS_TEST -UNS_ENABLE_SSL
@@ -118,7 +118,7 @@ lcov: clean coverage
 
 cpplint:
 	@echo -e "RUN\tcpplint"
-	@cpplint.py --verbose=0 --extensions=c,h $(MODULES_DIR)/*.[ch] 2>&1 >/dev/null| grep -v "Done processing" | grep -v "file excluded by"
+	@cpplint.py --verbose=0 --extensions=c,h $(SRC_DIR)/*.[ch] 2>&1 >/dev/null| grep -v "Done processing" | grep -v "file excluded by"
 
 clean: clean_coverage
 	@echo -e "CLEAN\tall"

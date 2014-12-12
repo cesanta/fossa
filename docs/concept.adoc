@@ -1,29 +1,45 @@
 
 == Design Concept
 
-Fossa is a non-blocking, asyncronous event manager described by
-`struct ns_mgr` structure. That structure holds active connections.
+Fossa is a multi-protocol networking library that implements non-blocking,
+asyncronous IO and provides event-based API. It has three basic data structures:
+
+- link:#_struct_ns_mgr[`struct ns_mgr`] is an event manager
+  that holds all active connections
+- link:#_struct_ns_connection[`struct ns_connection`] describes a connection
+- link:#_struct_iobuf[`struct iobuf`] describes data buffer
+  (received or sent data)
+
 Connections could be either *listening*, *outbound* or *inbound*.
-Outbound connections are created by `ns_connect()` call.
-Listening connections are created by `ns_bind()` call.
+Outbound connections are created by link:#_ns_connect[`ns_connect()`] call.
+Listening connections are created by link:#_ns_bind[`ns_bind()`] call.
 Inbound connections are those accepted by a listening connection.
-Each connection is described by `struct ns_connection` structure, which has
+Each connection is described by
+link:#_struct_ns_connection[`struct ns_connection`] structure, which has
 a number of fields like socket, event handler function, send/receive buffer,
 flags, et cetera.
 
-`ns_mgr_poll()` should be called in an infinite event loop.
-`ns_mgr_poll()` iterates over all sockets, accepts new connections,
-sends and receives data, closes connections, and calls an event handler
-function for each of those events.
+Fossa usage pattern is to declare and initialize event manager, create
+connections and create an event loop by calling
+link:#_ns_mgr_poll[`ns_mgr_poll()`] in a loop.
+link:#_ns_mgr_poll[`ns_mgr_poll()`] iterates over all sockets,
+accepts new connections, sends and receives data, closes connections,
+and calls event handler functions for the respective events.
 
 === IO buffers
 
-Each connection has send and receive buffer, `struct ns_connection::send_iobuf`
-and `struct ns_connection::recv_iobuf` respectively. When data arrives,
+Each connection has send and receive buffer,
+link:#_struct_ns_connection[`struct ns_connection::send_iobuf`]
+and
+link:#_struct_ns_connection[`struct ns_connection::recv_iobuf`] respectively.
+When data arrives,
 Fossa appends received data to the `recv_iobuf` and
-triggers `NS_RECV` event. User may send data back (`ns_send()` or
-`ns_printf()`), which appends data to the `send_iobuf`. When Fossa
-successfully writes data to the socket, it discards it from `send_iobuf` and
+triggers `NS_RECV` event. User may send data back by calling one of the
+output functions, like link:#_ns_send[`ns_send()`] or
+link:#_ns_printf[`ns_printf()`]. Output functions append data to the
+`send_iobuf`. When Fossa
+successfully writes data to the socket, it discards data from
+link:#_struct_ns_connection[`ns_connection::send_iobuf`] and
 sends `NS_SEND` event. When connection is closed, `NS_CLOSE` event is sent.
 
 image::http://cesanta.com/images/fossa/iobuf.png[]
@@ -32,8 +48,8 @@ image::http://cesanta.com/images/fossa/iobuf.png[]
 
 Each connection has an event handler function associated with it. That
 function must be implemented by user. Event handler is the key element of
-the Fossa application, since it defines application's behavior. This is the
-signature of event handler function:
+the Fossa application, since it defines application's behavior. This is how
+an event handler function looks like:
 
 [source,c]
 ----
@@ -46,10 +62,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 ----
 
 struct ns_connection *nc::
-  Connection that has received an event. Application should check received
-  data in `nc->recv_iobuf`, discard processed data by `iobuf_remove()`,
-  set connection flags `nc->flags` if necessary (see below), and write
-  data the remote peer by output functions like `ns_send()`.
+  Connection that has received an event.
 
 int ev::
   Event number, defined in `fossa.h`. For example, when data arrives
@@ -63,28 +76,41 @@ void *ev_data::
   of `ev_data` is described for each event. Protocol-specific events usually
   have `ev_data` pointing to structures that hold protocol-specific information.
 
+NOTE: link:#_struct_ns_connection[`struct ns_connection`] has `void *user_data`
+which is a placeholder for a application-specific data. Fossa does not use
+that pointer. Event handler can store any kind of information there.
+
 === Events
 
 Fossa accepts incoming connections, reads and writes data, and
-calls specified event handler for each connection when appropriate. An
-event handler should examine received data, set connection flags if needed,
-and send data back to the client by `ns_send()` or `ns_printf()`. Here is a
-typical event flow for the inbound connection:
-`NS_ACCEPT` -> `NS_RECV` -> .... -> `NS_CLOSE`. Below is a list
+calls specified event handler for each connection when appropriate. Typical
+event sequence is this:
+
+- For outbound connection: `NS_CONNECT` -> (`NS_RECV`, `NS_SEND`, `NS_POLL` ...) -> `NS_CLOSE`
+- For inbound connection: `NS_ACCEPT` ->  (`NS_RECV`, `NS_SEND`, `NS_POLL` ...) -> `NS_CLOSE`
+
+
+Below is a list
 of core events triggered by Fossa (note that each protocol triggers
 protocol-specific events in addition to the core ones):
 
 NS_ACCEPT:: sent when new server connection is accepted by a
 listening connection. `void *ev_data` is `union socket_address`
 of the remote peer.
-NS_CONNECT:: sent when a new outbound connection created by `ns_connect()`
+NS_CONNECT:: sent when a new outbound connection created by
+link:#_ns_connect[`ns_connect()`]
 either failed or succeeded. `void *ev_data` is `int *success`.
 If `success` is 0, then connection has been established,
-otherwise it contains error code. See `ns_connect_opt()` function for code
-example.
+otherwise it contains error code. See
+link:#_ns_connect_opt[`ns_connect_opt()`] function for code example.
 
 NS_RECV:: New data is received and appended to the end of `recv_iobuf`.
-`void *ev_data` is `int *num_received_bytes`.
+`void *ev_data` is `int *num_received_bytes`. Typically, event handler
+should check received data in `nc->recv_iobuf`,
+discard processed data by calling link:#_iobuf_remove[`iobuf_remove()`],
+set connection flags `nc->flags` if necessary
+(see link:#_struct_ns_connection[`struct ns_connection`]), and write
+data the remote peer by output functions like link:#_ns_send[`ns_send()`].
 
 WARNING: Fossa uses `realloc()` to expand receive buffer.
 It is user's responsibility to discard processed
@@ -92,9 +118,20 @@ data from the beginning of receive buffer, note the `iobuf_remove()`
 call in the example above.
 
 NS_SEND:: Fossa has written data to the remote peer and discarded
-written data from the `send_iobuf`. `void *ev_data` is `int *num_sent_bytes`
+written data from the
+link:#_struct_ns_connection[`ns_connection::send_iobuf`]. `void *ev_data`
+is `int *num_sent_bytes`.
 
-NS_POLL:: Sent to all connections on each invocation of `ns_server_poll()`
+NOTE: Fossa output functions only append
+data to the `ns_connection::send_iobuf`, they do not do any socket writes.
+An actual IO is done by link:#_ns_mgr_poll[`ns_mgr_poll()`]. `NS_SEND` event
+is just a notification about an IO has been done.
+
+NS_POLL:: Sent to all connections on each invocation of
+link:#_ns_mgr_poll[`ns_mgr_poll()`].
+This event could be used to do any housekeeping, for example check whether
+certain timeout has expired and close the connection, or send heartbeet
+message, et cetera.
 
 === Connection flags
 

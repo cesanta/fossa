@@ -135,6 +135,7 @@ def gen_file(path):
         elif isinstance(decl, StructDecl):
             pos = src[decl.offset:].find('\n}')
             decl.source = src[decl.offset:decl.offset + pos + 3]
+            decl.name = 'struct ' + decl.name
 
     return defs
 

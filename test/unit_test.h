@@ -18,7 +18,7 @@
 #ifndef NS_UNIT_TEST_HEADER_INCLUDED
 #define NS_UNIT_TEST_HEADER_INCLUDED
 
-#include "../modules/common.h"
+#include "../src/common.h"
 
 extern void * (*test_malloc)(size_t);
 extern void * (*test_calloc)(size_t, size_t);

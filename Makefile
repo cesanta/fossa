@@ -2,7 +2,7 @@
 # All rights reserved
 
 # Note: order is important
-SUBDIRS = modules docs test examples apps
+SUBDIRS = src docs test examples apps
 
 .PHONY: all $(SUBDIRS)
 

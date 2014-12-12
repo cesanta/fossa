@@ -16,7 +16,7 @@
  */
 
 #include "../fossa.h"
-#include "../modules/internal.h"
+#include "../src/internal.h"
 #include "unit_test.h"
 
 #if __STDC_VERSION__ < 199901L && !defined(WIN32)

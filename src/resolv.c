@@ -56,6 +56,16 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
           &type, value, &len) == ERROR_SUCCESS ||
           RegQueryValueEx(hSub, "DhcpNameServer", 0,
           &type, value, &len) == ERROR_SUCCESS)) {
+        /*
+         * See https://github.com/cesanta/fossa/issues/176
+         * The value taken from the registry can be empty, a single
+         * IP address, or multiple IP addresses separated by comma.
+         * If it's multiple IP addresses, take the first one.
+         */
+        char *comma = strchr(value, ',');
+        if (comma != NULL) {
+          *comma = '\0';
+        }
         strncpy(name, value, name_len);
         ret++;
         RegCloseKey(hSub);

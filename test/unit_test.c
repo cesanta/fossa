@@ -545,6 +545,8 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
     } else {
       static struct ns_serve_http_opts opts;
       opts.document_root = ".";
+      opts.per_directory_auth_file = "passwords.txt";
+      opts.auth_domain = "foo.com";
       ns_serve_http(nc, hm, opts);
     }
   }
@@ -588,11 +590,29 @@ static void cb10(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void cb_auth_fail(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REPLY) {
+    sprintf((char *) nc->user_data, "%.*s", (int) hm->uri.len, hm->uri.p);
+  }
+}
+
+static void cb_auth_ok(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REPLY) {
+    sprintf((char *) nc->user_data, "%.*s %.*s", (int) hm->uri.len, hm->uri.p,
+            (int) hm->body.len, hm->body.p);
+  }
+}
+
 static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[20] = "", mime[20] = "", url[100];
+  char buf[20] = "", status[20] = "", mime[20] = "", auth_fail[20] = "";
+  char auth_ok[20] = "", auth_hdr[200] = "", url[100];
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -618,8 +638,23 @@ static const char *test_http(void) {
 
   /* Test mime type for static file */
   snprintf(url, sizeof(url), "http://%s/data/dummy.xml", local_addr);
-  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL)) != NULL);
+  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
   nc->user_data = mime;
+
+  /* Test digest authorization popup */
+  snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
+  ASSERT((nc = ns_connect_http(&mgr, cb_auth_fail, url, NULL, NULL)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = auth_fail;
+
+  /* Test digest authorization success */
+  snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
+  ns_http_create_digest_auth_header(auth_hdr, sizeof(auth_hdr),
+                                    "GET", "/data/auth/a.txt",
+                                    "foo.com", "joe", "doe");
+  ASSERT((nc = ns_connect_http(&mgr, cb_auth_ok, url, auth_hdr, NULL)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = auth_ok;
 
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 200);
@@ -629,6 +664,8 @@ static const char *test_http(void) {
   ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
   ASSERT(strcmp(status, "success") == 0);
   ASSERT(strcmp(mime, "text/xml") == 0);
+  ASSERT(strcmp(auth_fail, "401") == 0);      /* Must be 401 Unauthorized */
+  ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
 
   return NULL;
 }
@@ -1911,6 +1948,37 @@ static const char *test_dns_resolve_hosts(void) {
   return NULL;
 }
 
+static const char *test_http_parse_header(void) {
+  static struct ns_str h = NS_STR("xx=1 kl yy, ert=234 kl=123, "
+    "uri=\"/?naii=x,y\", ii=\"12\\\"34\" zz='aa bb',tt=2,gf=\"xx d=1234");
+  char buf[20];
+
+  ASSERT(ns_http_parse_header(&h, "ert", buf, sizeof(buf)) == 3);
+  ASSERT(strcmp(buf, "234") == 0);
+  ASSERT(ns_http_parse_header(&h, "ert", buf, 2) == 0);
+  ASSERT(ns_http_parse_header(&h, "ert", buf, 3) == 0);
+  ASSERT(ns_http_parse_header(&h, "ert", buf, 4) == 3);
+  ASSERT(ns_http_parse_header(&h, "gf", buf, sizeof(buf)) == 0);
+  ASSERT(ns_http_parse_header(&h, "zz", buf, sizeof(buf)) == 5);
+  ASSERT(strcmp(buf, "aa bb") == 0);
+  ASSERT(ns_http_parse_header(&h, "d", buf, sizeof(buf)) == 4);
+  ASSERT(strcmp(buf, "1234") == 0);
+  buf[0] = 'x';
+  ASSERT(ns_http_parse_header(&h, "MMM", buf, sizeof(buf)) == 0);
+  ASSERT(buf[0] == '\0');
+  ASSERT(ns_http_parse_header(&h, "kl", buf, sizeof(buf)) == 3);
+  ASSERT(strcmp(buf, "123") == 0);
+  ASSERT(ns_http_parse_header(&h, "xx", buf, sizeof(buf)) == 1);
+  ASSERT(strcmp(buf, "1") == 0);
+  ASSERT(ns_http_parse_header(&h, "ii", buf, sizeof(buf)) == 5);
+  ASSERT(strcmp(buf, "12\"34") == 0);
+  ASSERT(ns_http_parse_header(&h, "tt", buf, sizeof(buf)) == 1);
+  ASSERT(strcmp(buf, "2") == 0);
+  ASSERT(ns_http_parse_header(&h, "uri", buf, sizeof(buf)) > 0);
+
+  return NULL;
+}
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
@@ -1928,6 +1996,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http);
   RUN_TEST(test_http_errors);
   RUN_TEST(test_http_index);
+  RUN_TEST(test_http_parse_header);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);

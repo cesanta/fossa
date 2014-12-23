@@ -11,7 +11,7 @@
  */
 #include "fossa.h"
 
-static struct ns_serve_http_opts web_root_opts = { "./web_root" };
+static struct ns_serve_http_opts web_root_opts;
 
 /*
  * Forwards the jpeg frame data to all open mjpeg connections.
@@ -129,6 +129,7 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
   ns_set_protocol_http_websocket(nc);
+  web_root_opts.document_root =  "./web_root";
 
   /*
    * We explicitly hand over control to the Fossa manager

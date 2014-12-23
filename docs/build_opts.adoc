@@ -26,8 +26,10 @@ compile the application `my_app.c` like this (assumed UNIX system):
 === Disabling flags
 
 - `NS_DISABLE_HTTP_WEBSOCKET` disable HTTP + Websocket protocol support
+- `NS_DISABLE_HTTP_DIGEST_AUTH` disable HTTP Digest (MD5) authorization support
 - `NS_DISABLE_MQTT` disable MQTT support
 - `NS_DISABLE_SHA1` disable SHA1 support (used by Websocket)
+- `NS_DISABLE_MD5` disable MD5 support (used by HTTP auth)
 - `NS_DISABLE_JSON_RPC` disable JSON-RPC support
 - `NS_DISABLE_SOCKETPAIR` disable `ns_broadcast()` API
 

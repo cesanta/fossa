@@ -80,13 +80,47 @@ void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
 
 /* Utility functions */
 struct ns_str *ns_get_http_header(struct http_message *, const char *);
+int ns_http_parse_header(struct ns_str *, const char *, char *, size_t);
 int ns_parse_http(const char *s, int n, struct http_message *req);
 int ns_get_http_var(const struct ns_str *, const char *, char *dst, size_t);
+int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
+                                      const char *method, const char *uri,
+                                      const char *auth_domain,
+                                      const char *user, const char *passwd);
 struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
-                                      const char *, const char *);
+                                      const char *, const char *, const char *);
 
+/*
+ * This structure defines how `ns_serve_http()` works.
+ * Best practice is to set only required settings, and leave the rest as NULL.
+ */
 struct ns_serve_http_opts {
+  /* Path to web root directory */
   const char *document_root;
+
+  /*
+   * Leave as NULL to disable authentication.
+   * To enable directory protection with authentication, set this to ".htpasswd"
+   * Then, creating ".htpasswd" file in any directory automatically protects
+   * it with digest authentication.
+   * Use `mongoose` web server binary, or `htdigest` Apache utility to
+   * create/manipulate passwords file.
+   * Make sure `auth_domain` is set to a valid domain name.
+   */
+  const char *per_directory_auth_file;
+
+  /* Authorization domain (domain name of this web server) */
+  const char *auth_domain;
+
+  /*
+   * Leave as NULL to disable authentication.
+   * Normally, only selected directories in the document root are protected.
+   * If absolutely every access to the web server needs to be authenticated,
+   * regardless of the URI, set this option to the path to the passwords file.
+   * Format of that file is the same as ".htpasswd" file. Make sure that file
+   * is located outside document root to prevent people fetching it.
+   */
+  const char *global_auth_file;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

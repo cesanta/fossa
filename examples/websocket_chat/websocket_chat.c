@@ -7,7 +7,7 @@
 
 static sig_atomic_t s_signal_received = 0;
 static const char *s_http_port = "8000";
-static struct ns_serve_http_opts s_http_server_opts = { "." };
+static struct ns_serve_http_opts s_http_server_opts;
 
 static void signal_handler(int sig_num) {
   signal(sig_num, signal_handler);  // Reinstantiate signal handler
@@ -67,6 +67,7 @@ int main(void) {
   ns_mgr_init(&mgr, NULL);
 
   nc = ns_bind(&mgr, s_http_port, ev_handler);
+  s_http_server_opts.document_root = ".";
   ns_set_protocol_http_websocket(nc);
 
   printf("Started on port %s\n", s_http_port);

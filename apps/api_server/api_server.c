@@ -6,7 +6,7 @@
 #include "db_plugin.h"
 
 static const char *s_http_port = "8000";
-static struct ns_serve_http_opts s_http_server_opts = { "web_root" };
+static struct ns_serve_http_opts s_http_server_opts;
 static int s_sig_num = 0;
 static void *s_db_handle = NULL;
 static const char *s_db_path = "api_server.db";
@@ -65,6 +65,7 @@ int main(int argc, char *argv[]) {
   ns_mgr_init(&mgr, NULL);
   nc = ns_bind(&mgr, s_http_port, ev_handler);
   ns_set_protocol_http_websocket(nc);
+  s_http_server_opts.document_root = "web_root";
 
   /* Parse command line arguments */
   for (i = 1; i < argc; i++) {

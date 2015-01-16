@@ -538,8 +538,8 @@ void ns_set_protocol_http_websocket(struct ns_connection *nc) {
 /*
  * Sends websocket handshake to the server.
  *
- * `nc` must be a valid connection, connected to a server, `uri` is an URI on the server, `extra_headers` is
- * extra HTTP headers to send or `NULL`.
+ * `nc` must be a valid connection, connected to a server `uri` is an URI
+ * to fetch, extra_headers` is extra HTTP headers to send or `NULL`.
  *
  * This function is intended to be used by websocket client.
  */
@@ -729,6 +729,228 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
   /* LCOV_EXCL_STOP */
 }
 
+int ns_http_parse_header(struct ns_str *hdr, const char *var_name,
+                         char *buf, size_t buf_size) {
+  int ch = ' ', ch1 = ',', len = 0, n = strlen(var_name);
+  const char *p, *end = hdr->p + hdr->len, *s = NULL;
+
+  if (buf != NULL && buf_size > 0) buf[0] = '\0';
+
+  /* Find where variable starts */
+  for (s = hdr->p; s != NULL && s + n < end; s++) {
+    if ((s == hdr->p || s[-1] == ch || s[-1] == ch1) && s[n] == '=' &&
+        !memcmp(s, var_name, n)) break;
+  }
+
+  if (s != NULL && &s[n + 1] < end) {
+    s += n + 1;
+    if (*s == '"' || *s == '\'') {
+      ch = ch1 = *s++;
+    }
+    p = s;
+    while (p < end && p[0] != ch && p[0] != ch1 && len < (int) buf_size) {
+      if (ch != ' ' && p[0] == '\\' && p[1] == ch) p++;
+      buf[len++] = *p++;
+    }
+    if (len >= (int) buf_size || (ch != ' ' && *p != ch)) {
+      len = 0;
+    } else {
+      if (len > 0 && s[len - 1] == ',') len--;
+      if (len > 0 && s[len - 1] == ';') len--;
+      buf[len] = '\0';
+    }
+  }
+
+  return len;
+}
+
+#ifndef NS_DISABLE_HTTP_DIGEST_AUTH
+static FILE *open_auth_file(const char *path, int is_directory,
+                            const struct ns_serve_http_opts *opts) {
+  char buf[MAX_PATH_SIZE];
+  const char *p;
+  FILE *fp = NULL;
+
+  if (opts->global_auth_file != NULL) {
+    fp = fopen(opts->global_auth_file, "r");
+  } else if (is_directory && opts->per_directory_auth_file) {
+    snprintf(buf, sizeof(buf), "%s%c%s", path, DIRSEP,
+             opts->per_directory_auth_file);
+    fp = fopen(buf, "r");
+  } else if (opts->per_directory_auth_file) {
+    if ((p = strrchr(path, DIRSEP)) == NULL) {
+      p = path;
+    }
+    snprintf(buf, sizeof(buf), "%.*s%c%s",
+             (int) (p - path), path, DIRSEP, opts->per_directory_auth_file);
+    fp = fopen(buf, "r");
+  }
+
+  return fp;
+}
+
+/*
+ * Stringify binary data. Output buffer size must be 2 * size_of_input + 1
+ * because each byte of input takes 2 bytes in string representation
+ * plus 1 byte for the terminating \0 character.
+ */
+static void bin2str(char *to, const unsigned char *p, size_t len) {
+  static const char *hex = "0123456789abcdef";
+
+  for (; len--; p++) {
+    *to++ = hex[p[0] >> 4];
+    *to++ = hex[p[0] & 0x0f];
+  }
+  *to = '\0';
+}
+
+static char *ns_md5(char *buf, ...) {
+  unsigned char hash[16];
+  const unsigned char *p;
+  va_list ap;
+  MD5_CTX ctx;
+
+  MD5_Init(&ctx);
+
+  va_start(ap, buf);
+  while ((p = va_arg(ap, const unsigned char *)) != NULL) {
+    size_t len = va_arg(ap, size_t);
+    MD5_Update(&ctx, p, len);
+  }
+  va_end(ap);
+
+  MD5_Final(hash, &ctx);
+  bin2str(buf, hash, sizeof(hash));
+
+  return buf;
+}
+
+static void mkmd5resp(const char *method, size_t method_len,
+                      const char *uri, size_t uri_len,
+                      const char *ha1, size_t ha1_len,
+                      const char *nonce, size_t nonce_len,
+                      const char *nc, size_t nc_len,
+                      const char *cnonce, size_t cnonce_len,
+                      const char *qop, size_t qop_len,
+                      char *resp) {
+  static const char colon[] = ":";
+  static const size_t one = 1;
+  char ha2[33];
+
+  ns_md5(ha2, method, method_len, colon, one, uri, uri_len, NULL);
+  ns_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one,
+         nc, nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
+         colon, one, ha2, sizeof(ha2) - 1, NULL);
+}
+
+/*
+ * Create Digest authentication header for client request.
+ */
+int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
+                                      const char *method, const char *uri,
+                                      const char *auth_domain,
+                                      const char *user, const char *passwd) {
+  static const char colon[] = ":", qop[] = "auth";
+  static const size_t one = 1;
+  char ha1[33], resp[33], cnonce[40];
+
+  snprintf(cnonce, sizeof(cnonce), "%x", (unsigned int) time(NULL));
+  ns_md5(ha1, user, (size_t) strlen(user), colon, one,
+         auth_domain, (size_t) strlen(auth_domain), colon, one,
+         passwd, (size_t) strlen(passwd), NULL);
+  mkmd5resp(method, strlen(method), uri, strlen(uri), ha1, sizeof(ha1) - 1,
+            cnonce, strlen(cnonce),
+            "1", one, cnonce, strlen(cnonce), qop, sizeof(qop) - 1, resp);
+  return snprintf(buf, buf_len, "Authorization: Digest username=\"%s\","
+                  "realm=\"%s\",uri=\"%s\",qop=%s,nc=1,cnonce=%s,"
+                  "nonce=%s,response=%s\r\n",
+                  user, auth_domain, uri, qop, cnonce, cnonce, resp);
+}
+
+/*
+ * Check for authentication timeout.
+ * Clients send time stamp encoded in nonce. Make sure it is not too old,
+ * to prevent replay attacks.
+ * Assumption: nonce is a hexadecimal number of seconds since 1970.
+ */
+static int check_nonce(const char *nonce) {
+  unsigned long now = (unsigned long) time(NULL);
+  unsigned long val = (unsigned long) strtoul(nonce, NULL, 16);
+  return 1 || now < val || now - val < 3600;
+}
+
+/*
+ * Authenticate HTTP request against opened passwords file.
+ * Returns 1 if authenticated, 0 otherwise.
+ */
+static int ns_http_check_digest_auth(struct http_message *hm,
+                                     const char *auth_domain,
+                                     FILE *fp) {
+  struct ns_str *hdr;
+  char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
+  char user[50], cnonce[20], response[40], uri[200], qop[20], nc[20], nonce[30];
+  char expected_response[33];
+
+  /* Parse "Authorization:" header, fail fast on parse error */
+  if (hm == NULL ||
+      fp == NULL ||
+      (hdr = ns_get_http_header(hm, "Authorization")) == NULL ||
+      ns_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
+      ns_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
+      ns_http_parse_header(hdr, "response", response, sizeof(response)) == 0 ||
+      ns_http_parse_header(hdr, "uri", uri, sizeof(uri)) == 0 ||
+      ns_http_parse_header(hdr, "qop", qop, sizeof(qop)) == 0 ||
+      ns_http_parse_header(hdr, "nc", nc, sizeof(nc)) == 0 ||
+      ns_http_parse_header(hdr, "nonce", nonce, sizeof(nonce)) == 0 ||
+      check_nonce(nonce) == 0) {
+    return 0;
+  }
+
+  /*
+   * Read passwords file line by line. If should have htdigest format,
+   * i.e. each line should be a colon-separated sequence:
+   * USER_NAME:DOMAIN_NAME:HA1_HASH_OF_USER_DOMAIN_AND_PASSWORD
+   */
+  while (fgets(buf, sizeof(buf), fp) != NULL) {
+    if (sscanf(buf, "%[^:]:%[^:]:%s", f_user, f_domain, f_ha1) == 3 &&
+        strcmp(user, f_user) == 0 &&
+        /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
+        strcmp(auth_domain, f_domain) == 0) {
+      /* User and domain matched, check the password */
+      mkmd5resp(hm->method.p, hm->method.len, hm->uri.p, hm->uri.len,
+             f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc),
+             cnonce, strlen(cnonce), qop, strlen(qop), expected_response);
+      return ns_casecmp(response, expected_response) == 0;
+    }
+  }
+
+  /* None of the entries in the passwords file matched - return failure */
+  return 0;
+}
+
+static int is_authorized(struct http_message *hm, const char *path,
+                         int is_directory, struct ns_serve_http_opts *opts) {
+  FILE *fp;
+  int authorized = 1;
+
+  if (opts->auth_domain != NULL &&
+      (opts->per_directory_auth_file != NULL ||
+       opts->global_auth_file != NULL) &&
+      (fp = open_auth_file(path, is_directory, opts)) != NULL) {
+    authorized = ns_http_check_digest_auth(hm, opts->auth_domain, fp);
+    fclose(fp);
+  }
+
+  return authorized;
+}
+#else
+static int is_authorized(struct http_message *hm, const char *path,
+                         int is_directory, struct ns_serve_http_opts *opts) {
+  (void) hm; (void) path; (void) is_directory; (void) opts;
+  return 1;
+}
+#endif
+
 /*
  * Serve given HTTP request according to the `options`.
  *
@@ -755,12 +977,21 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
   ns_stat_t st;
+  int stat_result, is_directory;
 
   snprintf(path, sizeof(path), "%s/%.*s", opts.document_root,
            (int) hm->uri.len, hm->uri.p);
   remove_double_dots(path);
+  stat_result = ns_stat(path, &st);
+  is_directory = !stat_result && S_ISDIR(st.st_mode);
 
-  if (ns_stat(path, &st) != 0) {
+  if (!is_authorized(hm, path, is_directory, &opts)) {
+    ns_printf(nc, "HTTP/1.1 401 Unauthorized\r\n"
+              "WWW-Authenticate: Digest qop=\"auth\", "
+              "realm=\"%s\", nonce=\"%lu\"\r\n"
+              "Content-Length: 0\r\n\r\n",
+              opts.auth_domain, (unsigned long) time(NULL));
+  } else if (stat_result != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
   } else if (S_ISDIR(st.st_mode)) {
     strncat(path, "/index.html", sizeof(path) - (strlen(path) + 1));
@@ -791,7 +1022,9 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
  */
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       ns_event_handler_t ev_handler,
-                                      const char *url, const char *post_data) {
+                                      const char *url,
+                                      const char *extra_headers,
+                                      const char *post_data) {
   struct ns_connection *nc;
   char addr[1100], path[4096];  /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
@@ -824,9 +1057,10 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   #endif
     }
 
-    ns_printf(nc, "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n\r\n",
+    ns_printf(nc, "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
               post_data == NULL ? "GET" : "POST", path, addr,
-              post_data == NULL ? 0 : strlen(post_data));
+              post_data == NULL ? 0 : strlen(post_data),
+              extra_headers == NULL ? "" : extra_headers);
   }
 
   return nc;

@@ -57,6 +57,9 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
       if (data_len < sizeof(struct in_addr)) {
         return -1;
       }
+      if (rr->rdata.p + data_len > msg->pkt.p + msg->pkt.len) {
+        return -1;
+      }
       memcpy(data, rr->rdata.p, data_len);
       return 0;
 #ifdef NS_ENABLE_IPV6
@@ -232,11 +235,12 @@ void ns_send_dns_query(struct ns_connection* nc, const char *name,
 }
 
 static unsigned char *ns_parse_dns_resource_record(
-    unsigned char *data, struct ns_dns_resource_record *rr, int reply) {
+    unsigned char *data, unsigned char *end, struct ns_dns_resource_record *rr,
+    int reply) {
   unsigned char *name = data;
   int chunk_len, data_len;
 
-  while((chunk_len = *data)) {
+  while(data < end && (chunk_len = *data)) {
     if (((unsigned char *)data)[0] & 0xc0) {
       data += 1;
       break;
@@ -248,6 +252,9 @@ static unsigned char *ns_parse_dns_resource_record(
   rr->name.len = data-name+1;
 
   data++;
+  if (data > end - 4) {
+    return data;
+  }
 
   rr->rtype = data[0] << 8 | data[1];
   data += 2;
@@ -257,6 +264,10 @@ static unsigned char *ns_parse_dns_resource_record(
 
   rr->kind = reply ? NS_DNS_ANSWER : NS_DNS_QUESTION;
   if (reply) {
+    if (data >= end - 6) {
+      return data;
+    }
+
     rr->ttl = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
     data += 4;
 
@@ -274,6 +285,7 @@ static unsigned char *ns_parse_dns_resource_record(
 int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   struct ns_dns_header *header = (struct ns_dns_header *) buf;
   unsigned char *data = (unsigned char *) buf + sizeof(*header);
+  unsigned char *end = (unsigned char *) buf + len;
   int i;
   msg->pkt.p = buf;
   msg->pkt.len = len;
@@ -287,16 +299,14 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   msg->num_questions = ntohs(header->num_questions);
   msg->num_answers = ntohs(header->num_answers);
 
-  /* TODO(mkm): check bounds */
-
   for (i = 0; i < msg->num_questions
            && i < (int)ARRAY_SIZE(msg->questions); i++) {
-    data = ns_parse_dns_resource_record(data, &msg->questions[i], 0);
+    data = ns_parse_dns_resource_record(data, end, &msg->questions[i], 0);
   }
 
   for (i = 0; i < msg->num_answers
            && i < (int)ARRAY_SIZE(msg->answers); i++) {
-    data = ns_parse_dns_resource_record(data, &msg->answers[i], 1);
+    data = ns_parse_dns_resource_record(data, end, &msg->answers[i], 1);
   }
 
   return 0;
@@ -319,16 +329,32 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
   int chunk_len;
   char *old_dst = dst;
   const unsigned char *data = (unsigned char *) name->p;
+  const unsigned char *end = (unsigned char *) msg->pkt.p + msg->pkt.len;
+
+  if (data >= end) {
+    return 0;
+  }
 
   while((chunk_len = *data++)) {
     int leeway = dst_len - (dst - old_dst);
+    if (data >= end) {
+      return 0;
+    }
+
     if (chunk_len & 0xc0) {
       uint16_t off = (data[-1] & (~0xc0)) << 8 | data[0];
+      if (off >= msg->pkt.len) {
+        return 0;
+      }
       data = (unsigned char *)msg->pkt.p + off;
       continue;
     }
     if (chunk_len > leeway) {
       chunk_len = leeway;
+    }
+
+    if (data + chunk_len >= end) {
+      return 0;
     }
 
     memcpy(dst, data, chunk_len);
@@ -340,7 +366,10 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
     }
     *dst++ = '.';
   }
-  *--dst = 0;
+
+  if (dst != old_dst) {
+    *--dst = 0;
+  }
   return dst - old_dst;
 }
 

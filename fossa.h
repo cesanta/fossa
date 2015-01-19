@@ -18,7 +18,7 @@
 #ifndef NS_COMMON_HEADER_INCLUDED
 #define NS_COMMON_HEADER_INCLUDED
 
-#define NS_FOSSA_VERSION "2.2.0"
+#define NS_FOSSA_VERSION "2.0.0"
 
 #undef UNICODE                  /* Use ANSI WinAPI functions */
 #undef _UNICODE                 /* Use multibyte encoding on Windows */

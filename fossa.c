@@ -4863,14 +4863,17 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   struct ns_resolve_async_request *req;
   struct ns_connection *dns_nc;
   const char *nameserver = opts.nameserver_url;
+  int max_len;			/* maximum memory available for name */
 
   /* resolve with DNS */
   req = (struct ns_resolve_async_request *) NS_CALLOC(1, sizeof(*req));
   if (req == NULL) {
     return -1;
   }
-
-  strncpy(req->name, name, sizeof(req->name));
+  
+  max_len = sizeof(req->name) - 1;
+  strncpy(req->name, name, max_len);
+  (req->name)[max_len] = '\0';
   req->query = query;
   req->callback = cb;
   req->data = data;

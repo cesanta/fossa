@@ -402,10 +402,10 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
                        accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
   } else {
-    ns_set_close_on_exec(sp[0]);
-    ns_set_close_on_exec(sp[1]);
-    if (sock_type == SOCK_STREAM) closesocket(sock);
-    ret = 1;
+      ns_set_close_on_exec(sp[0]);
+      ns_set_close_on_exec(sp[1]);
+      if (sock_type == SOCK_STREAM) closesocket(sock);
+      ret = 1;
   }
 
   if (!ret) {
@@ -4891,7 +4891,8 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   dns_nc = ns_connect(mgr, nameserver, ns_resolve_async_eh);
   if (dns_nc == NULL) {
-    return -1;
+      free(req);
+      return -1;
   }
   dns_nc->user_data = req;
 

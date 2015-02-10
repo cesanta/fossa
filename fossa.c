@@ -1,6 +1,6 @@
 #include "fossa.h"
 #ifdef NS_MODULE_LINES
-#line 1 "modules/internal.h"
+#line 1 "src/internal.h"
 /**/
 #endif
 /*
@@ -45,7 +45,7 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
 #endif  /* NS_INTERNAL_HEADER_INCLUDED */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/iobuf.c"
+#line 1 "src/iobuf.c"
 /**/
 #endif
 /* Copyright (c) 2014 Cesanta Software Limited
@@ -152,7 +152,7 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
   }
 }
 #ifdef NS_MODULE_LINES
-#line 1 "modules/net.c"
+#line 1 "src/net.c"
 /**/
 #endif
 /*
@@ -1251,7 +1251,7 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
   }
 }
 #ifdef NS_MODULE_LINES
-#line 1 "modules/../deps/frozen/frozen.c"
+#line 1 "src/../deps/frozen/frozen.c"
 /**/
 #endif
 /*
@@ -1751,7 +1751,7 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
   return len;
 }
 #ifdef NS_MODULE_LINES
-#line 1 "modules/http.c"
+#line 1 "src/http.c"
 /**/
 #endif
 /*
@@ -2823,7 +2823,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
 
 #endif  /* NS_DISABLE_HTTP_WEBSOCKET */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/sha1.c"
+#line 1 "src/sha1.c"
 /**/
 #endif
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
@@ -2965,7 +2965,7 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
 }
 #endif  /* NS_DISABLE_SHA1 */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/util.c"
+#line 1 "src/util.c"
 /**/
 #endif
 /*
@@ -3362,7 +3362,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
   }
 }
 #ifdef NS_MODULE_LINES
-#line 1 "modules/json-rpc.c"
+#line 1 "src/json-rpc.c"
 /**/
 #endif
 /* Copyright (c) 2014 Cesanta Software Limited */
@@ -3557,7 +3557,7 @@ int ns_rpc_parse_reply(const char *buf, int len,
 
 #endif  /* NS_DISABLE_JSON_RPC */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/mqtt.c"
+#line 1 "src/mqtt.c"
 /**/
 #endif
 /*
@@ -3903,7 +3903,7 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
 
 #endif  /* NS_DISABLE_MQTT */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/mqtt-broker.c"
+#line 1 "src/mqtt-broker.c"
 /**/
 #endif
 /*
@@ -4106,7 +4106,7 @@ struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
 
 #endif /* NS_ENABLE_MQTT_BROKER */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/dns.c"
+#line 1 "src/dns.c"
 /**/
 #endif
 /*
@@ -4531,7 +4531,7 @@ void ns_set_protocol_dns(struct ns_connection *nc) {
 
 #endif  /* NS_DISABLE_DNS */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/dns-server.c"
+#line 1 "src/dns-server.c"
 /**/
 #endif
 /*
@@ -4661,7 +4661,7 @@ int ns_dns_reply_record(struct ns_dns_reply *reply,
 
 #endif  /* NS_ENABLE_DNS_SERVER */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/resolv.c"
+#line 1 "src/resolv.c"
 /**/
 #endif
 /*
@@ -4899,7 +4899,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
 #endif  /* NS_DISABLE_RESOLVE */
 #ifdef NS_MODULE_LINES
-#line 1 "modules/md5.c"
+#line 1 "src/md5.c"
 /**/
 #endif
 /*

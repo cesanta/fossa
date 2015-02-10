@@ -3,7 +3,7 @@
 for i in "$@"; do
     cat <<EOF
 #ifdef NS_MODULE_LINES
-#line 1 "modules/$i"
+#line 1 "src/$i"
 /**/
 #endif
 EOF

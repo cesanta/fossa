@@ -976,6 +976,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
     ns_call(nc, NS_CONNECT, &rc);
     ns_call(nc, NS_CLOSE, NULL);
     ns_destroy_conn(nc);
+    close(sock);
     return NULL;
   }
 

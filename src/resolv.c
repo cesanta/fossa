@@ -130,6 +130,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     }
   }
 
+  fclose(fp);
   return -1;
 }
 

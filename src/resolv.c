@@ -227,6 +227,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   dns_nc = ns_connect(mgr, nameserver, ns_resolve_async_eh);
   if (dns_nc == NULL) {
+    free(req);
     return -1;
   }
   dns_nc->user_data = req;

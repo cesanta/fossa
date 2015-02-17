@@ -982,6 +982,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
     ns_call(nc, NS_CONNECT, &rc);
     ns_call(nc, NS_CLOSE, NULL);
     ns_destroy_conn(nc);
+    close(sock);
     return NULL;
   }
 
@@ -4800,6 +4801,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     }
   }
 
+  fclose(fp);
   return -1;
 }
 
@@ -4896,8 +4898,8 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
   dns_nc = ns_connect(mgr, nameserver, ns_resolve_async_eh);
   if (dns_nc == NULL) {
-      free(req);
-      return -1;
+    free(req);
+    return -1;
   }
   dns_nc->user_data = req;
 

@@ -691,6 +691,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       int ssl_err = ns_ssl_err(conn, res);
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
+        conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
         return; /* Call us again */
@@ -725,6 +726,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       int ssl_err = ns_ssl_err(conn, res);
       if (res == 1) {
         conn->flags |= NSF_SSL_HANDSHAKE_DONE;
+        conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
       } else if (ssl_err == SSL_ERROR_WANT_READ ||
                  ssl_err == SSL_ERROR_WANT_WRITE) {
         return; /* Call us again */
@@ -762,6 +764,9 @@ static void ns_write_to_socket(struct ns_connection *conn) {
       } else {
         conn->flags |= NSF_CLOSE_IMMEDIATELY;
       }
+    } else {
+      /* Successful SSL operation, clear off SSL wait flags */
+      conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
     }
   } else
 #endif

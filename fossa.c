@@ -2308,7 +2308,7 @@ void ns_set_protocol_http_websocket(struct ns_connection *nc) {
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
   unsigned long random = (unsigned long) uri;
-  char key[sizeof(random) * 2];
+  char key[sizeof(random) * 3];
 
   ns_base64_encode((unsigned char *) &random, sizeof(random), key);
   ns_printf(nc, "GET %s HTTP/1.1\r\n"

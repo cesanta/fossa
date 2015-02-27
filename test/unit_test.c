@@ -2066,6 +2066,175 @@ static const char *test_http_parse_header(void) {
   return NULL;
 }
 
+#ifdef NS_ENABLE_COAP
+static const char *test_coap(void) {
+  struct iobuf io;
+  struct ns_coap_message cm;
+  uint32_t res;
+
+  char coap_packet_1[] = {
+    0x42, 0x01, 0xe9, 0x1b, 0x07, 0x90, 0xb8, 0x73,
+    0x65, 0x70, 0x61, 0x72, 0x61, 0x74, 0x65, 0x10,
+    0xd1, 0x23, 0x11 };
+  char coap_packet_2[] = {
+    0x60, 0x00, 0xe9, 0x1b };
+  char coap_packet_3[] = {
+    0x42, 0x45, 0x57, 0x0f, 0x07, 0x90, 0xff, 0x54,
+    0x68, 0x69, 0x73, 0x20, 0x6d, 0x65, 0x73, 0x73,
+    0x61, 0x67, 0x65, 0x20, 0x77, 0x61, 0x73, 0x20,
+    0x73, 0x65, 0x6e, 0x74, 0x20, 0x62, 0x79, 0x20,
+    0x61, 0x20, 0x73, 0x65, 0x70, 0x61, 0x72, 0x61,
+    0x74, 0x65, 0x20, 0x72, 0x65, 0x73, 0x70, 0x6f,
+    0x6e, 0x73, 0x65, 0x2e, 0x0a, 0x59, 0x6f, 0x75,
+    0x72, 0x20, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74,
+    0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20, 0x6e, 0x65,
+    0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x61, 0x63,
+    0x6b, 0x6e, 0x6f, 0x77, 0x6c, 0x65, 0x64, 0x67,
+    0x65, 0x20, 0x69, 0x74, 0x2c, 0x20, 0x6f, 0x74,
+    0x68, 0x65, 0x72, 0x77, 0x69, 0x73, 0x65, 0x20,
+    0x69, 0x74, 0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20,
+    0x62, 0x65, 0x20, 0x72, 0x65, 0x74, 0x72, 0x61,
+    0x6e, 0x73, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64,
+    0x2e };
+  char coap_packet_4[] = {
+    0x60, 0x00, 0x57, 0x0f };
+  char coap_packet_5[] = {
+    0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
+    0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
+    0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xff,
+    0x6d, 0x79, 0x64, 0x61, 0x74, 0x61 };
+  char coap_packet_6[] = {
+    0xFF, 0x00, 0xFF, 0x00 };
+  char coap_packet_7[] = {
+    0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
+    0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
+    0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xf1,
+    0x6d, 0x79, 0x64, 0x61, 0x74, 0x61 };
+
+  memset(&io, 0, sizeof(io));
+
+  /* empty buf */
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_NOT_ENOUGH_DATA) != 0);
+  ns_coap_free_options(&cm);
+
+  /* ACK, MID: 59675, Empty Message */
+  io.buf = coap_packet_2;
+  io.len = sizeof(coap_packet_2);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) == 0);
+  ASSERT(cm.code_class == 0);
+  ASSERT(cm.code_detail == 0);
+  ASSERT(cm.msg_id == 59675);
+  ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
+  ASSERT(cm.options == 0 );
+  ASSERT(cm.payload.len == 0 );
+  ASSERT(cm.payload.p == NULL);
+  ASSERT(cm.token.len == 0);
+  ASSERT(cm.token.p == NULL);
+  ns_coap_free_options(&cm);
+
+  /* ACK, MID: 22287, Empty Message */
+  io.buf = coap_packet_4;
+  io.len = sizeof(coap_packet_4);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) == 0);
+  ASSERT(cm.code_class == 0);
+  ASSERT(cm.code_detail == 0);
+  ASSERT(cm.msg_id == 22287);
+  ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
+  ASSERT(cm.options == 0 );
+  ASSERT(cm.payload.len == 0 );
+  ASSERT(cm.payload.p == NULL);
+  ASSERT(cm.token.len == 0);
+  ASSERT(cm.token.p == NULL);
+  ns_coap_free_options(&cm);
+
+  /* CON, MID: 59675 ... */
+  io.buf = coap_packet_1;
+  io.len = sizeof(coap_packet_1);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) == 0);
+  ASSERT(cm.code_class == 0);
+  ASSERT(cm.code_detail == 1);
+  ASSERT(cm.msg_id == 59675);
+  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
+  ASSERT(cm.options != 0);
+  ASSERT(cm.options->number == 11);
+  ASSERT(cm.options->value.len == 8);
+  ASSERT(strncmp(cm.options->value.p, "separate", 8) == 0);
+  ASSERT(cm.options->next != 0);
+  ASSERT(cm.options->next->number == 12);
+  ASSERT(cm.options->next->value.len == 0);
+  ASSERT(cm.options->next->next != 0);
+  ASSERT(cm.options->next->next->number == 60);
+  ASSERT(cm.options->next->next->value.len == 1);
+  ASSERT(*cm.options->next->next->value.p == 0x11);
+  ASSERT(cm.options->next->next->next == 0);
+  ASSERT(cm.payload.len == 0);
+  ASSERT(cm.payload.p == NULL);
+  ASSERT(cm.token.len == 2);
+  ASSERT(*cm.token.p == 0x07);
+  ASSERT((unsigned char)*(cm.token.p + 1) == 0x90);
+  ns_coap_free_options(&cm);
+
+  /* CON, MID: 22287 ... */
+  io.buf = coap_packet_3;
+  io.len = sizeof(coap_packet_3);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) == 0);
+  ASSERT(cm.code_class == 2);
+  ASSERT(cm.code_detail == 5);
+  ASSERT(cm.msg_id == 22287);
+  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
+  ASSERT(cm.options == 0);
+  ASSERT(cm.token.len == 2);
+  ASSERT(*cm.token.p == 0x07);
+  ASSERT((unsigned char)*(cm.token.p + 1) == 0x90);
+  ASSERT(cm.payload.len == 122);
+  ASSERT(strncmp(cm.payload.p, "This message was sent by a separate response.\n"
+                 "Your client will need to acknowledge it,"
+                 " otherwise it will be retransmitted.", 122) == 0);
+  ns_coap_free_options(&cm);
+
+  io.buf = coap_packet_5;
+  io.len = sizeof(coap_packet_5);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) == 0);
+  ASSERT(cm.code_class == 0);
+  ASSERT(cm.code_detail == 3);
+  ASSERT(cm.msg_id == 38178);
+  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
+  ASSERT(cm.options != 0);
+  ASSERT(cm.options->number == 11);
+  ASSERT(cm.options->value.len == 7);
+  ASSERT(strncmp(cm.options->value.p, "storage", 7) == 0);
+  ASSERT(cm.options->next != 0);
+  ASSERT(cm.options->next->number == 11);
+  ASSERT(cm.options->next->value.len == 10);
+  ASSERT(strncmp(cm.options->next->value.p, "myresource", 10) == 0);
+  ASSERT(cm.options->next->next == 0);
+  ASSERT(cm.token.len == 0);
+  ASSERT(cm.payload.len == 6);
+  ASSERT(strncmp(cm.payload.p, "mydata", 6) == 0);
+  ns_coap_free_options(&cm);
+
+  io.buf = coap_packet_6;
+  io.len = sizeof(coap_packet_6);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) != 0);
+  ns_coap_free_options(&cm);
+
+  io.buf = coap_packet_7;
+  io.len = sizeof(coap_packet_7);
+  res = coap_parse(&io, &cm);
+  ASSERT((res & NS_COAP_ERROR) != 0);
+  ns_coap_free_options(&cm);
+
+  return NULL;
+}
+#endif
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
@@ -2117,6 +2286,9 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_ssl);
 #endif
   RUN_TEST(test_udp);
+#ifdef NS_ENABLE_COAP
+  RUN_TEST(test_coap);
+#endif
   return NULL;
 }
 

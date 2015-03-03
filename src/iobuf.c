@@ -66,12 +66,16 @@ size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
 
   if (io->len + len <= io->size) {
     memmove(io->buf + off + len, io->buf + off, io->len - off);
-    memcpy(io->buf + off, buf, len);
+    if (buf != NULL) {
+      memcpy(io->buf + off, buf, len);
+    }
     io->len += len;
   } else if ((p = (char *) NS_REALLOC(io->buf, io->len + len)) != NULL) {
     io->buf = p;
     memmove(io->buf + off + len, io->buf + off, io->len - off);
-    memcpy(io->buf + off, buf, len);
+    if (buf != NULL) {
+      memcpy(io->buf + off, buf, len);
+    }
     io->len += len;
     io->size = io->len;
   } else {

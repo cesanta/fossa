@@ -650,19 +650,24 @@ static void ns_handle_udp(struct ns_connection *ls) {
   if (n <= 0) {
     DBG(("%p recvfrom: %s", ls, strerror(errno)));
   } else {
-    nc.mgr = ls->mgr;
+    /* Copy all attributes */
+    nc = *ls;
+
+    /* Then override some */
     nc.recv_iobuf.buf = buf;
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
-    nc.sock = ls->sock;
-    nc.handler = ls->handler;
-    nc.user_data = ls->user_data;
-    nc.proto_data = ls->proto_data;
-    nc.proto_handler = ls->proto_handler;
-    nc.mgr = ls->mgr;
     nc.listener = ls;
     nc.flags = NSF_UDP;
+
+    /* Call NS_RECV handler */
     DBG(("%p %d bytes received", ls, n));
     ns_call(&nc, NS_RECV, &n);
+
+    /*
+     * See https://github.com/cesanta/fossa/issues/207
+     * ns_call migth set flags. They need to be synced back to ls.
+     */
+    ls->flags = nc.flags;
   }
 }
 

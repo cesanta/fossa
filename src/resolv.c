@@ -10,7 +10,6 @@
 #ifndef NS_DISABLE_RESOLVER
 
 #include "internal.h"
-#include "resolv-internal.h"
 
 static const char *ns_default_dns_server = "udp://8.8.8.8:53";
 NS_INTERNAL char ns_dns_server[256];

@@ -392,3 +392,9 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     fclose(fp);
   }
 }
+
+/* TODO(mkm) use compiletime check with 4-byte char literal */
+int ns_is_big_endian(void) {
+  static const int n = 1;
+  return ((char *) &n)[0] == 0;
+}

@@ -17,11 +17,13 @@
 
 #ifndef NS_DISABLE_MD5
 
+#include "internal.h"
+
 static void byteReverse(unsigned char *buf, unsigned longs) {
   uint32_t t;
 
   /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
-  if (is_big_endian()) {
+  if (ns_is_big_endian()) {
     do {
       t = (uint32_t) ((unsigned) buf[3] << 8 | buf[2]) << 16 |
         ((unsigned) buf[1] << 8 | buf[0]);

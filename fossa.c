@@ -33,6 +33,7 @@
 #define NS_INTERNAL static
 #endif
 
+
 /* internals that need to be accessible in unit tests */
 NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
                                                     int proto,
@@ -2869,11 +2870,6 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
 #ifndef NS_DISABLE_SHA1
 
 
-static int is_big_endian(void) {
-  static const int n = 1;
-  return ((char *) &n)[0] == 0;
-}
-
 #define SHA1HANDSOFF
 #if defined(__sun)
 #endif
@@ -2884,7 +2880,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 
 static uint32_t blk0(union char64long16 *block, int i) {
   /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
-  if (!is_big_endian()) {
+  if (!ns_is_big_endian()) {
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
       (rol(block->l[i], 8) & 0x00FF00FF);
   }
@@ -2942,7 +2938,7 @@ void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   state[2] += c;
   state[3] += d;
   state[4] += e;
-  /* Erase working structures. The order of operations is important, 
+  /* Erase working structures. The order of operations is important,
    * used to ensure that compiler doesn't optimize those out. */
   memset(block, 0, sizeof(block));
   a = b = c = d = e = 0;
@@ -3397,6 +3393,12 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     }
     fclose(fp);
   }
+}
+
+/* TODO(mkm) use compiletime check with 4-byte char literal */
+int ns_is_big_endian(void) {
+  static const int n = 1;
+  return ((char *) &n)[0] == 0;
 }
 #ifdef NS_MODULE_LINES
 #line 1 "src/json-rpc.c"
@@ -4960,11 +4962,12 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
 
 #ifndef NS_DISABLE_MD5
 
+
 static void byteReverse(unsigned char *buf, unsigned longs) {
   uint32_t t;
 
   /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
-  if (is_big_endian()) {
+  if (ns_is_big_endian()) {
     do {
       t = (uint32_t) ((unsigned) buf[3] << 8 | buf[2]) << 16 |
         ((unsigned) buf[1] << 8 | buf[0]);

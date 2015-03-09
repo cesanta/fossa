@@ -1124,7 +1124,7 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
  */
 struct ns_coap_option {
   struct ns_coap_option *next;
-  uint16_t number;
+  uint32_t number;
   struct ns_str value;
 };
 
@@ -1145,10 +1145,13 @@ extern "C" {
 #endif  /* __cplusplus */
 
 void ns_coap_free_options(struct ns_coap_message *cm);
-void ns_coap_add_option(struct ns_coap_message *cm,
-                        uint16_t number, char* value, size_t len);
+struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
+                                          uint16_t number, char* value,
+                                          size_t len);
 
+/* Should be visible for unit tests */
 NS_INTERNAL uint32_t coap_parse(struct iobuf *io, struct ns_coap_message *cm);
+NS_INTERNAL uint32_t coap_compose(struct ns_coap_message *cm, struct iobuf *io);
 
 #ifdef __cplusplus
 }

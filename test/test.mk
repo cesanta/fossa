@@ -79,7 +79,7 @@ ALL_PROGS=$(foreach p,$(SUFFIXES),$(PROG)-$(p))
 ALL_TESTS=$(foreach p,$(SUFFIXES),test_$(p))
 SHORT_TESTS=$(foreach p,$(DIALECTS),test_$(p))
 
-all: clean compile $(SHORT_TESTS)
+all: clean compile $(SHORT_TESTS) coverage
 alltests: $(ALL_TESTS) lcov cpplint
 
 # currently both valgrind and asan tests are failing for some test cases

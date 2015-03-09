@@ -28,6 +28,8 @@
 #define NS_INTERNAL static
 #endif
 
+#include "../fossa.h"
+
 /* internals that need to be accessible in unit tests */
 NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
                                                     int proto,
@@ -37,6 +39,5 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 
-#include "../fossa.h"
 
 #endif  /* NS_INTERNAL_HEADER_INCLUDED */

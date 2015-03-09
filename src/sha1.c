@@ -5,11 +5,6 @@
 
 #include "internal.h"
 
-static int is_big_endian(void) {
-  static const int n = 1;
-  return ((char *) &n)[0] == 0;
-}
-
 #define SHA1HANDSOFF
 #if defined(__sun)
 #include "solarisfixes.h"
@@ -21,7 +16,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 
 static uint32_t blk0(union char64long16 *block, int i) {
   /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
-  if (!is_big_endian()) {
+  if (!ns_is_big_endian()) {
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
       (rol(block->l[i], 8) & 0x00FF00FF);
   }
@@ -79,7 +74,7 @@ void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   state[2] += c;
   state[3] += d;
   state[4] += e;
-  /* Erase working structures. The order of operations is important, 
+  /* Erase working structures. The order of operations is important,
    * used to ensure that compiler doesn't optimize those out. */
   memset(block, 0, sizeof(block));
   a = b = c = d = e = 0;

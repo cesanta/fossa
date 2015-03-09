@@ -27,7 +27,6 @@
  */
 
 #include "internal.h"
-#include "net-internal.h"
 
 #define NS_CTL_MSG_MESSAGE_SIZE     8192
 #define NS_READ_BUFFER_SIZE         2048

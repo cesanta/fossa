@@ -2067,18 +2067,47 @@ static const char *test_http_parse_header(void) {
 }
 
 #ifdef NS_ENABLE_COAP
+struct results {
+  int server;
+  int client;
+};
+
+static void coap_handler_1(struct ns_connection *nc, int ev, void *p) {
+  switch (ev) {
+    case NS_CONNECT: {
+      struct ns_coap_message cm;
+      memset(&cm, 0, sizeof(cm));
+      cm.msg_id = 1;
+      cm.msg_type = NS_COAP_MSG_CON;
+      ns_coap_send_message(nc, &cm);
+      break;
+    }
+    case NS_COAP_ACK: {
+      struct ns_coap_message *cm = (struct ns_coap_message *)p;
+      ((struct results*)(nc->user_data))->client = cm->msg_id + cm->msg_type;
+      break;
+    }
+    case NS_COAP_CON: {
+      struct ns_coap_message *cm = (struct ns_coap_message *)p;
+      ((struct results*)(nc->user_data))->server = cm->msg_id + cm->msg_type;
+      ns_coap_send_ack(nc, cm->msg_id);
+      break;
+    }
+  }
+}
+
 static const char *test_coap(void) {
   struct iobuf packet_in, packet_out;
   struct ns_coap_message cm;
   uint32_t res;
 
-  char coap_packet_1[] = {
+  unsigned char coap_packet_1[] = {
     0x42, 0x01, 0xe9, 0x1b, 0x07, 0x90, 0xb8, 0x73,
     0x65, 0x70, 0x61, 0x72, 0x61, 0x74, 0x65, 0x10,
     0xd1, 0x23, 0x11 };
-  char coap_packet_2[] = {
+  unsigned char coap_packet_2[] = {
     0x60, 0x00, 0xe9, 0x1b };
-  char coap_packet_3[] = {
+  unsigned char coap_packet_3[] = {
     0x42, 0x45, 0x57, 0x0f, 0x07, 0x90, 0xff, 0x54,
     0x68, 0x69, 0x73, 0x20, 0x6d, 0x65, 0x73, 0x73,
     0x61, 0x67, 0x65, 0x20, 0x77, 0x61, 0x73, 0x20,
@@ -2096,16 +2125,16 @@ static const char *test_coap(void) {
     0x62, 0x65, 0x20, 0x72, 0x65, 0x74, 0x72, 0x61,
     0x6e, 0x73, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64,
     0x2e };
-  char coap_packet_4[] = {
+  unsigned char coap_packet_4[] = {
     0x60, 0x00, 0x57, 0x0f };
-  char coap_packet_5[] = {
+  unsigned char coap_packet_5[] = {
     0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
     0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
     0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xff,
     0x6d, 0x79, 0x64, 0x61, 0x74, 0x61 };
-  char coap_packet_6[] = {
+  unsigned char coap_packet_6[] = {
     0xFF, 0x00, 0xFF, 0x00 };
-  char coap_packet_7[] = {
+  unsigned char coap_packet_7[] = {
     0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
     0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
     0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xf1,
@@ -2120,7 +2149,7 @@ static const char *test_coap(void) {
 
   iobuf_init(&packet_out, 0);
   /* ACK, MID: 59675, Empty Message */
-  packet_in.buf = coap_packet_2;
+  packet_in.buf = (char*)coap_packet_2;
   packet_in.len = sizeof(coap_packet_2);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2141,7 +2170,7 @@ static const char *test_coap(void) {
   iobuf_free(&packet_out);
 
   /* ACK, MID: 22287, Empty Message */
-  packet_in.buf = coap_packet_4;
+  packet_in.buf = (char*)coap_packet_4;
   packet_in.len = sizeof(coap_packet_4);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2162,7 +2191,7 @@ static const char *test_coap(void) {
   iobuf_free(&packet_out);
 
   /* CON, MID: 59675 ... */
-  packet_in.buf = coap_packet_1;
+  packet_in.buf = (char*)coap_packet_1;
   packet_in.len = sizeof(coap_packet_1);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2195,7 +2224,7 @@ static const char *test_coap(void) {
   iobuf_free(&packet_out);
 
   /* CON, MID: 22287 ... */
-  packet_in.buf = coap_packet_3;
+  packet_in.buf = (char*)coap_packet_3;
   packet_in.len = sizeof(coap_packet_3);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2218,7 +2247,7 @@ static const char *test_coap(void) {
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
-  packet_in.buf = coap_packet_5;
+  packet_in.buf = (char*)coap_packet_5;
   packet_in.len = sizeof(coap_packet_5);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2245,13 +2274,13 @@ static const char *test_coap(void) {
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
-  packet_in.buf = coap_packet_6;
+  packet_in.buf = (char*)coap_packet_6;
   packet_in.len = sizeof(coap_packet_6);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
   ns_coap_free_options(&cm);
 
-  packet_in.buf = coap_packet_7;
+  packet_in.buf = (char*)coap_packet_7;
   packet_in.len = sizeof(coap_packet_7);
   res = coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
@@ -2276,6 +2305,30 @@ static const char *test_coap(void) {
   ASSERT(cm.options->next->next->number == 7);
   ASSERT(cm.options->next->next->next->number == 10);
   ASSERT(cm.options->next->next->next->next == NULL);
+
+  {
+    struct results res;
+    struct ns_mgr mgr;
+    struct ns_connection *nc1, *nc2;
+    const char *address = "udp://127.0.0.1:5683";
+
+    ns_mgr_init(&mgr, 0);
+
+    nc1 = ns_bind(&mgr, address, coap_handler_1);
+    ns_set_protocol_coap(nc1);
+    nc1->user_data = &res;
+
+    nc2 = ns_connect(&mgr, address, coap_handler_1);
+    ns_set_protocol_coap(nc2);
+    nc2->user_data = &res;
+
+    { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
+
+    ns_mgr_free(&mgr);
+
+    ASSERT(res.server == 1);
+    ASSERT(res.client == 3);
+  }
 
   return NULL;
 }

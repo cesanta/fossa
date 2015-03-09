@@ -188,7 +188,6 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
  * event managers handled by different threads.
  */
 
-/* #include "net-internal.h" */
 
 #define NS_CTL_MSG_MESSAGE_SIZE     8192
 #define NS_READ_BUFFER_SIZE         2048
@@ -4713,7 +4712,6 @@ int ns_dns_reply_record(struct ns_dns_reply *reply,
 
 #ifndef NS_DISABLE_RESOLVER
 
-/* #include "resolv-internal.h" */
 
 static const char *ns_default_dns_server = "udp://8.8.8.8:53";
 NS_INTERNAL char ns_dns_server[256];

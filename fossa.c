@@ -5181,7 +5181,10 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
 /* TODO(alashkin): remove this #include after dev completion */
 #include <stdlib.h>
 
-/* Options memory management functions */
+/* 
+ * Frees the memory allocated for options,
+ * if cm paramater doesn't contain any option does nothing.
+ */
 void ns_coap_free_options(struct ns_coap_message *cm) {
   while (cm->options != NULL) {
     struct ns_coap_option *next = cm->options->next;
@@ -5190,6 +5193,10 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
   }
 }
 
+/* 
+ * Adds new option to ns_coap_message structure.
+ * Returns pointer to newly created options.
+ */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                        uint16_t number, char* value,
                                        size_t len) {
@@ -5215,7 +5222,7 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
       /* looking for appropriate position */
       struct ns_coap_option* current_opt = cm->options;
       struct ns_coap_option* prev_opt = 0;
-      
+
       while (current_opt != NULL) {
         if (current_opt->number > new_option->number) {
           break;
@@ -5232,14 +5239,17 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
         new_option->next = cm->options;
         cm->options = new_option;
       }
-
     }
   }
 
   return new_option;
 }
 
-/* Fills CoAP header in cm. */
+/* 
+ * Fills CoAP header in ns_coap_message. 
+ *
+ * Helper function.
+ */
 static char *coap_parse_header(char* ptr, struct iobuf *io,
                                struct ns_coap_message *cm) {
   if (io->len < sizeof(uint32_t)) {
@@ -5303,7 +5313,11 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
   return ptr;
 }
 
-/* Fulls token information in cm. */
+/*
+ * Fills token information in ns_coap_message.
+ *
+ * Helper function.
+ */
 static char *coap_get_token(char *ptr, struct iobuf *io,
                             struct ns_coap_message *cm) {
   if (cm->token.len != 0) {
@@ -5320,7 +5334,11 @@ static char *coap_get_token(char *ptr, struct iobuf *io,
   return ptr;
 }
 
-/* Returns Option Delta or Length. */
+/* 
+ * Returns Option Delta or Length. 
+ *
+ * Helper function.
+ */
 static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
   int ret = 0;
 
@@ -5352,7 +5370,9 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
 }
 
 /* 
- * Fills options in cm.
+ * Fills options in ns_coap_message.
+ *
+ * Helper function.
  *
  * General options format:
  * +---------------+---------------+
@@ -5450,7 +5470,7 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
 }
 
 /*
- * Parses COAP message and fills cm and returns cm->flags.
+ * Parses COAP message and fills ns_coap_message and returns cm->flags.
  *
  * Note: usually CoAP work over UDP, so
  * lack of data means format error,
@@ -5461,6 +5481,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
  * underlaying protocol
  * in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR
  * in case of TCP client can try to recieve more data
+ *
+ * Helper function.
  */
 NS_INTERNAL uint32_t coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
   char* ptr;
@@ -5489,7 +5511,11 @@ NS_INTERNAL uint32_t coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
   return cm->flags;
 }
 
-/* Calculates extended size of given Opt Number/Length in coap message. */
+/* 
+ * Calculates extended size of given Opt Number/Length in coap message. 
+ *
+ * Helper function.
+ */
 static size_t coap_get_ext_opt_size(uint32_t value) {
   int ret = 0;
 
@@ -5502,7 +5528,11 @@ static size_t coap_get_ext_opt_size(uint32_t value) {
   return ret;
 }
 
-/* Splits given Opt Number/Length into base and ext values. */
+/* 
+ * Splits given Opt Number/Length into base and ext values. 
+ *
+ * Helper function.
+ */
 static int coap_split_opt(uint32_t value, uint8_t *base, uint16_t *ext) {
   int ret = 0;
 
@@ -5522,7 +5552,11 @@ static int coap_split_opt(uint32_t value, uint8_t *base, uint16_t *ext) {
   return ret;
 }
 
-/* Puts uint16_t (in network order) into given char stream. */
+/* 
+ * Puts uint16_t (in network order) into given char stream. 
+ *
+ * Helper function.
+ */
 static char *coap_add_uint16(char *ptr, uint16_t val) {
   *ptr = val >> 8;
   ptr++;
@@ -5531,7 +5565,11 @@ static char *coap_add_uint16(char *ptr, uint16_t val) {
   return ptr;
 }
 
-/* Puts extended value of Opt Number/Length into given char stream. */
+/* 
+ * Puts extended value of Opt Number/Length into given char stream. 
+ *
+ * Helper function.
+ */
 static char *coap_add_opt_info(char *ptr, uint16_t val, size_t len) {
   if (len == sizeof(uint8_t)) {
     *ptr = val;
@@ -5543,7 +5581,11 @@ static char *coap_add_opt_info(char *ptr, uint16_t val, size_t len) {
   return ptr;
 }
 
-/* Verifies given cm and calculates message size for it. */
+/* 
+ * Verifies given ns_coap_message and calculates message size for it. 
+ *
+ * Helper function.
+ */
 static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
                                            size_t *len) {
   struct ns_coap_option *opt;
@@ -5593,9 +5635,11 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
 }
 
 /*
- * Composes CoAP message from cm structure.
+ * Composes CoAP message from ns_coap_message structure.
  * Returns 0 on success or bit mask with wrong field.
  * Packet returned must be explicitly deleted by NS_FREE.
+ *
+ * Helper function.
  */
 NS_INTERNAL uint32_t coap_compose(struct ns_coap_message *cm,
                                   struct iobuf *io) {
@@ -5612,7 +5656,7 @@ NS_INTERNAL uint32_t coap_compose(struct ns_coap_message *cm,
   /* saving previous lenght to handle non-empty iobuf */
   prev_io_len = io->len;
   iobuf_append(io, NULL, packet_size);
-  ptr = io->buf + prev_io_len; 
+  ptr = io->buf + prev_io_len;
 
   /*
    * since cm is verified, it is possible to use bits shift operator
@@ -5665,6 +5709,98 @@ NS_INTERNAL uint32_t coap_compose(struct ns_coap_message *cm,
     ptr++;
     memcpy(ptr, cm->payload.p, cm->payload.len);
   }
+
+  return 0;
+}
+
+/* 
+ * Composes CoAP message from ns_coap_message
+ * and sends it into 'nc' connection.
+ */
+uint32_t ns_coap_send_message(struct ns_connection *nc,
+                              struct ns_coap_message *cm) {
+  struct iobuf packet_out;
+  int send_res;
+  uint32_t compose_res;
+
+  iobuf_init(&packet_out, 0);
+  compose_res = coap_compose(cm, &packet_out);
+  if (compose_res != 0) {
+    return compose_res;
+  }
+
+  send_res = ns_send(nc, packet_out.buf, (int)packet_out.len);
+  iobuf_free(&packet_out);
+
+  if (send_res == 0) {
+    /*
+     * in case of UDP ns_send tries to send immediately
+     * and could return an error.
+     */
+    return NS_COAP_NETWORK_ERROR;
+  }
+
+  return 0;
+}
+
+/*
+ * Composes CoAP acknolegement from ns_coap_message
+ * and sends it into 'nc' connection.
+ */
+uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id) {
+  struct ns_coap_message cm;
+  memset(&cm, 0, sizeof(cm));
+  cm.msg_type = NS_COAP_MSG_ACK;
+  cm.msg_id = msg_id;
+
+  return ns_coap_send_message(nc, &cm);
+}
+
+static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  struct iobuf *io = &nc->recv_iobuf;
+  struct ns_coap_message cm;
+  uint32_t parse_res;
+
+  memset(&cm, 0, sizeof(cm));
+
+  nc->handler(nc, ev, ev_data);
+
+  switch (ev) {
+    case NS_RECV:
+      parse_res = coap_parse(io, &cm);
+      if  ((parse_res & NS_COAP_IGNORE) == 0) {
+        if ((cm.flags & NS_COAP_NOT_ENOUGH_DATA) != 0) {
+          /*
+           * Since we support UDP only
+           * NS_COAP_NOT_ENOUGH_DATA == NS_COAP_FORMAT_ERROR
+           */
+          cm.flags |= NS_COAP_FORMAT_ERROR;
+        }
+        nc->handler(nc, NS_COAP_EVENT_BASE + cm.msg_type, &cm);
+      }
+
+      ns_coap_free_options(&cm);
+      iobuf_remove(io, io->len);
+      break;
+  }
+}
+/*
+ * Attach built-in CoAP event handler to the given connection.
+ *
+ * The user-defined event handler will receive following extra events:
+ *
+ * - NS_COAP_CON
+ * - NS_COAP_NOC
+ * - NS_COAP_ACK
+ * - NS_COAP_RST
+ */
+int ns_set_protocol_coap(struct ns_connection *nc) {
+  /* supports UDP only */
+  if ((nc->flags & NSF_UDP) == 0) {
+    return -1;
+  }
+
+  nc->proto_handler = coap_handler;
 
   return 0;
 }

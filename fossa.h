@@ -1101,6 +1101,7 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 #define NS_COAP_FORMAT_ERROR (NS_COAP_ERROR | 0x20000)
 #define NS_COAP_IGNORE (NS_COAP_ERROR | 0x40000 )
 #define NS_COAP_NOT_ENOUGH_DATA (NS_COAP_ERROR | 0x80000)
+#define NS_COAP_NETWORK_ERROR (NS_COAP_ERROR | 0x100000)
 
 #define NS_COAP_MSG_CON 0
 #define NS_COAP_MSG_NOC 1
@@ -1112,6 +1113,12 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 #define NS_COAP_CODECLASS_RESP_OK 2
 #define NS_COAP_CODECLASS_CLIENT_ERR 4
 #define NS_COAP_CODECLASS_SRV_ERR 5
+
+#define NS_COAP_EVENT_BASE 300
+#define NS_COAP_CON (NS_COAP_EVENT_BASE + NS_COAP_MSG_CON)
+#define NS_COAP_NOC (NS_COAP_EVENT_BASE + NS_COAP_MSG_NOC)
+#define NS_COAP_ACK (NS_COAP_EVENT_BASE + NS_COAP_MSG_ACK)
+#define NS_COAP_RST (NS_COAP_EVENT_BASE + NS_COAP_MSG_RST)
 
 /*
  * CoAP assumes variable number of options
@@ -1148,6 +1155,10 @@ void ns_coap_free_options(struct ns_coap_message *cm);
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                           uint16_t number, char* value,
                                           size_t len);
+int ns_set_protocol_coap(struct ns_connection *nc);
+uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id);
+uint32_t ns_coap_send_message(struct ns_connection *nc,
+                              struct ns_coap_message *cm);
 
 /* Should be visible for unit tests */
 NS_INTERNAL uint32_t coap_parse(struct iobuf *io, struct ns_coap_message *cm);

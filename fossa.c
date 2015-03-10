@@ -832,10 +832,12 @@ static void ns_handle_udp(struct ns_connection *ls) {
   if (n <= 0) {
     DBG(("%p recvfrom: %s", ls, strerror(errno)));
   } else {
-    /* Copy all attributes */
+    union socket_address sa = nc.sa;
+    /* Copy all attributes, preserving sender address */
     nc = *ls;
 
     /* Then override some */
+    nc.sa = sa;
     nc.recv_iobuf.buf = buf;
     nc.recv_iobuf.len = nc.recv_iobuf.size = n;
     nc.listener = ls;

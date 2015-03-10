@@ -5172,7 +5172,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
 
 #ifdef NS_ENABLE_COAP
 
-/* 
+/*
  * CoAP implementation.
  *
  * General CoAP message format:
@@ -5186,7 +5186,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
 /* TODO(alashkin): remove this #include after dev completion */
 #include <stdlib.h>
 
-/* 
+/*
  * Frees the memory allocated for options,
  * if cm paramater doesn't contain any option does nothing.
  */
@@ -5198,7 +5198,7 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
   }
 }
 
-/* 
+/*
  * Adds new option to ns_coap_message structure.
  * Returns pointer to newly created options.
  */
@@ -5215,7 +5215,7 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
   if (cm->options == NULL) {
     cm->options = cm->options_tail = new_option;
   } else {
-    /* 
+    /*
      * A very simple attention to help clients to compose options:
      * CoAP wants to see options ASC ordered.
      * Could be change by using sort in coap_compose
@@ -5250,8 +5250,8 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
   return new_option;
 }
 
-/* 
- * Fills CoAP header in ns_coap_message. 
+/*
+ * Fills CoAP header in ns_coap_message.
  *
  * Helper function.
  */
@@ -5335,8 +5335,8 @@ static char *coap_get_token(char *ptr, struct iobuf *io,
   return ptr;
 }
 
-/* 
- * Returns Option Delta or Length. 
+/*
+ * Returns Option Delta or Length.
  *
  * Helper function.
  */
@@ -5370,7 +5370,7 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
   return ret;
 }
 
-/* 
+/*
  * Fills options in ns_coap_message.
  *
  * Helper function.
@@ -5396,7 +5396,7 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
   }
 
   /* 0xFF is payload marker */
-  while ((uint8_t)*ptr != 0xFF && ptr < io->buf + io->len) {
+  while (ptr < io->buf + io->len && (uint8_t)*ptr != 0xFF) {
     uint16_t option_delta, option_lenght;
     int optinfo_len;
 
@@ -5512,8 +5512,8 @@ uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
   return cm->flags;
 }
 
-/* 
- * Calculates extended size of given Opt Number/Length in coap message. 
+/*
+ * Calculates extended size of given Opt Number/Length in coap message.
  *
  * Helper function.
  */
@@ -5529,8 +5529,8 @@ static size_t coap_get_ext_opt_size(uint32_t value) {
   return ret;
 }
 
-/* 
- * Splits given Opt Number/Length into base and ext values. 
+/*
+ * Splits given Opt Number/Length into base and ext values.
  *
  * Helper function.
  */
@@ -5553,8 +5553,8 @@ static int coap_split_opt(uint32_t value, uint8_t *base, uint16_t *ext) {
   return ret;
 }
 
-/* 
- * Puts uint16_t (in network order) into given char stream. 
+/*
+ * Puts uint16_t (in network order) into given char stream.
  *
  * Helper function.
  */
@@ -5566,8 +5566,8 @@ static char *coap_add_uint16(char *ptr, uint16_t val) {
   return ptr;
 }
 
-/* 
- * Puts extended value of Opt Number/Length into given char stream. 
+/*
+ * Puts extended value of Opt Number/Length into given char stream.
  *
  * Helper function.
  */
@@ -5582,8 +5582,8 @@ static char *coap_add_opt_info(char *ptr, uint16_t val, size_t len) {
   return ptr;
 }
 
-/* 
- * Verifies given ns_coap_message and calculates message size for it. 
+/*
+ * Verifies given ns_coap_message and calculates message size for it.
  *
  * Helper function.
  */
@@ -5617,7 +5617,7 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
     *len += 1;  /* basic delta/length */
     *len += coap_get_ext_opt_size(opt->number);
     *len += coap_get_ext_opt_size((uint32_t)opt->value.len);
-    /* 
+    /*
      * Current implementation performs check if
      * option_number > previous option_number and produces an error
      * TODO(alashkin): write design doc with limitations
@@ -5713,7 +5713,7 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   return 0;
 }
 
-/* 
+/*
  * Composes CoAP message from ns_coap_message
  * and sends it into 'nc' connection.
  */

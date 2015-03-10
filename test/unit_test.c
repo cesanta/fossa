@@ -2394,11 +2394,12 @@ static const char *test_coap(void) {
   {
     struct ns_mgr mgr;
     struct ns_connection *nc;
-    const char *address = "tcp://127.0.0.1:8080";
+    const char *address = "tcp://127.0.0.1:8686";
 
     ns_mgr_init(&mgr, 0);
 
     nc = ns_bind(&mgr, address, coap_handler_1);
+    ASSERT(nc != NULL);
     ASSERT(ns_set_protocol_coap(nc) == -1);
 
     ns_mgr_free(&mgr);

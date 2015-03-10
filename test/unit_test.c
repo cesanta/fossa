@@ -420,28 +420,44 @@ static const char *test_thread(void) {
   return NULL;
 }
 
-static void eh3(struct ns_connection *nc, int ev, void *p) {
+struct udp_res {
+  char buf_srv[20];
+  char buf_clnt[20];
+};
+
+static void eh3_srv(struct ns_connection *nc, int ev, void *p) {
   struct iobuf *io = &nc->recv_iobuf;
   (void) p;
 
   if (ev == NS_RECV) {
-    memcpy((char *) nc->mgr->user_data, io->buf, io->len);
+    memcpy(((struct udp_res*)nc->mgr->user_data)->buf_srv, io->buf, io->len);
+    ns_send(nc, io->buf, io->len);
+  }
+}
+
+static void eh3_clnt(struct ns_connection *nc, int ev, void *p) {
+  struct iobuf *io = &nc->recv_iobuf;
+  (void) p;
+
+  if (ev == NS_RECV) {
+    memcpy(((struct udp_res*)nc->mgr->user_data)->buf_clnt, io->buf, io->len);
   }
 }
 
 static const char *test_udp(void) {
   struct ns_mgr mgr;
-  struct ns_connection *nc;
+  struct ns_connection *nc1, *nc2;
   const char *address = "udp://127.0.0.1:7878";
-  char buf[20] = "";
+  struct udp_res res;
 
-  ns_mgr_init(&mgr, buf);
-  ASSERT(ns_bind(&mgr, address, eh3) != NULL);
-  ASSERT((nc = ns_connect(&mgr, address, eh3)) != NULL);
-  ns_printf(nc, "%s", "boo!");
+  ns_mgr_init(&mgr, &res);
+  ASSERT((nc1 = ns_bind(&mgr, address, eh3_srv)) != NULL);
+  ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
+  ns_printf(nc2, "%s", "boo!");
 
   { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
-  ASSERT(memcmp(buf, "boo!", 4) == 0);
+  ASSERT(memcmp(res.buf_srv, "boo!", 4) == 0);
+  ASSERT(memcmp(res.buf_clnt, "boo!", 4) == 0);
   ns_mgr_free(&mgr);
 
   return NULL;

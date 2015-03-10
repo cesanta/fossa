@@ -2142,7 +2142,7 @@ static const char *test_coap(void) {
 
   iobuf_init(&packet_in, 0);
   /* empty buf */
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_NOT_ENOUGH_DATA) != 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_in);
@@ -2151,7 +2151,7 @@ static const char *test_coap(void) {
   /* ACK, MID: 59675, Empty Message */
   packet_in.buf = (char*)coap_packet_2;
   packet_in.len = sizeof(coap_packet_2);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
   ASSERT(cm.code_class == 0);
   ASSERT(cm.code_detail == 0);
@@ -2162,7 +2162,7 @@ static const char *test_coap(void) {
   ASSERT(cm.payload.p == NULL);
   ASSERT(cm.token.len == 0);
   ASSERT(cm.token.p == NULL);
-  res = coap_compose(&cm, &packet_out);
+  res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_2));
   ASSERT(memcmp(packet_out.buf, coap_packet_2, packet_out.len)==0);
@@ -2172,7 +2172,7 @@ static const char *test_coap(void) {
   /* ACK, MID: 22287, Empty Message */
   packet_in.buf = (char*)coap_packet_4;
   packet_in.len = sizeof(coap_packet_4);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
   ASSERT(cm.code_class == 0);
   ASSERT(cm.code_detail == 0);
@@ -2183,7 +2183,7 @@ static const char *test_coap(void) {
   ASSERT(cm.payload.p == NULL);
   ASSERT(cm.token.len == 0);
   ASSERT(cm.token.p == NULL);
-  res = coap_compose(&cm, &packet_out);
+  res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_4));
   ASSERT(memcmp(packet_out.buf, coap_packet_4, packet_out.len)==0);
@@ -2193,7 +2193,7 @@ static const char *test_coap(void) {
   /* CON, MID: 59675 ... */
   packet_in.buf = (char*)coap_packet_1;
   packet_in.len = sizeof(coap_packet_1);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
   ASSERT(cm.code_class == 0);
   ASSERT(cm.code_detail == 1);
@@ -2216,7 +2216,7 @@ static const char *test_coap(void) {
   ASSERT(cm.token.len == 2);
   ASSERT(*cm.token.p == 0x07);
   ASSERT((unsigned char)*(cm.token.p + 1) == 0x90);
-  res = coap_compose(&cm, &packet_out);
+  res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_1));
   ASSERT(memcmp(packet_out.buf, coap_packet_1, packet_out.len)==0);
@@ -2226,7 +2226,7 @@ static const char *test_coap(void) {
   /* CON, MID: 22287 ... */
   packet_in.buf = (char*)coap_packet_3;
   packet_in.len = sizeof(coap_packet_3);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
   ASSERT(cm.code_class == 2);
   ASSERT(cm.code_detail == 5);
@@ -2240,7 +2240,7 @@ static const char *test_coap(void) {
   ASSERT(strncmp(cm.payload.p, "This message was sent by a separate response.\n"
                  "Your client will need to acknowledge it,"
                  " otherwise it will be retransmitted.", 122) == 0);
-  res = coap_compose(&cm, &packet_out);
+  res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_3));
   ASSERT(memcmp(packet_out.buf, coap_packet_3, packet_out.len)==0);
@@ -2249,7 +2249,7 @@ static const char *test_coap(void) {
 
   packet_in.buf = (char*)coap_packet_5;
   packet_in.len = sizeof(coap_packet_5);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
   ASSERT(cm.code_class == 0);
   ASSERT(cm.code_detail == 3);
@@ -2267,7 +2267,7 @@ static const char *test_coap(void) {
   ASSERT(cm.token.len == 0);
   ASSERT(cm.payload.len == 6);
   ASSERT(strncmp(cm.payload.p, "mydata", 6) == 0);
-  res = coap_compose(&cm, &packet_out);
+  res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_5));
   ASSERT(memcmp(packet_out.buf, coap_packet_5, packet_out.len)==0);
@@ -2276,15 +2276,33 @@ static const char *test_coap(void) {
 
   packet_in.buf = (char*)coap_packet_6;
   packet_in.len = sizeof(coap_packet_6);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
   ns_coap_free_options(&cm);
 
   packet_in.buf = (char*)coap_packet_7;
   packet_in.len = sizeof(coap_packet_7);
-  res = coap_parse(&packet_in, &cm);
+  res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
   ns_coap_free_options(&cm);
+
+  {
+    unsigned char coap_packet_2_broken[] = {
+      0x6F, 0x00, 0xe9, 0x1b };
+    packet_in.buf = (char*)coap_packet_2_broken;
+    packet_in.len = sizeof(coap_packet_2_broken);
+    res = ns_coap_parse(&packet_in, &cm);
+    ASSERT((res & NS_COAP_FORMAT_ERROR) != 0);
+  }
+
+  {
+    unsigned char coap_packet_2_broken[] = {
+      0x65, 0x00, 0xe9, 0x1b };
+    packet_in.buf = (char*)coap_packet_2_broken;
+    packet_in.len = sizeof(coap_packet_2_broken);
+    res = ns_coap_parse(&packet_in, &cm);
+    ASSERT((res & NS_COAP_NOT_ENOUGH_DATA) != 0);
+  }
 
   memset(&cm, 0, sizeof(cm));
   ns_coap_add_option(&cm, 10, 0, 0);
@@ -2305,6 +2323,70 @@ static const char *test_coap(void) {
   ASSERT(cm.options->next->next->number == 7);
   ASSERT(cm.options->next->next->next->number == 10);
   ASSERT(cm.options->next->next->next->next == NULL);
+
+  {
+    unsigned char value16[] = {0xCC, 0xDD};
+    packet_in.buf = (char*)coap_packet_4;
+    packet_in.len = sizeof(coap_packet_4);
+    res = ns_coap_parse(&packet_in, &cm);
+    ASSERT((res & NS_COAP_ERROR) == 0);
+    ns_coap_add_option(&cm, 0xAABB, (char*)value16, sizeof(value16));
+    res = ns_coap_compose(&cm, &packet_out);
+    ns_coap_free_options(&cm);
+    ASSERT(res == 0);
+    res = ns_coap_parse(&packet_out, &cm);
+    ASSERT((res & NS_COAP_ERROR) == 0);
+    ASSERT(cm.options->number == 0xAABB);
+    ASSERT(cm.options->value.len == 2);
+    ASSERT(memcmp(cm.options->value.p, value16, cm.options->value.len) == 0);
+    ns_coap_free_options(&cm);
+    iobuf_free(&packet_out);
+  }
+
+  memset(&cm, 0, sizeof(cm));
+  cm.msg_id = 1;
+  cm.msg_type = NS_COAP_MSG_MAX + 1;
+  res = ns_coap_compose(&cm, &packet_out);
+  ASSERT((res & NS_COAP_ERROR) != 0 &&
+         (res & NS_COAP_MSG_TYPE_FIELD) != 0);
+
+  cm.msg_type = NS_COAP_MSG_ACK;
+  cm.token.len = 10000;
+  res = ns_coap_compose(&cm, &packet_out);
+  ASSERT((res & NS_COAP_ERROR) != 0 &&
+         (res & NS_COAP_TOKEN_FIELD) != 0);
+
+  cm.token.len = 0;
+  cm.code_class = 0xFF;
+  res = ns_coap_compose(&cm, &packet_out);
+  ASSERT((res & NS_COAP_ERROR) != 0 &&
+         (res & NS_COAP_CODE_CLASS_FIELD) != 0);
+
+  cm.code_class = 0;
+  cm.code_detail = 0xFF;
+  res = ns_coap_compose(&cm, &packet_out);
+  ASSERT((res & NS_COAP_ERROR) != 0 &&
+         (res & NS_COAP_CODE_DETAIL_FIELD) != 0);
+
+  cm.code_detail = 0;
+  ns_coap_add_option(&cm, 0xFFFFFFF, 0, 0);
+  res = ns_coap_compose(&cm, &packet_out);
+  ASSERT((res & NS_COAP_ERROR) != 0 &&
+         (res & NS_COAP_OPTIONS_FIELD) != 0);
+  ns_coap_free_options(&cm);
+
+  {
+    struct ns_mgr mgr;
+    struct ns_connection *nc;
+    const char *address = "tcp://127.0.0.1:8080";
+
+    ns_mgr_init(&mgr, 0);
+
+    nc = ns_bind(&mgr, address, coap_handler_1);
+    ASSERT(ns_set_protocol_coap(nc) == -1);
+
+    ns_mgr_free(&mgr);
+  }
 
   {
     struct results res;

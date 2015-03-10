@@ -5201,8 +5201,8 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
  * Returns pointer to newly created options.
  */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
-                                       uint16_t number, char* value,
-                                       size_t len) {
+                                          uint32_t number, char* value,
+                                          size_t len) {
   struct ns_coap_option *new_option =
       (struct ns_coap_option *)NS_CALLOC(1, sizeof(*new_option));
 
@@ -5277,10 +5277,6 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
    * Reset (3).
    */
   cm->msg_type = ((uint8_t)*ptr & 0x30) >> 4;
-  if (cm->msg_type > NS_COAP_MSG_MAX) {
-    cm->flags |= NS_COAP_FORMAT_ERROR;
-    return NULL;
-  }
   cm->flags |= NS_COAP_MSG_TYPE_FIELD;
 
   /*
@@ -5354,7 +5350,7 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
       *opt_info = (uint8_t)*ptr + 13;
       ret = sizeof(uint8_t);
     } else {
-      ret = -1;
+      ret = -1;  /* LCOV_EXCL_LINE */
     }
   } else if (*opt_info == 14) {
     /*
@@ -5365,7 +5361,7 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
       *opt_info = ((uint8_t)*ptr << 8 | (uint8_t)*(ptr + 1)) + 269;
       ret = sizeof(uint16_t);
     } else {
-      ret = -1;
+      ret = -1;  /* LCOV_EXCL_LINE */
     }
   }
 
@@ -5421,8 +5417,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     /* check for extended option delta */
     optinfo_len = coap_get_ext_opt(ptr, io, &option_delta);
     if (optinfo_len == -1) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
-      break;
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
+      break;  /* LCOV_EXCL_LINE */
     }
 
     ptr += optinfo_len;
@@ -5430,8 +5426,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     /* check or extended option lenght */
     optinfo_len = coap_get_ext_opt(ptr, io, &option_lenght);
     if (optinfo_len == -1) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
-      break;
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
+      break;  /* LCOV_EXCL_LINE */
     }
 
     ptr += optinfo_len;
@@ -5448,8 +5444,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     prev_opt = option_delta;
 
     if (ptr + option_lenght > io->buf + io->len) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
-      break;
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
+      break;  /* LCOV_EXCL_LINE */
     }
 
     ptr += option_lenght;
@@ -5487,7 +5483,7 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
  *
  * Helper function.
  */
-NS_INTERNAL uint32_t coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
+uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
   char* ptr;
 
   memset(cm, 0, sizeof(*cm));
@@ -5644,8 +5640,7 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
  *
  * Helper function.
  */
-NS_INTERNAL uint32_t coap_compose(struct ns_coap_message *cm,
-                                  struct iobuf *io) {
+uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   struct ns_coap_option *opt;
   uint32_t res, prev_opt_number;
   size_t prev_io_len, packet_size;
@@ -5727,9 +5722,9 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
   uint32_t compose_res;
 
   iobuf_init(&packet_out, 0);
-  compose_res = coap_compose(cm, &packet_out);
+  compose_res = ns_coap_compose(cm, &packet_out);
   if (compose_res != 0) {
-    return compose_res;
+    return compose_res;  /* LCOV_EXCL_LINE */
   }
 
   send_res = ns_send(nc, packet_out.buf, (int)packet_out.len);
@@ -5740,7 +5735,7 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
      * in case of UDP ns_send tries to send immediately
      * and could return an error.
      */
-    return NS_COAP_NETWORK_ERROR;
+    return NS_COAP_NETWORK_ERROR;  /* LCOV_EXCL_LINE */
   }
 
   return 0;
@@ -5770,15 +5765,15 @@ static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
-      parse_res = coap_parse(io, &cm);
+      parse_res = ns_coap_parse(io, &cm);
       if  ((parse_res & NS_COAP_IGNORE) == 0) {
         if ((cm.flags & NS_COAP_NOT_ENOUGH_DATA) != 0) {
           /*
            * Since we support UDP only
            * NS_COAP_NOT_ENOUGH_DATA == NS_COAP_FORMAT_ERROR
            */
-          cm.flags |= NS_COAP_FORMAT_ERROR;
-        }
+          cm.flags |= NS_COAP_FORMAT_ERROR;  /* LCOV_EXCL_LINE */
+        }  /* LCOV_EXCL_LINE */
         nc->handler(nc, NS_COAP_EVENT_BASE + cm.msg_type, &cm);
       }
 

@@ -631,6 +631,21 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
   }
 }
 
+/*
+ * Turn the connection into SSL mode.
+ * `cert` is the certificate file in PEM format. For listening connections,
+ * certificate file must contain private key and server certificate,
+ * concatenated. `ca_cert` is a certificate authority (CA) PEM file, and
+ * it is optional (can be set to NULL). If `ca_cert` is non-NULL, then
+ * the connection is so-called two-way-SSL: other peer's certificate is
+ * checked against the `ca_cert`.
+ *
+ * Handy OpenSSL command to generate test self-signed certificate:
+ *
+ *    openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 999
+ *
+ * Return NULL on success, or error message on failure.
+ */
 const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
                        const char *ca_cert) {
   const char *result = NULL;

@@ -18,6 +18,9 @@ static const char *s_http_port = "8000";
 static struct http_backend s_http_backends[100];
 static int s_num_http_backends = 0;
 static int s_sig_num = 0;
+#ifdef NS_ENABLE_SSL
+const char *s_ssl_cert = NULL;
+#endif
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data);
 
 static void signal_handler(int sig_num) {
@@ -116,6 +119,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
 int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
+  struct ns_connection *nc;
   int i;
 
   ns_mgr_init(&mgr, NULL);
@@ -133,17 +137,32 @@ int main(int argc, char *argv[]) {
       s_http_backends[s_num_http_backends].host_port = argv[i + 2];
       s_num_http_backends++;
       i += 2;
+#ifdef NS_ENABLE_SSL
+    } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
+      s_ssl_cert = argv[++i];
+#endif
     }
   }
 
   /* Open listening socket */
-  if (ns_bind(&mgr, s_http_port, ev_handler) == NULL) {
+  if ((nc = ns_bind(&mgr, s_http_port, ev_handler)) == NULL) {
     fprintf(stderr, "ns_bind(%s) failed\n", s_http_port);
     exit(EXIT_FAILURE);
   }
 
+#if NS_ENABLE_SSL
+  const char *err_str = ns_set_ssl(nc, s_ssl_cert, NULL);
+  if (err_str != NULL) {
+    fprintf(stderr, "Error loading SSL cert: %s\n", err_str);
+    exit(1);
+  }
+#endif
+
   if (s_num_http_backends == 0) {
     fprintf(stderr, "Usage: %s [-D] [-p http_port] "
+#if NS_ENABLE_SSL
+            "[-s ssl_cert] "
+#endif
             "<-b uri_prefix host_port> ...\n", argv[0]);
     exit(EXIT_FAILURE);
   }

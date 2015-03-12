@@ -63,6 +63,15 @@ int main(int argc, char *argv[]) {
       s_http_server_opts.global_auth_file = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
       s_http_server_opts.per_directory_auth_file = argv[++i];
+#ifdef NS_ENABLE_SSL
+    } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
+      const char *ssl_cert = argv[++i];
+      const char *err_str = ns_set_ssl(nc, ssl_cert, NULL);
+      if (err_str != NULL) {
+        fprintf(stderr, "Error loading SSL cert: %s\n", err_str);
+        exit(1);
+      }
+#endif
     }
   }
 

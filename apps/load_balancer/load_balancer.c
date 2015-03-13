@@ -151,10 +151,12 @@ int main(int argc, char *argv[]) {
   }
 
 #if NS_ENABLE_SSL
-  const char *err_str = ns_set_ssl(nc, s_ssl_cert, NULL);
-  if (err_str != NULL) {
-    fprintf(stderr, "Error loading SSL cert: %s\n", err_str);
-    exit(1);
+  if (s_ssl_cert != NULL) {
+    const char *err_str = ns_set_ssl(nc, s_ssl_cert, NULL);
+    if (err_str != NULL) {
+      fprintf(stderr, "Error loading SSL cert: %s\n", err_str);
+      exit(1);
+    }
   }
 #endif
 

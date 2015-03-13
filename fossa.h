@@ -1123,13 +1123,9 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 #define NS_COAP_RST (NS_COAP_EVENT_BASE + NS_COAP_MSG_RST)
 
 /*
- * CoAP assumes variable number of options
- * without its counter, so the only way to
- * get number of options is to walk through packet.
- * To handle this linked list (+ NS_MALLOC) is used.
- * To simplify changing (if required)
- * creation/deleting options should be performed via
- * ns_coap_free_options/ns_coap_add_option funtions
+ * CoAP options.
+ * Use ns_coap_add_option and ns_coap_free_options
+ * for creation and destruction.
  */
 struct ns_coap_option {
   struct ns_coap_option *next;
@@ -1137,6 +1133,7 @@ struct ns_coap_option {
   struct ns_str value;
 };
 
+/* CoAP message. See RFC 7252 for details. */
 struct ns_coap_message {
   uint32_t flags;
   uint8_t msg_type;

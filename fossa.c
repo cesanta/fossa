@@ -5203,8 +5203,6 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
  */
 
-/* TODO(alashkin): remove this #include after dev completion */
-#include <stdlib.h>
 
 /*
  * Frees the memory allocated for options,
@@ -5220,7 +5218,7 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
 
 /*
  * Adds new option to ns_coap_message structure.
- * Returns pointer to newly created options.
+ * Returns pointer to the newly created option.
  */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                           uint32_t number, char* value,
@@ -5499,8 +5497,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
  * (behind its RFC)
  * Caller have to check results and
  * threat COAP_NOT_ENOUGH_DATA according to
- * underlaying protocol
- * in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR
+ * underlying protocol:
+ * in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR,
  * in case of TCP client can try to recieve more data
  *
  * Helper function.
@@ -5658,7 +5656,6 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
 /*
  * Composes CoAP message from ns_coap_message structure.
  * Returns 0 on success or bit mask with wrong field.
- * Packet returned must be explicitly deleted by NS_FREE.
  *
  * Helper function.
  */

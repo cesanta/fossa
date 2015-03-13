@@ -6,6 +6,7 @@
 #include "../../fossa.h"
 
 struct http_backend {
+  const char *vhost;        /* NULL if any host */
   const char *uri_prefix;   /* URI prefix, e.g. "/api/v1/", "/static/" */
   const char *host_port;    /* Backend address */
   int usage_counter;        /* Number of times this backend was chosen */
@@ -33,6 +34,15 @@ static int has_prefix(const struct ns_str *uri, const char *prefix) {
   return uri->len >= prefix_len && memcmp(uri->p, prefix, prefix_len) == 0;
 }
 
+static int matches_vhost(const struct ns_str *host, const char *vhost) {
+  size_t vhost_len;
+  if (vhost == NULL) {
+    return 1;
+  }
+  vhost_len = strlen(vhost);
+  return host->len == vhost_len && memcmp(host->p, vhost, vhost_len) == 0;
+}
+
 static void choose_backend(struct ns_connection *nc) {
   struct http_message hm;
   struct iobuf *io = &nc->recv_iobuf;
@@ -46,11 +56,20 @@ static void choose_backend(struct ns_connection *nc) {
   } else {
     /*
      * Got HTTP request, look which backend to use. Round-robin over the
-     * backends with the same uri_prefix.
+     * backends with the same uri_prefix and vhost.
      */
+    struct ns_str vhost = *ns_get_http_header(&hm, "host");
+    const char *vhost_end = vhost.p;
+    while(vhost_end < vhost.p + vhost.len &&
+          *vhost_end != ':') {
+      vhost_end++;
+    }
+    vhost.len = vhost_end - vhost.p;
+
     int i, chosen = -1;
     for (i = 0; i < s_num_http_backends; i++) {
       if (has_prefix(&hm.uri, s_http_backends[i].uri_prefix) &&
+          matches_vhost(&vhost, s_http_backends[i].vhost) &&
           (chosen == -1 || s_http_backends[i].usage_counter <
            s_http_backends[chosen].usage_counter)) {
         chosen = i;
@@ -133,8 +152,15 @@ int main(int argc, char *argv[]) {
       s_http_port = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "-b") == 0 && i + 2 < argc) {
+      s_http_backends[s_num_http_backends].vhost = NULL;
       s_http_backends[s_num_http_backends].uri_prefix = argv[i + 1];
       s_http_backends[s_num_http_backends].host_port = argv[i + 2];
+      s_num_http_backends++;
+      i += 2;
+    } else if (strcmp(argv[i], "-vb") == 0 && i + 3 < argc) {
+      s_http_backends[s_num_http_backends].vhost = argv[i + 1];
+      s_http_backends[s_num_http_backends].uri_prefix = argv[i + 2];
+      s_http_backends[s_num_http_backends].host_port = argv[i + 3];
       s_num_http_backends++;
       i += 2;
 #ifdef NS_ENABLE_SSL
@@ -163,7 +189,8 @@ int main(int argc, char *argv[]) {
 #if NS_ENABLE_SSL
             "[-s ssl_cert] "
 #endif
-            "<-b uri_prefix host_port> ...\n", argv[0]);
+            "<-b uri_prefix host_port> ... "
+            "<-vb vhost uri_prefix host_port> ...\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 

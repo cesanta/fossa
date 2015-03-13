@@ -15,6 +15,12 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * == CoAP
+ */
+
+#include "internal.h"
+
 #ifdef NS_ENABLE_COAP
 
 /*

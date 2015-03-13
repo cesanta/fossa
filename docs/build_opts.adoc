@@ -21,6 +21,7 @@ compile the application `my_app.c` like this (assumed UNIX system):
 - `NS_ENABLE_THREADS` enable `ns_start_thread()` API
 - `NS_ENABLE_MQTT_BROKER` enable MQTT broker
 - `NS_ENABLE_DNS_SERVER` enable DNS server
+- `NS_ENABLE_COAP` enable CoAP protocol
 - `NS_ENABLE_GETADDRINFO` enable `getaddrinfo()` in `ns_resolve2()`
 
 

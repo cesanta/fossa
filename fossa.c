@@ -5185,6 +5185,11 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * == CoAP
+ */
+
+
 #ifdef NS_ENABLE_COAP
 
 /*

@@ -8,5 +8,6 @@ mqtt.adoc
 mqtt-broker.adoc
 sha1.adoc
 util.adoc
+coap.adoc 
 iobuf.adoc
 index-docinfo.html

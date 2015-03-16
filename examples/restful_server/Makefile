@@ -1,6 +1,12 @@
 PROG = restful_server
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -pthread $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. $(CFLAGS_EXTRA)
+
+ifeq ($(SSL), openssl)
+	CFLAGS += -DNS_ENABLE_SSL -lssl -lcrypto
+else ifeq ($(SSL), krypton)
+	CFLAGS += -DNS_ENABLE_SSL ../../../krypton/krypton.c
+endif
 
 all: $(PROG)
 

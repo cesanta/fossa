@@ -4,6 +4,13 @@
 # Note: order is important
 SUBDIRS = src docs test examples apps
 
+CLANG_FORMAT:=clang-format
+
+ifneq ("$(wildcard /usr/local/bin/clang-3.6)","")
+	CLANG:=/usr/local/bin/clang-3.6
+	CLANG_FORMAT:=/usr/local/bin/clang-format-3.6
+endif
+
 .PHONY: all $(SUBDIRS)
 
 all: $(SUBDIRS)
@@ -29,3 +36,7 @@ setup-hooks:
 
 clean:
 	@for i in $(SUBDIRS); do $(MAKE) -C $$i clean ; done
+
+format:
+	@/usr/bin/find src -name "*.[ch]" | grep -v sha1.c | grep -v md5.c | xargs $(CLANG_FORMAT) -i
+	@$(CLANG_FORMAT) -i test/unit_test.c

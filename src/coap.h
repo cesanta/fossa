@@ -32,7 +32,7 @@
 
 #define NS_COAP_ERROR 0x10000
 #define NS_COAP_FORMAT_ERROR (NS_COAP_ERROR | 0x20000)
-#define NS_COAP_IGNORE (NS_COAP_ERROR | 0x40000 )
+#define NS_COAP_IGNORE (NS_COAP_ERROR | 0x40000)
 #define NS_COAP_NOT_ENOUGH_DATA (NS_COAP_ERROR | 0x80000)
 #define NS_COAP_NETWORK_ERROR (NS_COAP_ERROR | 0x100000)
 
@@ -79,11 +79,11 @@ struct ns_coap_message {
 
 #ifdef __cplusplus
 extern "C" {
-#endif  /* __cplusplus */
+#endif /* __cplusplus */
 
 void ns_coap_free_options(struct ns_coap_message *cm);
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
-                                          uint32_t number, char* value,
+                                          uint32_t number, char *value,
                                           size_t len);
 int ns_set_protocol_coap(struct ns_connection *nc);
 uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id);
@@ -95,8 +95,8 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io);
 
 #ifdef __cplusplus
 }
-#endif  /* __cplusplus */
+#endif /* __cplusplus */
 
-#endif  /* NS_ENABLE_COAP */
+#endif /* NS_ENABLE_COAP */
 
-#endif  /* NS_COAP_HEADER_INCLUDED */
+#endif /* NS_COAP_HEADER_INCLUDED */

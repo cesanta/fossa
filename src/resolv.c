@@ -33,28 +33,27 @@ struct ns_resolve_async_request {
  * Return 0 if OK, -1 if error
  */
 static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
-  int  ret = 0;
+  int ret = 0;
 
 #ifdef _WIN32
-  int  i;
-  LONG  err;
-  HKEY  hKey, hSub;
-  char  subkey[512], dhcpns[512], ns[512], value[128], *key =
-  "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
+  int i;
+  LONG err;
+  HKEY hKey, hSub;
+  char subkey[512], dhcpns[512], ns[512], value[128],
+      *key = "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
 
-  if ((err = RegOpenKey(HKEY_LOCAL_MACHINE,
-      key, &hKey)) != ERROR_SUCCESS) {
+  if ((err = RegOpenKey(HKEY_LOCAL_MACHINE, key, &hKey)) != ERROR_SUCCESS) {
     fprintf(stderr, "cannot open reg key %s: %d\n", key, err);
     ret--;
   } else {
-    for (ret--, i = 0; RegEnumKey(hKey, i, subkey,
-        sizeof(subkey)) == ERROR_SUCCESS; i++) {
+    for (ret--, i = 0;
+         RegEnumKey(hKey, i, subkey, sizeof(subkey)) == ERROR_SUCCESS; i++) {
       DWORD type, len = sizeof(value);
       if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
-          (RegQueryValueEx(hSub, "NameServer", 0,
-          &type, value, &len) == ERROR_SUCCESS ||
-          RegQueryValueEx(hSub, "DhcpNameServer", 0,
-          &type, value, &len) == ERROR_SUCCESS)) {
+          (RegQueryValueEx(hSub, "NameServer", 0, &type, value, &len) ==
+               ERROR_SUCCESS ||
+           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, value, &len) ==
+               ERROR_SUCCESS)) {
         /*
          * See https://github.com/cesanta/fossa/issues/176
          * The value taken from the registry can be empty, a single
@@ -74,14 +73,14 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     RegCloseKey(hKey);
   }
 #else
-  FILE  *fp;
-  char  line[512];
+  FILE *fp;
+  char line[512];
 
   if ((fp = fopen("/etc/resolv.conf", "r")) == NULL) {
     ret--;
   } else {
     /* Try to figure out what nameserver to use */
-    for (ret--; fgets(line, sizeof(line), fp) != NULL; ) {
+    for (ret--; fgets(line, sizeof(line), fp) != NULL;) {
       char buf[256];
       if (sscanf(line, "nameserver %255[^\n]s", buf) == 1) {
         snprintf(name, name_len, "udp://%s:53", buf);
@@ -114,7 +113,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     return -1;
   }
 
-  for (; fgets(line, sizeof(line), fp) != NULL; ) {
+  for (; fgets(line, sizeof(line), fp) != NULL;) {
     if (line[0] == '#') continue;
 
     if (sscanf(line, "%u.%u.%u.%u%n", &a, &b, &c, &d, &len) == 0) {
@@ -154,7 +153,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       }
       break;
     case NS_RECV:
-      if (ns_parse_dns(nc->recv_iobuf.buf, * (int *) data, &msg) == 0 &&
+      if (ns_parse_dns(nc->recv_iobuf.buf, *(int *) data, &msg) == 0 &&
           msg.num_answers > 0) {
         req->callback(&msg, req->data);
       } else {
@@ -188,7 +187,8 @@ int ns_resolve_async(struct ns_mgr *mgr, const char *name, int query,
  * [source,c]
  * ----
  * struct in_addr ina;
- * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD, NULL);
+ * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD,
+ *NULL);
  * ns_dns_parse_record_data(msg, rr, &ina, sizeof(ina));
  * ----
  */
@@ -214,9 +214,9 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   req->timeout = opts.timeout ? opts.timeout : 5;
 
   /* Lazily initialize dns server */
-  if (nameserver == NULL && ns_dns_server[0] == '\0'  &&
-      ns_get_ip_address_of_nameserver(ns_dns_server,
-                                      sizeof(ns_dns_server)) == -1) {
+  if (nameserver == NULL && ns_dns_server[0] == '\0' &&
+      ns_get_ip_address_of_nameserver(ns_dns_server, sizeof(ns_dns_server)) ==
+          -1) {
     strncpy(ns_dns_server, ns_default_dns_server, sizeof(ns_dns_server));
   }
 
@@ -234,4 +234,4 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   return 0;
 }
 
-#endif  /* NS_DISABLE_RESOLVE */
+#endif /* NS_DISABLE_RESOLVE */

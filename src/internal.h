@@ -22,7 +22,10 @@
 #define NS_FREE free
 #endif
 
-#define NS_SET_PTRPTR(_ptr, _v) do { if (_ptr) *(_ptr) = _v; } while (0)
+#define NS_SET_PTRPTR(_ptr, _v) \
+  do {                          \
+    if (_ptr) *(_ptr) = _v;     \
+  } while (0)
 
 #ifndef NS_INTERNAL
 #define NS_INTERNAL static
@@ -39,5 +42,4 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 
-
-#endif  /* NS_INTERNAL_HEADER_INCLUDED */
+#endif /* NS_INTERNAL_HEADER_INCLUDED */

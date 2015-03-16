@@ -47,29 +47,27 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
     case NS_MQTT_CMD_PUBREL:
     case NS_MQTT_CMD_PUBCOMP:
     case NS_MQTT_CMD_SUBACK:
-      mm->message_id = ntohs(*(uint16_t*)io->buf);
+      mm->message_id = ntohs(*(uint16_t *) io->buf);
       var_len = 2;
       break;
-    case NS_MQTT_CMD_PUBLISH:
-      {
-        uint16_t topic_len = ntohs(*(uint16_t*)io->buf);
-        mm->topic = (char *) NS_MALLOC(topic_len + 1);
-        mm->topic[topic_len] = 0;
-        strncpy(mm->topic, io->buf + 2, topic_len);
-        var_len = topic_len + 2;
+    case NS_MQTT_CMD_PUBLISH: {
+      uint16_t topic_len = ntohs(*(uint16_t *) io->buf);
+      mm->topic = (char *) NS_MALLOC(topic_len + 1);
+      mm->topic[topic_len] = 0;
+      strncpy(mm->topic, io->buf + 2, topic_len);
+      var_len = topic_len + 2;
 
-        if (NS_MQTT_GET_QOS(header) > 0) {
-          mm->message_id = ntohs(*(uint16_t*)io->buf);
-          var_len += 2;
-        }
+      if (NS_MQTT_GET_QOS(header) > 0) {
+        mm->message_id = ntohs(*(uint16_t *) io->buf);
+        var_len += 2;
       }
-      break;
+    } break;
     case NS_MQTT_CMD_SUBSCRIBE:
       /*
        * topic expressions are left in the payload and can be parsed with
        * `ns_mqtt_next_subscribe_topic`
        */
-      mm->message_id = ntohs(* (uint16_t *) io->buf);
+      mm->message_id = ntohs(*(uint16_t *) io->buf);
       var_len = 2;
       break;
     default:
@@ -129,8 +127,7 @@ void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
 }
 
-void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
-                                const char *client_id,
+void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id,
                                 struct ns_send_mqtt_handshake_opts opts) {
   uint8_t header = NS_MQTT_CMD_CONNECT << 4;
   uint8_t rem_len;
@@ -138,10 +135,11 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
   uint16_t client_id_len;
 
   /*
-   * 9: version_header(len, magic_string, version_number), 1: flags, 2: keep-alive timer,
+   * 9: version_header(len, magic_string, version_number), 1: flags, 2:
+   * keep-alive timer,
    * 2: client_identifier_len, n: client_id
    */
-  rem_len = 9+1+2+2+strlen(client_id);
+  rem_len = 9 + 1 + 2 + 2 + strlen(client_id);
 
   ns_send(nc, &header, 1);
   ns_send(nc, &rem_len, 1);
@@ -162,7 +160,7 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
                                    uint8_t flags, size_t len) {
   size_t off = nc->send_iobuf.len - len;
-  uint8_t header = cmd << 4 | (uint8_t)flags;
+  uint8_t header = cmd << 4 | (uint8_t) flags;
 
   uint8_t buf[1 + sizeof(size_t)];
   uint8_t *vlen = &buf[1];
@@ -175,8 +173,7 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
   do {
     *vlen = len % 0x80;
     len /= 0x80;
-    if (len > 0)
-      *vlen |= 0x80;
+    if (len > 0) *vlen |= 0x80;
     vlen++;
   } while (len > 0);
 
@@ -185,8 +182,8 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
 
 /* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
-                     uint16_t message_id, int flags,
-                     const void *data, size_t len) {
+                     uint16_t message_id, int flags, const void *data,
+                     size_t len) {
   size_t old_len = nc->send_iobuf.len;
 
   uint16_t topic_len = htons(strlen(topic));
@@ -232,9 +229,7 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
  * of topics is exhausted.
  */
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
-                                 struct ns_str *topic,
-                                 uint8_t *qos,
-                                 int pos) {
+                                 struct ns_str *topic, uint8_t *qos, int pos) {
   unsigned char *buf = (unsigned char *) msg->payload.p + pos;
   if ((size_t) pos >= msg->payload.len) {
     return -1;
@@ -340,4 +335,4 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_DISCONNECT, 0, 0);
 }
 
-#endif  /* NS_DISABLE_MQTT */
+#endif /* NS_DISABLE_MQTT */

@@ -12,65 +12,65 @@
 #include "internal.h"
 
 struct proto_data_http {
-  FILE *fp;   /* Opened file */
+  FILE *fp; /* Opened file */
 };
 
-#define MIME_ENTRY(_ext, _type) { _ext, sizeof(_ext) - 1, _type }
+#define MIME_ENTRY(_ext, _type) \
+  { _ext, sizeof(_ext) - 1, _type }
 static const struct {
   const char *extension;
   size_t ext_len;
   const char *mime_type;
 } static_builtin_mime_types[] = {
-  MIME_ENTRY("html", "text/html"),
-  MIME_ENTRY("html", "text/html"),
-  MIME_ENTRY("htm", "text/html"),
-  MIME_ENTRY("shtm", "text/html"),
-  MIME_ENTRY("shtml", "text/html"),
-  MIME_ENTRY("css", "text/css"),
-  MIME_ENTRY("js", "application/x-javascript"),
-  MIME_ENTRY("ico", "image/x-icon"),
-  MIME_ENTRY("gif", "image/gif"),
-  MIME_ENTRY("jpg", "image/jpeg"),
-  MIME_ENTRY("jpeg", "image/jpeg"),
-  MIME_ENTRY("png", "image/png"),
-  MIME_ENTRY("svg", "image/svg+xml"),
-  MIME_ENTRY("txt", "text/plain"),
-  MIME_ENTRY("torrent", "application/x-bittorrent"),
-  MIME_ENTRY("wav", "audio/x-wav"),
-  MIME_ENTRY("mp3", "audio/x-mp3"),
-  MIME_ENTRY("mid", "audio/mid"),
-  MIME_ENTRY("m3u", "audio/x-mpegurl"),
-  MIME_ENTRY("ogg", "application/ogg"),
-  MIME_ENTRY("ram", "audio/x-pn-realaudio"),
-  MIME_ENTRY("xml", "text/xml"),
-  MIME_ENTRY("ttf", "application/x-font-ttf"),
-  MIME_ENTRY("json", "application/json"),
-  MIME_ENTRY("xslt", "application/xml"),
-  MIME_ENTRY("xsl", "application/xml"),
-  MIME_ENTRY("ra", "audio/x-pn-realaudio"),
-  MIME_ENTRY("doc", "application/msword"),
-  MIME_ENTRY("exe", "application/octet-stream"),
-  MIME_ENTRY("zip", "application/x-zip-compressed"),
-  MIME_ENTRY("xls", "application/excel"),
-  MIME_ENTRY("tgz", "application/x-tar-gz"),
-  MIME_ENTRY("tar", "application/x-tar"),
-  MIME_ENTRY("gz", "application/x-gunzip"),
-  MIME_ENTRY("arj", "application/x-arj-compressed"),
-  MIME_ENTRY("rar", "application/x-rar-compressed"),
-  MIME_ENTRY("rtf", "application/rtf"),
-  MIME_ENTRY("pdf", "application/pdf"),
-  MIME_ENTRY("swf", "application/x-shockwave-flash"),
-  MIME_ENTRY("mpg", "video/mpeg"),
-  MIME_ENTRY("webm", "video/webm"),
-  MIME_ENTRY("mpeg", "video/mpeg"),
-  MIME_ENTRY("mov", "video/quicktime"),
-  MIME_ENTRY("mp4", "video/mp4"),
-  MIME_ENTRY("m4v", "video/x-m4v"),
-  MIME_ENTRY("asf", "video/x-ms-asf"),
-  MIME_ENTRY("avi", "video/x-msvideo"),
-  MIME_ENTRY("bmp", "image/bmp"),
-  {NULL, 0, NULL}
-};
+    MIME_ENTRY("html", "text/html"),
+    MIME_ENTRY("html", "text/html"),
+    MIME_ENTRY("htm", "text/html"),
+    MIME_ENTRY("shtm", "text/html"),
+    MIME_ENTRY("shtml", "text/html"),
+    MIME_ENTRY("css", "text/css"),
+    MIME_ENTRY("js", "application/x-javascript"),
+    MIME_ENTRY("ico", "image/x-icon"),
+    MIME_ENTRY("gif", "image/gif"),
+    MIME_ENTRY("jpg", "image/jpeg"),
+    MIME_ENTRY("jpeg", "image/jpeg"),
+    MIME_ENTRY("png", "image/png"),
+    MIME_ENTRY("svg", "image/svg+xml"),
+    MIME_ENTRY("txt", "text/plain"),
+    MIME_ENTRY("torrent", "application/x-bittorrent"),
+    MIME_ENTRY("wav", "audio/x-wav"),
+    MIME_ENTRY("mp3", "audio/x-mp3"),
+    MIME_ENTRY("mid", "audio/mid"),
+    MIME_ENTRY("m3u", "audio/x-mpegurl"),
+    MIME_ENTRY("ogg", "application/ogg"),
+    MIME_ENTRY("ram", "audio/x-pn-realaudio"),
+    MIME_ENTRY("xml", "text/xml"),
+    MIME_ENTRY("ttf", "application/x-font-ttf"),
+    MIME_ENTRY("json", "application/json"),
+    MIME_ENTRY("xslt", "application/xml"),
+    MIME_ENTRY("xsl", "application/xml"),
+    MIME_ENTRY("ra", "audio/x-pn-realaudio"),
+    MIME_ENTRY("doc", "application/msword"),
+    MIME_ENTRY("exe", "application/octet-stream"),
+    MIME_ENTRY("zip", "application/x-zip-compressed"),
+    MIME_ENTRY("xls", "application/excel"),
+    MIME_ENTRY("tgz", "application/x-tar-gz"),
+    MIME_ENTRY("tar", "application/x-tar"),
+    MIME_ENTRY("gz", "application/x-gunzip"),
+    MIME_ENTRY("arj", "application/x-arj-compressed"),
+    MIME_ENTRY("rar", "application/x-rar-compressed"),
+    MIME_ENTRY("rtf", "application/rtf"),
+    MIME_ENTRY("pdf", "application/pdf"),
+    MIME_ENTRY("swf", "application/x-shockwave-flash"),
+    MIME_ENTRY("mpg", "video/mpeg"),
+    MIME_ENTRY("webm", "video/webm"),
+    MIME_ENTRY("mpeg", "video/mpeg"),
+    MIME_ENTRY("mov", "video/quicktime"),
+    MIME_ENTRY("mp4", "video/mp4"),
+    MIME_ENTRY("m4v", "video/x-m4v"),
+    MIME_ENTRY("asf", "video/x-ms-asf"),
+    MIME_ENTRY("avi", "video/x-msvideo"),
+    MIME_ENTRY("bmp", "image/bmp"),
+    {NULL, 0, NULL}};
 
 static const char *get_mime_type(const char *path, const char *dflt) {
   const char *ext;
@@ -80,8 +80,7 @@ static const char *get_mime_type(const char *path, const char *dflt) {
 
   for (i = 0; static_builtin_mime_types[i].extension != NULL; i++) {
     ext = path + (path_len - static_builtin_mime_types[i].ext_len);
-    if (path_len > static_builtin_mime_types[i].ext_len &&
-        ext[-1] == '.' &&
+    if (path_len > static_builtin_mime_types[i].ext_len && ext[-1] == '.' &&
         ns_casecmp(ext, static_builtin_mime_types[i].extension) == 0) {
       return static_builtin_mime_types[i].mime_type;
     }
@@ -132,7 +131,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
   end = s + len;
 
   /* Request is fully buffered. Skip leading whitespaces. */
-  while (s < end && isspace(* (unsigned char *) s)) s++;
+  while (s < end && isspace(*(unsigned char *) s)) s++;
 
   /* Parse request line: method, URI, proto */
   s = ns_skip(s, end, " ", &req->method);
@@ -147,7 +146,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
     s = ns_skip(s, end, "\r\n", v);
 
     while (v->len > 0 && v->p[v->len - 1] == ' ') {
-      v->len--;  /* Trim trailing spaces in header value */
+      v->len--; /* Trim trailing spaces in header value */
     }
 
     if (k->len == 0 || v->len == 0) {
@@ -226,11 +225,11 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
-  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
-         len, mask_len = 0, header_len = 0;
-  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf,
-              *buf = p, *e = p + buf_len;
-  unsigned *sizep = (unsigned *) &p[1];  /* Size ptr for defragmented frames */
+  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len, len,
+              mask_len = 0, header_len = 0;
+  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf, *buf = p,
+                *e = p + buf_len;
+  unsigned *sizep = (unsigned *) &p[1]; /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
                   !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
 
@@ -249,11 +248,11 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       header_len = 2 + mask_len;
     } else if (len == 126 && buf_len >= 4 + mask_len) {
       header_len = 4 + mask_len;
-      data_len = ntohs(* (uint16_t *) &buf[2]);
+      data_len = ntohs(*(uint16_t *) &buf[2]);
     } else if (buf_len >= 10 + mask_len) {
       header_len = 10 + mask_len;
-      data_len = (((uint64_t) ntohl(* (uint32_t *) &buf[2])) << 32) +
-                 ntohl(* (uint32_t *) &buf[6]);
+      data_len = (((uint64_t) ntohl(*(uint32_t *) &buf[2])) << 32) +
+                 ntohl(*(uint32_t *) &buf[6]);
     }
   }
 
@@ -278,9 +277,9 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       /* On first fragmented frame, nullify size */
       if (is_ws_first_fragment(wsm.flags)) {
         iobuf_resize(&nc->recv_iobuf, nc->recv_iobuf.size + sizeof(*sizep));
-        p[0] &= ~0x0f;  /* Next frames will be treated as continuation */
+        p[0] &= ~0x0f; /* Next frames will be treated as continuation */
         buf = p + 1 + sizeof(*sizep);
-        *sizep = 0;  /* TODO(lsm): fix. this can stomp over frame data */
+        *sizep = 0; /* TODO(lsm): fix. this can stomp over frame data */
       }
 
       /* Append this frame to the reassembled buffer */
@@ -298,7 +297,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     } else {
       /* TODO(lsm): properly handle OOB control frames during defragmentation */
       handle_incoming_websocket_frame(nc, &wsm);
-      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);  /* Cleanup frame */
+      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len); /* Cleanup frame */
     }
   }
 
@@ -315,12 +314,12 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
     header_len = 2;
   } else if (len < 65535) {
     header[1] = 126;
-    * (uint16_t *) &header[2] = htons((uint16_t) len);
+    *(uint16_t *) &header[2] = htons((uint16_t) len);
     header_len = 4;
   } else {
     header[1] = 127;
-    * (uint32_t *) &header[2] = htonl((uint32_t) ((uint64_t) len >> 32));
-    * (uint32_t *) &header[6] = htonl((uint32_t) (len & 0xffffffff));
+    *(uint32_t *) &header[2] = htonl((uint32_t)((uint64_t) len >> 32));
+    *(uint32_t *) &header[6] = htonl((uint32_t)(len & 0xffffffff));
     header_len = 10;
   }
   ns_send(nc, header, header_len);
@@ -339,8 +338,8 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
  * - WEBSOCKET_OP_PONG
  * `data` and `data_len` contain frame data.
  */
-void ns_send_websocket_frame(struct ns_connection *nc, int op,
-                             const void *data, size_t len) {
+void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
+                             size_t len) {
   ns_send_ws_header(nc, op, len);
   ns_send(nc, data, len);
 
@@ -401,12 +400,13 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
-      do { } while (deliver_websocket_data(nc));
+      do {
+      } while (deliver_websocket_data(nc));
       break;
     case NS_POLL:
       /* Ping idle websocket connections */
       {
-        time_t now = * (time_t *) ev_data;
+        time_t now = *(time_t *) ev_data;
         if (nc->flags & NSF_IS_WEBSOCKET &&
             now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
           ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
@@ -434,7 +434,8 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
-            "Sec-WebSocket-Accept: ", b64_sha, "\r\n\r\n");
+            "Sec-WebSocket-Accept: ",
+            b64_sha, "\r\n\r\n");
 }
 
 static void transfer_file_data(struct ns_connection *nc) {
@@ -549,7 +550,8 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
   char key[sizeof(random) * 3];
 
   ns_base64_encode((unsigned char *) &random, sizeof(random), key);
-  ns_printf(nc, "GET %s HTTP/1.1\r\n"
+  ns_printf(nc,
+            "GET %s HTTP/1.1\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
             "Sec-WebSocket-Version: 13\r\n"
@@ -568,16 +570,16 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
-    send_http_error(nc, 500, "Server Error");  /* LCOV_EXCL_LINE */
+    send_http_error(nc, 500, "Server Error"); /* LCOV_EXCL_LINE */
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
   } else {
-    ns_printf(nc, "HTTP/1.1 200 OK\r\n"
+    ns_printf(nc,
+              "HTTP/1.1 200 OK\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %lu\r\n\r\n",
-              get_mime_type(path, "text/plain"),
-              (unsigned long) st->st_size);
+              get_mime_type(path, "text/plain"), (unsigned long) st->st_size);
     nc->proto_data = (void *) dp;
     transfer_file_data(nc);
   }
@@ -603,18 +605,17 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
-static int ns_url_decode(const char *src, int src_len, char *dst,
-                         int dst_len, int is_form_url_encoded) {
+static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
+                         int is_form_url_encoded) {
   int i, j, a, b;
 #define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
 
   for (i = j = 0; i < src_len && j < dst_len - 1; i++, j++) {
     if (src[i] == '%') {
-      if (i < src_len - 2 &&
-          isxdigit(* (const unsigned char *) (src + i + 1)) &&
-          isxdigit(* (const unsigned char *) (src + i + 2))) {
-        a = tolower(* (const unsigned char *) (src + i + 1));
-        b = tolower(* (const unsigned char *) (src + i + 2));
+      if (i < src_len - 2 && isxdigit(*(const unsigned char *) (src + i + 1)) &&
+          isxdigit(*(const unsigned char *) (src + i + 2))) {
+        a = tolower(*(const unsigned char *) (src + i + 1));
+        b = tolower(*(const unsigned char *) (src + i + 2));
         dst[j] = (char) ((HEXTOI(a) << 4) | HEXTOI(b));
         i += 2;
       } else {
@@ -640,8 +641,8 @@ static int ns_url_decode(const char *src, int src_len, char *dst,
  * of a fetched variable. If not found, 0 is returned. `buf` must be
  * valid url-encoded buffer. If destination is too small, `-1` is returned.
  */
-int ns_get_http_var(const struct ns_str *buf, const char *name,
-                    char *dst, size_t dst_len) {
+int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
+                    size_t dst_len) {
   const char *p, *e, *s;
   size_t name_len;
   int len;
@@ -729,8 +730,8 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
   /* LCOV_EXCL_STOP */
 }
 
-int ns_http_parse_header(struct ns_str *hdr, const char *var_name,
-                         char *buf, size_t buf_size) {
+int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
+                         size_t buf_size) {
   int ch = ' ', ch1 = ',', len = 0, n = strlen(var_name);
   const char *p, *end = hdr->p + hdr->len, *s = NULL;
 
@@ -739,7 +740,8 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name,
   /* Find where variable starts */
   for (s = hdr->p; s != NULL && s + n < end; s++) {
     if ((s == hdr->p || s[-1] == ch || s[-1] == ch1) && s[n] == '=' &&
-        !memcmp(s, var_name, n)) break;
+        !memcmp(s, var_name, n))
+      break;
   }
 
   if (s != NULL && &s[n + 1] < end) {
@@ -781,8 +783,8 @@ static FILE *open_auth_file(const char *path, int is_directory,
     if ((p = strrchr(path, DIRSEP)) == NULL) {
       p = path;
     }
-    snprintf(buf, sizeof(buf), "%.*s%c%s",
-             (int) (p - path), path, DIRSEP, opts->per_directory_auth_file);
+    snprintf(buf, sizeof(buf), "%.*s%c%s", (int) (p - path), path, DIRSEP,
+             opts->per_directory_auth_file);
     fp = fopen(buf, "r");
   }
 
@@ -813,7 +815,7 @@ static char *ns_md5(char *buf, ...) {
   MD5_Init(&ctx);
 
   va_start(ap, buf);
-  while ((p = va_arg(ap, const unsigned char *)) != NULL) {
+  while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
     size_t len = va_arg(ap, size_t);
     MD5_Update(&ctx, p, len);
   }
@@ -825,21 +827,18 @@ static char *ns_md5(char *buf, ...) {
   return buf;
 }
 
-static void mkmd5resp(const char *method, size_t method_len,
-                      const char *uri, size_t uri_len,
-                      const char *ha1, size_t ha1_len,
-                      const char *nonce, size_t nonce_len,
-                      const char *nc, size_t nc_len,
-                      const char *cnonce, size_t cnonce_len,
-                      const char *qop, size_t qop_len,
-                      char *resp) {
+static void mkmd5resp(const char *method, size_t method_len, const char *uri,
+                      size_t uri_len, const char *ha1, size_t ha1_len,
+                      const char *nonce, size_t nonce_len, const char *nc,
+                      size_t nc_len, const char *cnonce, size_t cnonce_len,
+                      const char *qop, size_t qop_len, char *resp) {
   static const char colon[] = ":";
   static const size_t one = 1;
   char ha2[33];
 
   ns_md5(ha2, method, method_len, colon, one, uri, uri_len, NULL);
-  ns_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one,
-         nc, nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
+  ns_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one, nc,
+         nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
          colon, one, ha2, sizeof(ha2) - 1, NULL);
 }
 
@@ -848,20 +847,21 @@ static void mkmd5resp(const char *method, size_t method_len,
  */
 int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *method, const char *uri,
-                                      const char *auth_domain,
-                                      const char *user, const char *passwd) {
+                                      const char *auth_domain, const char *user,
+                                      const char *passwd) {
   static const char colon[] = ":", qop[] = "auth";
   static const size_t one = 1;
   char ha1[33], resp[33], cnonce[40];
 
   snprintf(cnonce, sizeof(cnonce), "%x", (unsigned int) time(NULL));
-  ns_md5(ha1, user, (size_t) strlen(user), colon, one,
-         auth_domain, (size_t) strlen(auth_domain), colon, one,
-         passwd, (size_t) strlen(passwd), NULL);
+  ns_md5(ha1, user, (size_t) strlen(user), colon, one, auth_domain,
+         (size_t) strlen(auth_domain), colon, one, passwd,
+         (size_t) strlen(passwd), NULL);
   mkmd5resp(method, strlen(method), uri, strlen(uri), ha1, sizeof(ha1) - 1,
-            cnonce, strlen(cnonce),
-            "1", one, cnonce, strlen(cnonce), qop, sizeof(qop) - 1, resp);
-  return snprintf(buf, buf_len, "Authorization: Digest username=\"%s\","
+            cnonce, strlen(cnonce), "1", one, cnonce, strlen(cnonce), qop,
+            sizeof(qop) - 1, resp);
+  return snprintf(buf, buf_len,
+                  "Authorization: Digest username=\"%s\","
                   "realm=\"%s\",uri=\"%s\",qop=%s,nc=1,cnonce=%s,"
                   "nonce=%s,response=%s\r\n",
                   user, auth_domain, uri, qop, cnonce, cnonce, resp);
@@ -884,16 +884,14 @@ static int check_nonce(const char *nonce) {
  * Returns 1 if authenticated, 0 otherwise.
  */
 static int ns_http_check_digest_auth(struct http_message *hm,
-                                     const char *auth_domain,
-                                     FILE *fp) {
+                                     const char *auth_domain, FILE *fp) {
   struct ns_str *hdr;
   char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
   char user[50], cnonce[20], response[40], uri[200], qop[20], nc[20], nonce[30];
   char expected_response[33];
 
   /* Parse "Authorization:" header, fail fast on parse error */
-  if (hm == NULL ||
-      fp == NULL ||
+  if (hm == NULL || fp == NULL ||
       (hdr = ns_get_http_header(hm, "Authorization")) == NULL ||
       ns_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
       ns_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
@@ -917,9 +915,9 @@ static int ns_http_check_digest_auth(struct http_message *hm,
         /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
         strcmp(auth_domain, f_domain) == 0) {
       /* User and domain matched, check the password */
-      mkmd5resp(hm->method.p, hm->method.len, hm->uri.p, hm->uri.len,
-             f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc),
-             cnonce, strlen(cnonce), qop, strlen(qop), expected_response);
+      mkmd5resp(hm->method.p, hm->method.len, hm->uri.p, hm->uri.len, f_ha1,
+                strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+                strlen(cnonce), qop, strlen(qop), expected_response);
       return ns_casecmp(response, expected_response) == 0;
     }
   }
@@ -933,9 +931,8 @@ static int is_authorized(struct http_message *hm, const char *path,
   FILE *fp;
   int authorized = 1;
 
-  if (opts->auth_domain != NULL &&
-      (opts->per_directory_auth_file != NULL ||
-       opts->global_auth_file != NULL) &&
+  if (opts->auth_domain != NULL && (opts->per_directory_auth_file != NULL ||
+                                    opts->global_auth_file != NULL) &&
       (fp = open_auth_file(path, is_directory, opts)) != NULL) {
     authorized = ns_http_check_digest_auth(hm, opts->auth_domain, fp);
     fclose(fp);
@@ -946,7 +943,10 @@ static int is_authorized(struct http_message *hm, const char *path,
 #else
 static int is_authorized(struct http_message *hm, const char *path,
                          int is_directory, struct ns_serve_http_opts *opts) {
-  (void) hm; (void) path; (void) is_directory; (void) opts;
+  (void) hm;
+  (void) path;
+  (void) is_directory;
+  (void) opts;
   return 1;
 }
 #endif
@@ -961,7 +961,8 @@ static int is_authorized(struct http_message *hm, const char *path,
  * ----
  * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
  *   struct http_message *hm = (struct http_message *) ev_data;
- *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
+ *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99
+ *syntax
  *
  *   switch (ev) {
  *     case NS_HTTP_REQUEST:
@@ -979,14 +980,15 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   ns_stat_t st;
   int stat_result, is_directory;
 
-  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root,
-           (int) hm->uri.len, hm->uri.p);
+  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root, (int) hm->uri.len,
+           hm->uri.p);
   remove_double_dots(path);
   stat_result = ns_stat(path, &st);
   is_directory = !stat_result && S_ISDIR(st.st_mode);
 
   if (!is_authorized(hm, path, is_directory, &opts)) {
-    ns_printf(nc, "HTTP/1.1 401 Unauthorized\r\n"
+    ns_printf(nc,
+              "HTTP/1.1 401 Unauthorized\r\n"
               "WWW-Authenticate: Digest qop=\"auth\", "
               "realm=\"%s\", nonce=\"%lu\"\r\n"
               "Content-Length: 0\r\n\r\n",
@@ -998,7 +1000,8 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     if (ns_stat(path, &st) == 0) {
       ns_send_http_file(nc, path, &st);
     } else {
-      ns_printf(nc, "%s", "HTTP/1.1 403 Access Denied\r\n"
+      ns_printf(nc, "%s",
+                "HTTP/1.1 403 Access Denied\r\n"
                 "Content-Length: 0\r\n\r\n");
     }
   } else {
@@ -1027,7 +1030,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       const char *extra_headers,
                                       const char *post_data) {
   struct ns_connection *nc;
-  char addr[1100], path[4096];  /* NOTE: keep sizes in sync with sscanf below */
+  char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
 
   if (memcmp(url, "http://", 7) == 0) {
@@ -1036,7 +1039,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
     url += 8;
     use_ssl = 1;
 #ifndef NS_ENABLE_SSL
-    return NULL;  /* SSL is not enabled, cannot do HTTPS URLs */
+    return NULL; /* SSL is not enabled, cannot do HTTPS URLs */
 #endif
   }
 
@@ -1045,20 +1048,20 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   /* addr buffer size made smaller to allow for port to be prepended */
   sscanf(url, "%1095[^/]/%4095s", addr, path);
   if (strchr(addr, ':') == NULL) {
-    strncat(addr, use_ssl ? ":443" : ":80",
-            sizeof(addr) - (strlen(addr) + 1));
+    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - (strlen(addr) + 1));
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
     ns_set_protocol_http_websocket(nc);
 
     if (use_ssl) {
-  #ifdef NS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
       ns_set_ssl(nc, NULL, NULL);
-  #endif
+#endif
     }
 
-    ns_printf(nc, "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
+    ns_printf(nc,
+              "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
               post_data == NULL ? "GET" : "POST", path, addr,
               post_data == NULL ? 0 : strlen(post_data),
               extra_headers == NULL ? "" : extra_headers);
@@ -1067,4 +1070,4 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   return nc;
 }
 
-#endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */

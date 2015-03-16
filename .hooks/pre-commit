@@ -1,4 +1,4 @@
 #!/bin/sh
 printenv >/tmp/dumpenv
 echo "Running pre-commit tests":
-make src difftest
+make format src difftest

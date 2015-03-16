@@ -17,7 +17,7 @@
  */
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
-  static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
+  static const struct json_token null_tok = {"null", 4, 0, JSON_TYPE_NULL};
   const struct json_token *id = req->id == NULL ? &null_tok : req->id;
   va_list ap;
   int n = 0;
@@ -50,8 +50,8 @@ int ns_rpc_create_request(char *buf, int len, const char *method,
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:s,s:s,s:",
-                 "jsonrpc", "2.0", "id", id, "method", method, "params");
+  n += json_emit(buf + n, len - n, "{s:s,s:s,s:s,s:", "jsonrpc", "2.0", "id",
+                 id, "method", method, "params");
   va_start(ap, params_fmt);
   n += json_emit_va(buf + n, len - n, params_fmt, ap);
   va_end(ap);
@@ -72,11 +72,9 @@ int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:V,s:{s:i,s:s,s:",
-                 "jsonrpc", "2.0", "id",
-                 req->id == NULL ? "null" : req->id->ptr,
-                 req->id == NULL ? 4 : req->id->len,
-                 "error", "code", code,
+  n += json_emit(buf + n, len - n, "{s:s,s:V,s:{s:i,s:s,s:", "jsonrpc", "2.0",
+                 "id", req->id == NULL ? "null" : req->id->ptr,
+                 req->id == NULL ? 4 : req->id->len, "error", "code", code,
                  "message", message, "data");
   va_start(ap, fmt);
   n += json_emit_va(buf + n, len - n, fmt, ap);
@@ -101,12 +99,24 @@ int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
   const char *message = NULL;
 
   switch (code) {
-    case JSON_RPC_PARSE_ERROR: message = "parse error"; break;
-    case JSON_RPC_INVALID_REQUEST_ERROR: message = "invalid request"; break;
-    case JSON_RPC_METHOD_NOT_FOUND_ERROR: message = "method not found"; break;
-    case JSON_RPC_INVALID_PARAMS_ERROR: message = "invalid parameters"; break;
-    case JSON_RPC_SERVER_ERROR: message = "server error"; break;
-    default: message = "unspecified error"; break;
+    case JSON_RPC_PARSE_ERROR:
+      message = "parse error";
+      break;
+    case JSON_RPC_INVALID_REQUEST_ERROR:
+      message = "invalid request";
+      break;
+    case JSON_RPC_METHOD_NOT_FOUND_ERROR:
+      message = "method not found";
+      break;
+    case JSON_RPC_INVALID_PARAMS_ERROR:
+      message = "invalid parameters";
+      break;
+    case JSON_RPC_SERVER_ERROR:
+      message = "server error";
+      break;
+    default:
+      message = "unspecified error";
+      break;
   }
 
   return ns_rpc_create_error(buf, len, req, code, message, "N");
@@ -115,7 +125,8 @@ int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
 /*
  * Dispatches a JSON-RPC request.
  *
- * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the request
+ * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the
+ *request
  * to the correct handler method. Valid method names should be specified in NULL
  * terminated array `methods`, and corresponding handlers in `handlers`.
  * Result is put in `dst`, `dst_len`. Return: length of the result, which
@@ -130,8 +141,8 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   memset(&req, 0, sizeof(req));
   n = parse_json(buf, len, tokens, sizeof(tokens) / sizeof(tokens[0]));
   if (n <= 0) {
-    int err_code = (n == JSON_STRING_INVALID) ?
-                   JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
+    int err_code = (n == JSON_STRING_INVALID) ? JSON_RPC_PARSE_ERROR
+                                              : JSON_RPC_SERVER_ERROR;
     return ns_rpc_create_std_error(dst, dst_len, &req, err_code);
   }
 
@@ -148,7 +159,8 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   for (i = 0; methods[i] != NULL; i++) {
     int mlen = strlen(methods[i]);
     if (mlen == req.method->len &&
-        memcmp(methods[i], req.method->ptr, mlen) == 0) break;
+        memcmp(methods[i], req.method->ptr, mlen) == 0)
+      break;
   }
 
   if (methods[i] == NULL) {
@@ -166,9 +178,9 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
  * `error` structure is populated. Returns: the result of calling
  * `parse_json(buf, len, toks, max_toks)`.
  */
-int ns_rpc_parse_reply(const char *buf, int len,
-                       struct json_token *toks, int max_toks,
-                       struct ns_rpc_reply *rep, struct ns_rpc_error *er) {
+int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
+                       int max_toks, struct ns_rpc_reply *rep,
+                       struct ns_rpc_error *er) {
   int n = parse_json(buf, len, toks, max_toks);
 
   memset(rep, 0, sizeof(*rep));
@@ -189,4 +201,4 @@ int ns_rpc_parse_reply(const char *buf, int len,
   return n;
 }
 
-#endif  /* NS_DISABLE_JSON_RPC */
+#endif /* NS_DISABLE_JSON_RPC */

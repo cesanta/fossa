@@ -27,7 +27,10 @@
 #define NS_FREE free
 #endif
 
-#define NS_SET_PTRPTR(_ptr, _v) do { if (_ptr) *(_ptr) = _v; } while (0)
+#define NS_SET_PTRPTR(_ptr, _v) \
+  do {                          \
+    if (_ptr) *(_ptr) = _v;     \
+  } while (0)
 
 #ifndef NS_INTERNAL
 #define NS_INTERNAL static
@@ -43,8 +46,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 
-
-#endif  /* NS_INTERNAL_HEADER_INCLUDED */
+#endif /* NS_INTERNAL_HEADER_INCLUDED */
 #ifdef NS_MODULE_LINES
 #line 1 "src/iobuf.c"
 /**/
@@ -110,7 +112,7 @@ size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   assert(off <= io->len);
 
   /* check overflow */
-  if (len > ~(size_t)0 - (size_t)(io->buf + io->len)) {
+  if (len > ~(size_t) 0 - (size_t)(io->buf + io->len)) {
     return 0;
   }
 
@@ -190,11 +192,11 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
  */
 
 
-#define NS_CTL_MSG_MESSAGE_SIZE     8192
-#define NS_READ_BUFFER_SIZE         2048
-#define NS_UDP_RECEIVE_BUFFER_SIZE  2000
-#define NS_VPRINTF_BUFFER_SIZE      500
-#define NS_MAX_HOST_LEN             200
+#define NS_CTL_MSG_MESSAGE_SIZE 8192
+#define NS_READ_BUFFER_SIZE 2048
+#define NS_UDP_RECEIVE_BUFFER_SIZE 2000
+#define NS_VPRINTF_BUFFER_SIZE 500
+#define NS_MAX_HOST_LEN 200
 
 struct ctl_msg {
   ns_event_handler_t callback;
@@ -219,7 +221,7 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
 
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
-    int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
+    int len = (ev == NS_RECV || ev == NS_SEND) ? *(int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
   /* LCOV_EXCL_STOP */
@@ -228,7 +230,7 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
    * If protocol handler is specified, call it. Otherwise, call user-specified
    * event handler.
    */
-  ev_handler = nc->proto_handler ?  nc->proto_handler : nc->handler;
+  ev_handler = nc->proto_handler ? nc->proto_handler : nc->handler;
   if (ev_handler != NULL) {
     ev_handler(nc, ev, ev_data);
   }
@@ -347,8 +349,8 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
     ns_out(nc, buf, len);
   }
   if (buf != mem && buf != NULL) {
-    NS_FREE(buf);  /* LCOV_EXCL_LINE */
-  }                /* LCOV_EXCL_LINE */
+    NS_FREE(buf); /* LCOV_EXCL_LINE */
+  }               /* LCOV_EXCL_LINE */
 
   return len;
 }
@@ -405,8 +407,9 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   } else if (sock_type == SOCK_DGRAM &&
              (getsockname(sp[0], &sa.sa, &len) != 0 ||
               connect(sock, &sa.sa, len) != 0)) {
-  } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
-                       accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
+  } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock
+                                               : accept(sock, &sa.sa, &len))) ==
+             INVALID_SOCKET) {
   } else {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
@@ -417,13 +420,13 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   if (!ret) {
     if (sp[0] != INVALID_SOCKET) closesocket(sp[0]);
     if (sp[1] != INVALID_SOCKET) closesocket(sp[1]);
-    if (sock  != INVALID_SOCKET) closesocket(sock);
+    if (sock != INVALID_SOCKET) closesocket(sock);
     sock = sp[0] = sp[1] = INVALID_SOCKET;
   }
 
   return ret;
 }
-#endif  /* NS_DISABLE_SOCKETPAIR */
+#endif /* NS_DISABLE_SOCKETPAIR */
 
 /* TODO(lsm): use non-blocking resolver */
 static int ns_resolve2(const char *host, struct in_addr *ina) {
@@ -436,11 +439,11 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
-  if((rv = getaddrinfo(host, NULL , NULL, &servinfo)) != 0) {
+  if ((rv = getaddrinfo(host, NULL, NULL, &servinfo)) != 0) {
     DBG(("getaddrinfo(%s) failed: %s", host, strerror(errno)));
     return 0;
   }
-  for(p = servinfo; p != NULL; p = p->ai_next) {
+  for (p = servinfo; p != NULL; p = p->ai_next) {
     memcpy(&h, &p->ai_addr, sizeof(struct sockaddr_in *));
     memcpy(ina, &h->sin_addr, sizeof(ina));
   }
@@ -563,17 +566,16 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
 /* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
-  socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
-                     sizeof(sa->sin) : sizeof(sa->sin6);
+  socklen_t sa_len =
+      (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
   int on = 1;
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
-
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
       /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
-      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
-                  (void *) &on, sizeof(on)) &&
+      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (void *) &on,
+                  sizeof(on)) &&
 #endif
 
 #if 1 || !defined(_WIN32) || defined(SO_EXCLUSIVEADDRUSE)
@@ -675,7 +677,7 @@ static int ns_ssl_err(struct ns_connection *conn, int res) {
   if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
   return ssl_err;
 }
-#endif  /* NS_ENABLE_SSL */
+#endif /* NS_ENABLE_SSL */
 
 static struct ns_connection *accept_conn(struct ns_connection *ls) {
   struct ns_connection *c = NULL;
@@ -688,9 +690,8 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   } else if ((c = ns_add_sock(ls->mgr, sock, ls->handler)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
-  } else if (ls->ssl_ctx != NULL &&
-             ((c->ssl = SSL_new(ls->ssl_ctx)) == NULL ||
-              SSL_set_fd(c->ssl, sock) != 1)) {
+  } else if (ls->ssl_ctx != NULL && ((c->ssl = SSL_new(ls->ssl_ctx)) == NULL ||
+                                     SSL_set_fd(c->ssl, sock) != 1)) {
     DBG(("SSL error"));
     ns_close_conn(c);
     c = NULL;
@@ -708,13 +709,13 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 }
 
 static int ns_is_error(int n) {
-  return n == 0 ||
-      (n < 0 && errno != EINTR && errno != EINPROGRESS &&
-       errno != EAGAIN && errno != EWOULDBLOCK
+  return n == 0 || (n < 0 && errno != EINTR && errno != EINPROGRESS &&
+                    errno != EAGAIN && errno != EWOULDBLOCK
 #ifdef _WIN32
-       && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
+                    && WSAGetLastError() != WSAEINTR &&
+                    WSAGetLastError() != WSAEWOULDBLOCK
 #endif
-       );
+                    );
 }
 
 static void ns_read_from_socket(struct ns_connection *conn) {
@@ -811,7 +812,9 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     }
   } else
 #endif
-  { n = (int) send(conn->sock, io->buf, io->len, 0); }
+  {
+    n = (int) send(conn->sock, io->buf, io->len, 0);
+  }
 
   DBG(("%p %lu -> %d bytes", conn, conn->flags, n));
 
@@ -935,8 +938,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     current_time = time(NULL);
 
     /* Read wakeup messages */
-    if (mgr->ctl[1] != INVALID_SOCKET &&
-        FD_ISSET(mgr->ctl[1], &read_set)) {
+    if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
       int len = (int) recv(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
       send(mgr->ctl[1], ctl_msg.message, 1, 0);
@@ -988,8 +990,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
-        (nc->send_iobuf.len == 0 &&
-         (nc->flags & NSF_SEND_AND_CLOSE))) {
+        (nc->send_iobuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
       ns_close_conn(nc);
     }
   }
@@ -1199,8 +1200,8 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
  * Returns a new listening connection, or `NULL` on error.
  */
 struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
-                              ns_event_handler_t callback,
-                              struct ns_bind_opts opts) {
+                                  ns_event_handler_t callback,
+                                  struct ns_bind_opts opts) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int proto;
@@ -1215,8 +1216,8 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
     DBG(("Failed to open listener: %d", errno));
     NS_SET_PTRPTR(opts.error_string, "failed to open listener");
-  } else if ((nc = ns_add_sock_opt(mgr, sock, callback,
-                                   add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback, add_sock_opts)) ==
+             NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
@@ -1293,8 +1294,8 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
  * in event manager thread. Note that `ns_broadcast()` is the only function
  * that can be, and must be, called from a different thread.
  */
-void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
-                  void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
+                  size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
@@ -1822,65 +1823,65 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 
 
 struct proto_data_http {
-  FILE *fp;   /* Opened file */
+  FILE *fp; /* Opened file */
 };
 
-#define MIME_ENTRY(_ext, _type) { _ext, sizeof(_ext) - 1, _type }
+#define MIME_ENTRY(_ext, _type) \
+  { _ext, sizeof(_ext) - 1, _type }
 static const struct {
   const char *extension;
   size_t ext_len;
   const char *mime_type;
 } static_builtin_mime_types[] = {
-  MIME_ENTRY("html", "text/html"),
-  MIME_ENTRY("html", "text/html"),
-  MIME_ENTRY("htm", "text/html"),
-  MIME_ENTRY("shtm", "text/html"),
-  MIME_ENTRY("shtml", "text/html"),
-  MIME_ENTRY("css", "text/css"),
-  MIME_ENTRY("js", "application/x-javascript"),
-  MIME_ENTRY("ico", "image/x-icon"),
-  MIME_ENTRY("gif", "image/gif"),
-  MIME_ENTRY("jpg", "image/jpeg"),
-  MIME_ENTRY("jpeg", "image/jpeg"),
-  MIME_ENTRY("png", "image/png"),
-  MIME_ENTRY("svg", "image/svg+xml"),
-  MIME_ENTRY("txt", "text/plain"),
-  MIME_ENTRY("torrent", "application/x-bittorrent"),
-  MIME_ENTRY("wav", "audio/x-wav"),
-  MIME_ENTRY("mp3", "audio/x-mp3"),
-  MIME_ENTRY("mid", "audio/mid"),
-  MIME_ENTRY("m3u", "audio/x-mpegurl"),
-  MIME_ENTRY("ogg", "application/ogg"),
-  MIME_ENTRY("ram", "audio/x-pn-realaudio"),
-  MIME_ENTRY("xml", "text/xml"),
-  MIME_ENTRY("ttf", "application/x-font-ttf"),
-  MIME_ENTRY("json", "application/json"),
-  MIME_ENTRY("xslt", "application/xml"),
-  MIME_ENTRY("xsl", "application/xml"),
-  MIME_ENTRY("ra", "audio/x-pn-realaudio"),
-  MIME_ENTRY("doc", "application/msword"),
-  MIME_ENTRY("exe", "application/octet-stream"),
-  MIME_ENTRY("zip", "application/x-zip-compressed"),
-  MIME_ENTRY("xls", "application/excel"),
-  MIME_ENTRY("tgz", "application/x-tar-gz"),
-  MIME_ENTRY("tar", "application/x-tar"),
-  MIME_ENTRY("gz", "application/x-gunzip"),
-  MIME_ENTRY("arj", "application/x-arj-compressed"),
-  MIME_ENTRY("rar", "application/x-rar-compressed"),
-  MIME_ENTRY("rtf", "application/rtf"),
-  MIME_ENTRY("pdf", "application/pdf"),
-  MIME_ENTRY("swf", "application/x-shockwave-flash"),
-  MIME_ENTRY("mpg", "video/mpeg"),
-  MIME_ENTRY("webm", "video/webm"),
-  MIME_ENTRY("mpeg", "video/mpeg"),
-  MIME_ENTRY("mov", "video/quicktime"),
-  MIME_ENTRY("mp4", "video/mp4"),
-  MIME_ENTRY("m4v", "video/x-m4v"),
-  MIME_ENTRY("asf", "video/x-ms-asf"),
-  MIME_ENTRY("avi", "video/x-msvideo"),
-  MIME_ENTRY("bmp", "image/bmp"),
-  {NULL, 0, NULL}
-};
+    MIME_ENTRY("html", "text/html"),
+    MIME_ENTRY("html", "text/html"),
+    MIME_ENTRY("htm", "text/html"),
+    MIME_ENTRY("shtm", "text/html"),
+    MIME_ENTRY("shtml", "text/html"),
+    MIME_ENTRY("css", "text/css"),
+    MIME_ENTRY("js", "application/x-javascript"),
+    MIME_ENTRY("ico", "image/x-icon"),
+    MIME_ENTRY("gif", "image/gif"),
+    MIME_ENTRY("jpg", "image/jpeg"),
+    MIME_ENTRY("jpeg", "image/jpeg"),
+    MIME_ENTRY("png", "image/png"),
+    MIME_ENTRY("svg", "image/svg+xml"),
+    MIME_ENTRY("txt", "text/plain"),
+    MIME_ENTRY("torrent", "application/x-bittorrent"),
+    MIME_ENTRY("wav", "audio/x-wav"),
+    MIME_ENTRY("mp3", "audio/x-mp3"),
+    MIME_ENTRY("mid", "audio/mid"),
+    MIME_ENTRY("m3u", "audio/x-mpegurl"),
+    MIME_ENTRY("ogg", "application/ogg"),
+    MIME_ENTRY("ram", "audio/x-pn-realaudio"),
+    MIME_ENTRY("xml", "text/xml"),
+    MIME_ENTRY("ttf", "application/x-font-ttf"),
+    MIME_ENTRY("json", "application/json"),
+    MIME_ENTRY("xslt", "application/xml"),
+    MIME_ENTRY("xsl", "application/xml"),
+    MIME_ENTRY("ra", "audio/x-pn-realaudio"),
+    MIME_ENTRY("doc", "application/msword"),
+    MIME_ENTRY("exe", "application/octet-stream"),
+    MIME_ENTRY("zip", "application/x-zip-compressed"),
+    MIME_ENTRY("xls", "application/excel"),
+    MIME_ENTRY("tgz", "application/x-tar-gz"),
+    MIME_ENTRY("tar", "application/x-tar"),
+    MIME_ENTRY("gz", "application/x-gunzip"),
+    MIME_ENTRY("arj", "application/x-arj-compressed"),
+    MIME_ENTRY("rar", "application/x-rar-compressed"),
+    MIME_ENTRY("rtf", "application/rtf"),
+    MIME_ENTRY("pdf", "application/pdf"),
+    MIME_ENTRY("swf", "application/x-shockwave-flash"),
+    MIME_ENTRY("mpg", "video/mpeg"),
+    MIME_ENTRY("webm", "video/webm"),
+    MIME_ENTRY("mpeg", "video/mpeg"),
+    MIME_ENTRY("mov", "video/quicktime"),
+    MIME_ENTRY("mp4", "video/mp4"),
+    MIME_ENTRY("m4v", "video/x-m4v"),
+    MIME_ENTRY("asf", "video/x-ms-asf"),
+    MIME_ENTRY("avi", "video/x-msvideo"),
+    MIME_ENTRY("bmp", "image/bmp"),
+    {NULL, 0, NULL}};
 
 static const char *get_mime_type(const char *path, const char *dflt) {
   const char *ext;
@@ -1890,8 +1891,7 @@ static const char *get_mime_type(const char *path, const char *dflt) {
 
   for (i = 0; static_builtin_mime_types[i].extension != NULL; i++) {
     ext = path + (path_len - static_builtin_mime_types[i].ext_len);
-    if (path_len > static_builtin_mime_types[i].ext_len &&
-        ext[-1] == '.' &&
+    if (path_len > static_builtin_mime_types[i].ext_len && ext[-1] == '.' &&
         ns_casecmp(ext, static_builtin_mime_types[i].extension) == 0) {
       return static_builtin_mime_types[i].mime_type;
     }
@@ -1942,7 +1942,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
   end = s + len;
 
   /* Request is fully buffered. Skip leading whitespaces. */
-  while (s < end && isspace(* (unsigned char *) s)) s++;
+  while (s < end && isspace(*(unsigned char *) s)) s++;
 
   /* Parse request line: method, URI, proto */
   s = ns_skip(s, end, " ", &req->method);
@@ -1957,7 +1957,7 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
     s = ns_skip(s, end, "\r\n", v);
 
     while (v->len > 0 && v->p[v->len - 1] == ' ') {
-      v->len--;  /* Trim trailing spaces in header value */
+      v->len--; /* Trim trailing spaces in header value */
     }
 
     if (k->len == 0 || v->len == 0) {
@@ -2036,11 +2036,11 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
-  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len,
-         len, mask_len = 0, header_len = 0;
-  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf,
-              *buf = p, *e = p + buf_len;
-  unsigned *sizep = (unsigned *) &p[1];  /* Size ptr for defragmented frames */
+  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len, len,
+              mask_len = 0, header_len = 0;
+  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf, *buf = p,
+                *e = p + buf_len;
+  unsigned *sizep = (unsigned *) &p[1]; /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
                   !(nc->flags & NSF_WEBSOCKET_NO_DEFRAG);
 
@@ -2059,11 +2059,11 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       header_len = 2 + mask_len;
     } else if (len == 126 && buf_len >= 4 + mask_len) {
       header_len = 4 + mask_len;
-      data_len = ntohs(* (uint16_t *) &buf[2]);
+      data_len = ntohs(*(uint16_t *) &buf[2]);
     } else if (buf_len >= 10 + mask_len) {
       header_len = 10 + mask_len;
-      data_len = (((uint64_t) ntohl(* (uint32_t *) &buf[2])) << 32) +
-                 ntohl(* (uint32_t *) &buf[6]);
+      data_len = (((uint64_t) ntohl(*(uint32_t *) &buf[2])) << 32) +
+                 ntohl(*(uint32_t *) &buf[6]);
     }
   }
 
@@ -2088,9 +2088,9 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       /* On first fragmented frame, nullify size */
       if (is_ws_first_fragment(wsm.flags)) {
         iobuf_resize(&nc->recv_iobuf, nc->recv_iobuf.size + sizeof(*sizep));
-        p[0] &= ~0x0f;  /* Next frames will be treated as continuation */
+        p[0] &= ~0x0f; /* Next frames will be treated as continuation */
         buf = p + 1 + sizeof(*sizep);
-        *sizep = 0;  /* TODO(lsm): fix. this can stomp over frame data */
+        *sizep = 0; /* TODO(lsm): fix. this can stomp over frame data */
       }
 
       /* Append this frame to the reassembled buffer */
@@ -2108,7 +2108,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     } else {
       /* TODO(lsm): properly handle OOB control frames during defragmentation */
       handle_incoming_websocket_frame(nc, &wsm);
-      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len);  /* Cleanup frame */
+      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len); /* Cleanup frame */
     }
   }
 
@@ -2125,12 +2125,12 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
     header_len = 2;
   } else if (len < 65535) {
     header[1] = 126;
-    * (uint16_t *) &header[2] = htons((uint16_t) len);
+    *(uint16_t *) &header[2] = htons((uint16_t) len);
     header_len = 4;
   } else {
     header[1] = 127;
-    * (uint32_t *) &header[2] = htonl((uint32_t) ((uint64_t) len >> 32));
-    * (uint32_t *) &header[6] = htonl((uint32_t) (len & 0xffffffff));
+    *(uint32_t *) &header[2] = htonl((uint32_t)((uint64_t) len >> 32));
+    *(uint32_t *) &header[6] = htonl((uint32_t)(len & 0xffffffff));
     header_len = 10;
   }
   ns_send(nc, header, header_len);
@@ -2149,8 +2149,8 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
  * - WEBSOCKET_OP_PONG
  * `data` and `data_len` contain frame data.
  */
-void ns_send_websocket_frame(struct ns_connection *nc, int op,
-                             const void *data, size_t len) {
+void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
+                             size_t len) {
   ns_send_ws_header(nc, op, len);
   ns_send(nc, data, len);
 
@@ -2211,12 +2211,13 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_RECV:
-      do { } while (deliver_websocket_data(nc));
+      do {
+      } while (deliver_websocket_data(nc));
       break;
     case NS_POLL:
       /* Ping idle websocket connections */
       {
-        time_t now = * (time_t *) ev_data;
+        time_t now = *(time_t *) ev_data;
         if (nc->flags & NSF_IS_WEBSOCKET &&
             now > nc->last_io_time + NS_WEBSOCKET_PING_INTERVAL_SECONDS) {
           ns_send_websocket_frame(nc, WEBSOCKET_OP_PING, "", 0);
@@ -2244,7 +2245,8 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
-            "Sec-WebSocket-Accept: ", b64_sha, "\r\n\r\n");
+            "Sec-WebSocket-Accept: ",
+            b64_sha, "\r\n\r\n");
 }
 
 static void transfer_file_data(struct ns_connection *nc) {
@@ -2359,7 +2361,8 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
   char key[sizeof(random) * 3];
 
   ns_base64_encode((unsigned char *) &random, sizeof(random), key);
-  ns_printf(nc, "GET %s HTTP/1.1\r\n"
+  ns_printf(nc,
+            "GET %s HTTP/1.1\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
             "Sec-WebSocket-Version: 13\r\n"
@@ -2378,16 +2381,16 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
-    send_http_error(nc, 500, "Server Error");  /* LCOV_EXCL_LINE */
+    send_http_error(nc, 500, "Server Error"); /* LCOV_EXCL_LINE */
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
   } else {
-    ns_printf(nc, "HTTP/1.1 200 OK\r\n"
+    ns_printf(nc,
+              "HTTP/1.1 200 OK\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %lu\r\n\r\n",
-              get_mime_type(path, "text/plain"),
-              (unsigned long) st->st_size);
+              get_mime_type(path, "text/plain"), (unsigned long) st->st_size);
     nc->proto_data = (void *) dp;
     transfer_file_data(nc);
   }
@@ -2413,18 +2416,17 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
-static int ns_url_decode(const char *src, int src_len, char *dst,
-                         int dst_len, int is_form_url_encoded) {
+static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
+                         int is_form_url_encoded) {
   int i, j, a, b;
 #define HEXTOI(x) (isdigit(x) ? x - '0' : x - 'W')
 
   for (i = j = 0; i < src_len && j < dst_len - 1; i++, j++) {
     if (src[i] == '%') {
-      if (i < src_len - 2 &&
-          isxdigit(* (const unsigned char *) (src + i + 1)) &&
-          isxdigit(* (const unsigned char *) (src + i + 2))) {
-        a = tolower(* (const unsigned char *) (src + i + 1));
-        b = tolower(* (const unsigned char *) (src + i + 2));
+      if (i < src_len - 2 && isxdigit(*(const unsigned char *) (src + i + 1)) &&
+          isxdigit(*(const unsigned char *) (src + i + 2))) {
+        a = tolower(*(const unsigned char *) (src + i + 1));
+        b = tolower(*(const unsigned char *) (src + i + 2));
         dst[j] = (char) ((HEXTOI(a) << 4) | HEXTOI(b));
         i += 2;
       } else {
@@ -2450,8 +2452,8 @@ static int ns_url_decode(const char *src, int src_len, char *dst,
  * of a fetched variable. If not found, 0 is returned. `buf` must be
  * valid url-encoded buffer. If destination is too small, `-1` is returned.
  */
-int ns_get_http_var(const struct ns_str *buf, const char *name,
-                    char *dst, size_t dst_len) {
+int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
+                    size_t dst_len) {
   const char *p, *e, *s;
   size_t name_len;
   int len;
@@ -2539,8 +2541,8 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
   /* LCOV_EXCL_STOP */
 }
 
-int ns_http_parse_header(struct ns_str *hdr, const char *var_name,
-                         char *buf, size_t buf_size) {
+int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
+                         size_t buf_size) {
   int ch = ' ', ch1 = ',', len = 0, n = strlen(var_name);
   const char *p, *end = hdr->p + hdr->len, *s = NULL;
 
@@ -2549,7 +2551,8 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name,
   /* Find where variable starts */
   for (s = hdr->p; s != NULL && s + n < end; s++) {
     if ((s == hdr->p || s[-1] == ch || s[-1] == ch1) && s[n] == '=' &&
-        !memcmp(s, var_name, n)) break;
+        !memcmp(s, var_name, n))
+      break;
   }
 
   if (s != NULL && &s[n + 1] < end) {
@@ -2591,8 +2594,8 @@ static FILE *open_auth_file(const char *path, int is_directory,
     if ((p = strrchr(path, DIRSEP)) == NULL) {
       p = path;
     }
-    snprintf(buf, sizeof(buf), "%.*s%c%s",
-             (int) (p - path), path, DIRSEP, opts->per_directory_auth_file);
+    snprintf(buf, sizeof(buf), "%.*s%c%s", (int) (p - path), path, DIRSEP,
+             opts->per_directory_auth_file);
     fp = fopen(buf, "r");
   }
 
@@ -2623,7 +2626,7 @@ static char *ns_md5(char *buf, ...) {
   MD5_Init(&ctx);
 
   va_start(ap, buf);
-  while ((p = va_arg(ap, const unsigned char *)) != NULL) {
+  while ((p = va_arg(ap, const unsigned char *) ) != NULL) {
     size_t len = va_arg(ap, size_t);
     MD5_Update(&ctx, p, len);
   }
@@ -2635,21 +2638,18 @@ static char *ns_md5(char *buf, ...) {
   return buf;
 }
 
-static void mkmd5resp(const char *method, size_t method_len,
-                      const char *uri, size_t uri_len,
-                      const char *ha1, size_t ha1_len,
-                      const char *nonce, size_t nonce_len,
-                      const char *nc, size_t nc_len,
-                      const char *cnonce, size_t cnonce_len,
-                      const char *qop, size_t qop_len,
-                      char *resp) {
+static void mkmd5resp(const char *method, size_t method_len, const char *uri,
+                      size_t uri_len, const char *ha1, size_t ha1_len,
+                      const char *nonce, size_t nonce_len, const char *nc,
+                      size_t nc_len, const char *cnonce, size_t cnonce_len,
+                      const char *qop, size_t qop_len, char *resp) {
   static const char colon[] = ":";
   static const size_t one = 1;
   char ha2[33];
 
   ns_md5(ha2, method, method_len, colon, one, uri, uri_len, NULL);
-  ns_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one,
-         nc, nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
+  ns_md5(resp, ha1, ha1_len, colon, one, nonce, nonce_len, colon, one, nc,
+         nc_len, colon, one, cnonce, cnonce_len, colon, one, qop, qop_len,
          colon, one, ha2, sizeof(ha2) - 1, NULL);
 }
 
@@ -2658,20 +2658,21 @@ static void mkmd5resp(const char *method, size_t method_len,
  */
 int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *method, const char *uri,
-                                      const char *auth_domain,
-                                      const char *user, const char *passwd) {
+                                      const char *auth_domain, const char *user,
+                                      const char *passwd) {
   static const char colon[] = ":", qop[] = "auth";
   static const size_t one = 1;
   char ha1[33], resp[33], cnonce[40];
 
   snprintf(cnonce, sizeof(cnonce), "%x", (unsigned int) time(NULL));
-  ns_md5(ha1, user, (size_t) strlen(user), colon, one,
-         auth_domain, (size_t) strlen(auth_domain), colon, one,
-         passwd, (size_t) strlen(passwd), NULL);
+  ns_md5(ha1, user, (size_t) strlen(user), colon, one, auth_domain,
+         (size_t) strlen(auth_domain), colon, one, passwd,
+         (size_t) strlen(passwd), NULL);
   mkmd5resp(method, strlen(method), uri, strlen(uri), ha1, sizeof(ha1) - 1,
-            cnonce, strlen(cnonce),
-            "1", one, cnonce, strlen(cnonce), qop, sizeof(qop) - 1, resp);
-  return snprintf(buf, buf_len, "Authorization: Digest username=\"%s\","
+            cnonce, strlen(cnonce), "1", one, cnonce, strlen(cnonce), qop,
+            sizeof(qop) - 1, resp);
+  return snprintf(buf, buf_len,
+                  "Authorization: Digest username=\"%s\","
                   "realm=\"%s\",uri=\"%s\",qop=%s,nc=1,cnonce=%s,"
                   "nonce=%s,response=%s\r\n",
                   user, auth_domain, uri, qop, cnonce, cnonce, resp);
@@ -2694,16 +2695,14 @@ static int check_nonce(const char *nonce) {
  * Returns 1 if authenticated, 0 otherwise.
  */
 static int ns_http_check_digest_auth(struct http_message *hm,
-                                     const char *auth_domain,
-                                     FILE *fp) {
+                                     const char *auth_domain, FILE *fp) {
   struct ns_str *hdr;
   char buf[128], f_user[sizeof(buf)], f_ha1[sizeof(buf)], f_domain[sizeof(buf)];
   char user[50], cnonce[20], response[40], uri[200], qop[20], nc[20], nonce[30];
   char expected_response[33];
 
   /* Parse "Authorization:" header, fail fast on parse error */
-  if (hm == NULL ||
-      fp == NULL ||
+  if (hm == NULL || fp == NULL ||
       (hdr = ns_get_http_header(hm, "Authorization")) == NULL ||
       ns_http_parse_header(hdr, "username", user, sizeof(user)) == 0 ||
       ns_http_parse_header(hdr, "cnonce", cnonce, sizeof(cnonce)) == 0 ||
@@ -2727,9 +2726,9 @@ static int ns_http_check_digest_auth(struct http_message *hm,
         /* NOTE(lsm): due to a bug in MSIE, we do not compare URIs */
         strcmp(auth_domain, f_domain) == 0) {
       /* User and domain matched, check the password */
-      mkmd5resp(hm->method.p, hm->method.len, hm->uri.p, hm->uri.len,
-             f_ha1, strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc),
-             cnonce, strlen(cnonce), qop, strlen(qop), expected_response);
+      mkmd5resp(hm->method.p, hm->method.len, hm->uri.p, hm->uri.len, f_ha1,
+                strlen(f_ha1), nonce, strlen(nonce), nc, strlen(nc), cnonce,
+                strlen(cnonce), qop, strlen(qop), expected_response);
       return ns_casecmp(response, expected_response) == 0;
     }
   }
@@ -2743,9 +2742,8 @@ static int is_authorized(struct http_message *hm, const char *path,
   FILE *fp;
   int authorized = 1;
 
-  if (opts->auth_domain != NULL &&
-      (opts->per_directory_auth_file != NULL ||
-       opts->global_auth_file != NULL) &&
+  if (opts->auth_domain != NULL && (opts->per_directory_auth_file != NULL ||
+                                    opts->global_auth_file != NULL) &&
       (fp = open_auth_file(path, is_directory, opts)) != NULL) {
     authorized = ns_http_check_digest_auth(hm, opts->auth_domain, fp);
     fclose(fp);
@@ -2756,7 +2754,10 @@ static int is_authorized(struct http_message *hm, const char *path,
 #else
 static int is_authorized(struct http_message *hm, const char *path,
                          int is_directory, struct ns_serve_http_opts *opts) {
-  (void) hm; (void) path; (void) is_directory; (void) opts;
+  (void) hm;
+  (void) path;
+  (void) is_directory;
+  (void) opts;
   return 1;
 }
 #endif
@@ -2771,7 +2772,8 @@ static int is_authorized(struct http_message *hm, const char *path,
  * ----
  * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
  *   struct http_message *hm = (struct http_message *) ev_data;
- *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99 syntax
+ *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99
+ *syntax
  *
  *   switch (ev) {
  *     case NS_HTTP_REQUEST:
@@ -2789,14 +2791,15 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   ns_stat_t st;
   int stat_result, is_directory;
 
-  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root,
-           (int) hm->uri.len, hm->uri.p);
+  snprintf(path, sizeof(path), "%s/%.*s", opts.document_root, (int) hm->uri.len,
+           hm->uri.p);
   remove_double_dots(path);
   stat_result = ns_stat(path, &st);
   is_directory = !stat_result && S_ISDIR(st.st_mode);
 
   if (!is_authorized(hm, path, is_directory, &opts)) {
-    ns_printf(nc, "HTTP/1.1 401 Unauthorized\r\n"
+    ns_printf(nc,
+              "HTTP/1.1 401 Unauthorized\r\n"
               "WWW-Authenticate: Digest qop=\"auth\", "
               "realm=\"%s\", nonce=\"%lu\"\r\n"
               "Content-Length: 0\r\n\r\n",
@@ -2808,7 +2811,8 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     if (ns_stat(path, &st) == 0) {
       ns_send_http_file(nc, path, &st);
     } else {
-      ns_printf(nc, "%s", "HTTP/1.1 403 Access Denied\r\n"
+      ns_printf(nc, "%s",
+                "HTTP/1.1 403 Access Denied\r\n"
                 "Content-Length: 0\r\n\r\n");
     }
   } else {
@@ -2837,7 +2841,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       const char *extra_headers,
                                       const char *post_data) {
   struct ns_connection *nc;
-  char addr[1100], path[4096];  /* NOTE: keep sizes in sync with sscanf below */
+  char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
 
   if (memcmp(url, "http://", 7) == 0) {
@@ -2846,7 +2850,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
     url += 8;
     use_ssl = 1;
 #ifndef NS_ENABLE_SSL
-    return NULL;  /* SSL is not enabled, cannot do HTTPS URLs */
+    return NULL; /* SSL is not enabled, cannot do HTTPS URLs */
 #endif
   }
 
@@ -2855,20 +2859,20 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   /* addr buffer size made smaller to allow for port to be prepended */
   sscanf(url, "%1095[^/]/%4095s", addr, path);
   if (strchr(addr, ':') == NULL) {
-    strncat(addr, use_ssl ? ":443" : ":80",
-            sizeof(addr) - (strlen(addr) + 1));
+    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - (strlen(addr) + 1));
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
     ns_set_protocol_http_websocket(nc);
 
     if (use_ssl) {
-  #ifdef NS_ENABLE_SSL
+#ifdef NS_ENABLE_SSL
       ns_set_ssl(nc, NULL, NULL);
-  #endif
+#endif
     }
 
-    ns_printf(nc, "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
+    ns_printf(nc,
+              "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
               post_data == NULL ? "GET" : "POST", path, addr,
               post_data == NULL ? 0 : strlen(post_data),
               extra_headers == NULL ? "" : extra_headers);
@@ -2877,7 +2881,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   return nc;
 }
 
-#endif  /* NS_DISABLE_HTTP_WEBSOCKET */
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
 #ifdef NS_MODULE_LINES
 #line 1 "src/sha1.c"
 /**/
@@ -3037,17 +3041,17 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
  *
  * do_not_export_to_docs
  */
-const char *ns_skip(const char *s, const char *end,
-                    const char *delims, struct ns_str *v) {
+const char *ns_skip(const char *s, const char *end, const char *delims,
+                    struct ns_str *v) {
   v->p = s;
-  while (s < end && strchr(delims, * (unsigned char *) s) == NULL) s++;
+  while (s < end && strchr(delims, *(unsigned char *) s) == NULL) s++;
   v->len = s - v->p;
-  while (s < end && strchr(delims, * (unsigned char *) s) != NULL) s++;
+  while (s < end && strchr(delims, *(unsigned char *) s) != NULL) s++;
   return s;
 }
 
 static int lowercase(const char *s) {
-  return tolower(* (const unsigned char *) s);
+  return tolower(*(const unsigned char *) s);
 }
 
 /*
@@ -3056,8 +3060,7 @@ static int lowercase(const char *s) {
 int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   int diff = 0;
 
-  if (len > 0)
-    do {
+  if (len > 0) do {
       diff = lowercase(s1++) - lowercase(s2++);
     } while (diff == 0 && s1[-1] != '\0' && --len > 0);
 
@@ -3112,7 +3115,7 @@ static void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
     wbuf[0] = L'\0';
   }
 }
-#endif  /* _WIN32 */
+#endif /* _WIN32 */
 
 /*
  * Perform a 64-bit `stat()` call against given file.
@@ -3163,7 +3166,7 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
   to_wchar(path, wpath, ARRAY_SIZE(wpath));
   return _wopen(wpath, flag, mode);
 #else
-  return open(path, flag, mode);  /* LCOV_EXCL_LINE */
+  return open(path, flag, mode); /* LCOV_EXCL_LINE */
 #endif
 }
 
@@ -3201,22 +3204,38 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
 static unsigned char from_b64(unsigned char ch) {
   /* Inverse lookup map */
   static const unsigned char tab[128] = {
-    255, 255, 255, 255, 255, 255, 255, 255, /*  0 */
-    255, 255, 255, 255, 255, 255, 255, 255, /*  8 */
-    255, 255, 255, 255, 255, 255, 255, 255, /*  16 */
-    255, 255, 255, 255, 255, 255, 255, 255, /*  24 */
-    255, 255, 255, 255, 255, 255, 255, 255, /*  32 */
-    255, 255, 255,  62, 255, 255, 255,  63, /*  40 */
-     52,  53,  54,  55,  56,  57,  58,  59, /*  48 */
-     60,  61, 255, 255, 255, 200, 255, 255, /*  56   '=' is 200, on index 61 */
-    255,   0,   1,   2,   3,   4,   5,   6, /*  64 */
-      7,   8,   9,  10,  11,  12,  13,  14, /*  72 */
-     15,  16,  17,  18,  19,  20,  21,  22, /*  80 */
-     23,  24,  25, 255, 255, 255, 255, 255, /*  88 */
-    255,  26,  27,  28,  29,  30,  31,  32, /*  96 */
-     33,  34,  35,  36,  37,  38,  39,  40, /*  104 */
-     41,  42,  43,  44,  45,  46,  47,  48, /*  112 */
-     49,  50,  51, 255, 255, 255, 255, 255, /*  120 */
+      255, 255, 255, 255,
+      255, 255, 255, 255, /*  0 */
+      255, 255, 255, 255,
+      255, 255, 255, 255, /*  8 */
+      255, 255, 255, 255,
+      255, 255, 255, 255, /*  16 */
+      255, 255, 255, 255,
+      255, 255, 255, 255, /*  24 */
+      255, 255, 255, 255,
+      255, 255, 255, 255, /*  32 */
+      255, 255, 255, 62,
+      255, 255, 255, 63, /*  40 */
+      52,  53,  54,  55,
+      56,  57,  58,  59, /*  48 */
+      60,  61,  255, 255,
+      255, 200, 255, 255, /*  56   '=' is 200, on index 61 */
+      255, 0,   1,   2,
+      3,   4,   5,   6, /*  64 */
+      7,   8,   9,   10,
+      11,  12,  13,  14, /*  72 */
+      15,  16,  17,  18,
+      19,  20,  21,  22, /*  80 */
+      23,  24,  25,  255,
+      255, 255, 255, 255, /*  88 */
+      255, 26,  27,  28,
+      29,  30,  31,  32, /*  96 */
+      33,  34,  35,  36,
+      37,  38,  39,  40, /*  104 */
+      41,  42,  43,  44,
+      45,  46,  47,  48, /*  112 */
+      49,  50,  51,  255,
+      255, 255, 255, 255, /*  120 */
   };
   return tab[ch & 127];
 }
@@ -3228,19 +3247,17 @@ static unsigned char from_b64(unsigned char ch) {
  */
 void ns_base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
-  while (len >= 4 &&
-         (a = from_b64(s[0])) != 255 &&
-         (b = from_b64(s[1])) != 255 &&
-         (c = from_b64(s[2])) != 255 &&
+  while (len >= 4 && (a = from_b64(s[0])) != 255 &&
+         (b = from_b64(s[1])) != 255 && (c = from_b64(s[2])) != 255 &&
          (d = from_b64(s[3])) != 255) {
-    if (a == 200 || b == 200) break;  /* '=' can't be there */
+    if (a == 200 || b == 200) break; /* '=' can't be there */
     *dst++ = a << 2 | b >> 4;
     if (c == 200) break;
     *dst++ = b << 4 | c >> 2;
     if (d == 200) break;
     *dst++ = c << 6 | d;
     s += 4;
-    len -=4;
+    len -= 4;
   }
   *dst = 0;
 }
@@ -3249,7 +3266,7 @@ void ns_base64_decode(const unsigned char *s, int len, char *dst) {
 /* Starts a new thread. */
 void *ns_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
-  return (void *) _beginthread((void (__cdecl *)(void *)) f, 0, p);
+  return (void *) _beginthread((void(__cdecl *) (void *) ) f, 0, p);
 #else
   pthread_t thread_id = (pthread_t) 0;
   pthread_attr_t attr;
@@ -3267,7 +3284,7 @@ void *ns_start_thread(void *(*f)(void *), void *p) {
   return (void *) thread_id;
 #endif
 }
-#endif  /* NS_ENABLE_THREADS */
+#endif /* NS_ENABLE_THREADS */
 
 /* Set close-on-exec bit for a given socket. */
 void ns_set_close_on_exec(sock_t sock) {
@@ -3301,15 +3318,16 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
     }
     if (flags & 1) {
 #if defined(NS_ENABLE_IPV6)
-      inet_ntop(sa.sa.sa_family, sa.sa.sa_family == AF_INET ?
-                (void *) &sa.sin.sin_addr :
-                (void *) &sa.sin6.sin6_addr, buf, len);
+      inet_ntop(sa.sa.sa_family,
+                sa.sa.sa_family == AF_INET ? (void *) &sa.sin.sin_addr
+                                           : (void *) &sa.sin6.sin6_addr,
+                buf, len);
 #elif defined(_WIN32)
       /* Only Windoze Vista (and newer) have inet_ntop() */
       strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
 #else
       inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
-                (socklen_t)len);
+                (socklen_t) len);
 #endif
     }
     if (flags & 2) {
@@ -3364,7 +3382,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
     /* eCos and Windows are not standard-compliant and return -1 when
      * the buffer is too small. Keep allocating larger buffers until we
      * succeed or out of memory. */
-    *buf = NULL;  /* LCOV_EXCL_START */
+    *buf = NULL; /* LCOV_EXCL_START */
     while (len < 0) {
       NS_FREE(*buf);
       size *= 2;
@@ -3377,8 +3395,8 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   } else if (len > (int) size) {
     /* Standard-compliant code path. Allocate a buffer that is large enough. */
     if ((*buf = (char *) NS_MALLOC(len + 1)) == NULL) {
-      len = -1;  /* LCOV_EXCL_LINE */
-    } else {     /* LCOV_EXCL_LINE */
+      len = -1; /* LCOV_EXCL_LINE */
+    } else {    /* LCOV_EXCL_LINE */
       va_copy(ap_copy, ap);
       len = vsnprintf(*buf, len + 1, fmt, ap_copy);
       va_end(ap_copy);
@@ -3400,12 +3418,16 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     ns_sock_to_str(nc->sock, dst, sizeof(dst), 7);
     fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL),
             nc->user_data, src,
-            ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" :
-            ev == NS_ACCEPT ? "<A" : ev == NS_CONNECT ? "C>" : "XX",
+            ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" : ev == NS_ACCEPT
+                                                              ? "<A"
+                                                              : ev == NS_CONNECT
+                                                                    ? "C>"
+                                                                    : "XX",
             dst, num_bytes);
     if (num_bytes > 0 && (buf = (char *) NS_MALLOC(buf_size)) != NULL) {
       ns_hexdump(io->buf + (ev == NS_SEND ? 0 : io->len) -
-                 (ev == NS_SEND ? 0 : num_bytes), num_bytes, buf, buf_size);
+                     (ev == NS_SEND ? 0 : num_bytes),
+                 num_bytes, buf, buf_size);
       fprintf(fp, "%s", buf);
       NS_FREE(buf);
     }
@@ -3440,7 +3462,7 @@ int ns_is_big_endian(void) {
  */
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
-  static const struct json_token null_tok = { "null", 4, 0, JSON_TYPE_NULL };
+  static const struct json_token null_tok = {"null", 4, 0, JSON_TYPE_NULL};
   const struct json_token *id = req->id == NULL ? &null_tok : req->id;
   va_list ap;
   int n = 0;
@@ -3473,8 +3495,8 @@ int ns_rpc_create_request(char *buf, int len, const char *method,
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:s,s:s,s:",
-                 "jsonrpc", "2.0", "id", id, "method", method, "params");
+  n += json_emit(buf + n, len - n, "{s:s,s:s,s:s,s:", "jsonrpc", "2.0", "id",
+                 id, "method", method, "params");
   va_start(ap, params_fmt);
   n += json_emit_va(buf + n, len - n, params_fmt, ap);
   va_end(ap);
@@ -3495,11 +3517,9 @@ int ns_rpc_create_error(char *buf, int len, struct ns_rpc_request *req,
   va_list ap;
   int n = 0;
 
-  n += json_emit(buf + n, len - n, "{s:s,s:V,s:{s:i,s:s,s:",
-                 "jsonrpc", "2.0", "id",
-                 req->id == NULL ? "null" : req->id->ptr,
-                 req->id == NULL ? 4 : req->id->len,
-                 "error", "code", code,
+  n += json_emit(buf + n, len - n, "{s:s,s:V,s:{s:i,s:s,s:", "jsonrpc", "2.0",
+                 "id", req->id == NULL ? "null" : req->id->ptr,
+                 req->id == NULL ? 4 : req->id->len, "error", "code", code,
                  "message", message, "data");
   va_start(ap, fmt);
   n += json_emit_va(buf + n, len - n, fmt, ap);
@@ -3524,12 +3544,24 @@ int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
   const char *message = NULL;
 
   switch (code) {
-    case JSON_RPC_PARSE_ERROR: message = "parse error"; break;
-    case JSON_RPC_INVALID_REQUEST_ERROR: message = "invalid request"; break;
-    case JSON_RPC_METHOD_NOT_FOUND_ERROR: message = "method not found"; break;
-    case JSON_RPC_INVALID_PARAMS_ERROR: message = "invalid parameters"; break;
-    case JSON_RPC_SERVER_ERROR: message = "server error"; break;
-    default: message = "unspecified error"; break;
+    case JSON_RPC_PARSE_ERROR:
+      message = "parse error";
+      break;
+    case JSON_RPC_INVALID_REQUEST_ERROR:
+      message = "invalid request";
+      break;
+    case JSON_RPC_METHOD_NOT_FOUND_ERROR:
+      message = "method not found";
+      break;
+    case JSON_RPC_INVALID_PARAMS_ERROR:
+      message = "invalid parameters";
+      break;
+    case JSON_RPC_SERVER_ERROR:
+      message = "server error";
+      break;
+    default:
+      message = "unspecified error";
+      break;
   }
 
   return ns_rpc_create_error(buf, len, req, code, message, "N");
@@ -3538,7 +3570,8 @@ int ns_rpc_create_std_error(char *buf, int len, struct ns_rpc_request *req,
 /*
  * Dispatches a JSON-RPC request.
  *
- * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the request
+ * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the
+ *request
  * to the correct handler method. Valid method names should be specified in NULL
  * terminated array `methods`, and corresponding handlers in `handlers`.
  * Result is put in `dst`, `dst_len`. Return: length of the result, which
@@ -3553,8 +3586,8 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   memset(&req, 0, sizeof(req));
   n = parse_json(buf, len, tokens, sizeof(tokens) / sizeof(tokens[0]));
   if (n <= 0) {
-    int err_code = (n == JSON_STRING_INVALID) ?
-                   JSON_RPC_PARSE_ERROR : JSON_RPC_SERVER_ERROR;
+    int err_code = (n == JSON_STRING_INVALID) ? JSON_RPC_PARSE_ERROR
+                                              : JSON_RPC_SERVER_ERROR;
     return ns_rpc_create_std_error(dst, dst_len, &req, err_code);
   }
 
@@ -3571,7 +3604,8 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
   for (i = 0; methods[i] != NULL; i++) {
     int mlen = strlen(methods[i]);
     if (mlen == req.method->len &&
-        memcmp(methods[i], req.method->ptr, mlen) == 0) break;
+        memcmp(methods[i], req.method->ptr, mlen) == 0)
+      break;
   }
 
   if (methods[i] == NULL) {
@@ -3589,9 +3623,9 @@ int ns_rpc_dispatch(const char *buf, int len, char *dst, int dst_len,
  * `error` structure is populated. Returns: the result of calling
  * `parse_json(buf, len, toks, max_toks)`.
  */
-int ns_rpc_parse_reply(const char *buf, int len,
-                       struct json_token *toks, int max_toks,
-                       struct ns_rpc_reply *rep, struct ns_rpc_error *er) {
+int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
+                       int max_toks, struct ns_rpc_reply *rep,
+                       struct ns_rpc_error *er) {
   int n = parse_json(buf, len, toks, max_toks);
 
   memset(rep, 0, sizeof(*rep));
@@ -3612,7 +3646,7 @@ int ns_rpc_parse_reply(const char *buf, int len,
   return n;
 }
 
-#endif  /* NS_DISABLE_JSON_RPC */
+#endif /* NS_DISABLE_JSON_RPC */
 #ifdef NS_MODULE_LINES
 #line 1 "src/mqtt.c"
 /**/
@@ -3665,29 +3699,27 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
     case NS_MQTT_CMD_PUBREL:
     case NS_MQTT_CMD_PUBCOMP:
     case NS_MQTT_CMD_SUBACK:
-      mm->message_id = ntohs(*(uint16_t*)io->buf);
+      mm->message_id = ntohs(*(uint16_t *) io->buf);
       var_len = 2;
       break;
-    case NS_MQTT_CMD_PUBLISH:
-      {
-        uint16_t topic_len = ntohs(*(uint16_t*)io->buf);
-        mm->topic = (char *) NS_MALLOC(topic_len + 1);
-        mm->topic[topic_len] = 0;
-        strncpy(mm->topic, io->buf + 2, topic_len);
-        var_len = topic_len + 2;
+    case NS_MQTT_CMD_PUBLISH: {
+      uint16_t topic_len = ntohs(*(uint16_t *) io->buf);
+      mm->topic = (char *) NS_MALLOC(topic_len + 1);
+      mm->topic[topic_len] = 0;
+      strncpy(mm->topic, io->buf + 2, topic_len);
+      var_len = topic_len + 2;
 
-        if (NS_MQTT_GET_QOS(header) > 0) {
-          mm->message_id = ntohs(*(uint16_t*)io->buf);
-          var_len += 2;
-        }
+      if (NS_MQTT_GET_QOS(header) > 0) {
+        mm->message_id = ntohs(*(uint16_t *) io->buf);
+        var_len += 2;
       }
-      break;
+    } break;
     case NS_MQTT_CMD_SUBSCRIBE:
       /*
        * topic expressions are left in the payload and can be parsed with
        * `ns_mqtt_next_subscribe_topic`
        */
-      mm->message_id = ntohs(* (uint16_t *) io->buf);
+      mm->message_id = ntohs(*(uint16_t *) io->buf);
       var_len = 2;
       break;
     default:
@@ -3747,8 +3779,7 @@ void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
 }
 
-void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
-                                const char *client_id,
+void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id,
                                 struct ns_send_mqtt_handshake_opts opts) {
   uint8_t header = NS_MQTT_CMD_CONNECT << 4;
   uint8_t rem_len;
@@ -3756,10 +3787,11 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
   uint16_t client_id_len;
 
   /*
-   * 9: version_header(len, magic_string, version_number), 1: flags, 2: keep-alive timer,
+   * 9: version_header(len, magic_string, version_number), 1: flags, 2:
+   * keep-alive timer,
    * 2: client_identifier_len, n: client_id
    */
-  rem_len = 9+1+2+2+strlen(client_id);
+  rem_len = 9 + 1 + 2 + 2 + strlen(client_id);
 
   ns_send(nc, &header, 1);
   ns_send(nc, &rem_len, 1);
@@ -3780,7 +3812,7 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc,
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
                                    uint8_t flags, size_t len) {
   size_t off = nc->send_iobuf.len - len;
-  uint8_t header = cmd << 4 | (uint8_t)flags;
+  uint8_t header = cmd << 4 | (uint8_t) flags;
 
   uint8_t buf[1 + sizeof(size_t)];
   uint8_t *vlen = &buf[1];
@@ -3793,8 +3825,7 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
   do {
     *vlen = len % 0x80;
     len /= 0x80;
-    if (len > 0)
-      *vlen |= 0x80;
+    if (len > 0) *vlen |= 0x80;
     vlen++;
   } while (len > 0);
 
@@ -3803,8 +3834,8 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
 
 /* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
-                     uint16_t message_id, int flags,
-                     const void *data, size_t len) {
+                     uint16_t message_id, int flags, const void *data,
+                     size_t len) {
   size_t old_len = nc->send_iobuf.len;
 
   uint16_t topic_len = htons(strlen(topic));
@@ -3850,9 +3881,7 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
  * of topics is exhausted.
  */
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
-                                 struct ns_str *topic,
-                                 uint8_t *qos,
-                                 int pos) {
+                                 struct ns_str *topic, uint8_t *qos, int pos) {
   unsigned char *buf = (unsigned char *) msg->payload.p + pos;
   if ((size_t) pos >= msg->payload.len) {
     return -1;
@@ -3958,7 +3987,7 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_DISCONNECT, 0, 0);
 }
 
-#endif  /* NS_DISABLE_MQTT */
+#endif /* NS_DISABLE_MQTT */
 #ifdef NS_MODULE_LINES
 #line 1 "src/mqtt-broker.c"
 /**/
@@ -4047,11 +4076,11 @@ static void ns_mqtt_broker_handle_subscribe(struct ns_connection *nc,
   struct ns_mqtt_topic_expression *te;
 
   for (pos = 0;
-       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1; ) {
+       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1;) {
     qoss[qoss_len++] = qos;
   }
 
-  ss->subscriptions = (struct ns_mqtt_topic_expression *)realloc(
+  ss->subscriptions = (struct ns_mqtt_topic_expression *) realloc(
       ss->subscriptions, sizeof(*ss->subscriptions) * qoss_len);
   for (pos = 0;
        (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1;
@@ -4088,10 +4117,10 @@ static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
 
   for (s = ns_mqtt_next(brk, NULL); s != NULL; s = ns_mqtt_next(brk, s)) {
     for (i = 0; i < s->num_subscriptions; i++) {
-      if (ns_mqtt_match_topic_expression(
-              s->subscriptions[i].topic, msg->topic)) {
-        ns_mqtt_publish(s->nc, msg->topic, 0, 0,
-                        msg->payload.p, msg->payload.len);
+      if (ns_mqtt_match_topic_expression(s->subscriptions[i].topic,
+                                         msg->topic)) {
+        ns_mqtt_publish(s->nc, msg->topic, 0, 0, msg->payload.p,
+                        msg->payload.len);
         break;
       }
     }
@@ -4125,7 +4154,7 @@ static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
  * for most events the `user_data` will thus point to a `ns_mqtt_session`.
  */
 void ns_mqtt_broker(struct ns_connection *nc, int ev, void *data) {
-  struct ns_mqtt_message *msg = (struct ns_mqtt_message *)data;
+  struct ns_mqtt_message *msg = (struct ns_mqtt_message *) data;
   struct ns_mqtt_broker *brk;
 
   if (nc->listener) {
@@ -4178,7 +4207,7 @@ struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
 #ifndef NS_DISABLE_DNS
 
 
-#define MAX_DNS_PACKET_LEN  2048
+#define MAX_DNS_PACKET_LEN 2048
 
 static int ns_dns_tid = 0xa0;
 
@@ -4217,8 +4246,8 @@ struct ns_dns_resource_record *ns_dns_next_record(
  * TODO(mkm): MX
  */
 int ns_dns_parse_record_data(struct ns_dns_message *msg,
-                             struct ns_dns_resource_record *rr,
-                             void *data, size_t data_len) {
+                             struct ns_dns_resource_record *rr, void *data,
+                             size_t data_len) {
   switch (rr->rtype) {
     case NS_DNS_A_RECORD:
       if (data_len < sizeof(struct in_addr)) {
@@ -4232,7 +4261,7 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
 #ifdef NS_ENABLE_IPV6
     case NS_DNS_AAAA_RECORD:
       if (data_len < sizeof(struct in6_addr)) {
-        return -1;  /* LCOV_EXCL_LINE */
+        return -1; /* LCOV_EXCL_LINE */
       }
       memcpy(data, rr->rdata.p, data_len);
       return 0;
@@ -4287,7 +4316,7 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
     }
 
     if (s - name > 127) {
-      return -1;  /* TODO(mkm) cover */
+      return -1; /* TODO(mkm) cover */
     }
     n = s - name;            /* chunk length */
     iobuf_append(io, &n, 1); /* send length */
@@ -4300,7 +4329,7 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
     name += n;
     len -= n;
   } while (*s != '\0');
-  iobuf_append(io, "\0", 1);  /* Mark end of host name */
+  iobuf_append(io, "\0", 1); /* Mark end of host name */
 
   return io->len - pos;
 }
@@ -4312,22 +4341,24 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
  * are taken from the parameters, encoded in the appropriate format depending on
  * record type, and stored in the IO buffer. The encoded values might contain
  * offsets within the IO buffer. It's thus important that the IO buffer doesn't
- * get trimmed while a sequence of records are encoded while preparing a DNS reply.
+ * get trimmed while a sequence of records are encoded while preparing a DNS
+ *reply.
  *
- * This function doesn't update the `name` and `rdata` pointers in the `rr` struct
+ * This function doesn't update the `name` and `rdata` pointers in the `rr`
+ *struct
  * because they might be invalidated as soon as the IO buffer grows again.
  *
  * Returns the number of bytes appened or -1 in case of error.
  */
 int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
-                         const char *name, size_t nlen,
-                         const void *rdata, size_t rlen) {
+                         const char *name, size_t nlen, const void *rdata,
+                         size_t rlen) {
   size_t pos = io->len;
   uint16_t u16;
   uint32_t u32;
 
   if (rr->kind == NS_DNS_INVALID_RECORD) {
-    return -1;  /* LCOV_EXCL_LINE */
+    return -1; /* LCOV_EXCL_LINE */
   }
 
   if (ns_dns_encode_name(io, name, nlen) == -1) {
@@ -4353,7 +4384,7 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
       }
       u16 = clen;
       io->buf[off] = u16 >> 8;
-      io->buf[off+1] = u16 & 0xff;
+      io->buf[off + 1] = u16 & 0xff;
     } else {
       u16 = htons(rlen);
       iobuf_append(io, &u16, 2);
@@ -4367,7 +4398,7 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
 /*
  * Send a DNS query to the remote end.
  */
-void ns_send_dns_query(struct ns_connection* nc, const char *name,
+void ns_send_dns_query(struct ns_connection *nc, const char *name,
                        int query_type) {
   struct ns_dns_message msg;
   struct iobuf pkt;
@@ -4407,8 +4438,8 @@ static unsigned char *ns_parse_dns_resource_record(
   unsigned char *name = data;
   int chunk_len, data_len;
 
-  while(data < end && (chunk_len = *data)) {
-    if (((unsigned char *)data)[0] & 0xc0) {
+  while (data < end && (chunk_len = *data)) {
+    if (((unsigned char *) data)[0] & 0xc0) {
       data += 1;
       break;
     }
@@ -4416,7 +4447,7 @@ static unsigned char *ns_parse_dns_resource_record(
   }
 
   rr->name.p = (char *) name;
-  rr->name.len = data-name+1;
+  rr->name.len = data - name + 1;
 
   data++;
   if (data > end - 4) {
@@ -4438,7 +4469,7 @@ static unsigned char *ns_parse_dns_resource_record(
     rr->ttl = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
     data += 4;
 
-    data_len = *data << 8 | *(data+1);
+    data_len = *data << 8 | *(data + 1);
     data += 2;
 
     rr->rdata.p = (char *) data;
@@ -4457,8 +4488,8 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   msg->pkt.p = buf;
   msg->pkt.len = len;
 
-  if (len < (int)sizeof(*header)) {
-    return -1;  /* LCOV_EXCL_LINE */
+  if (len < (int) sizeof(*header)) {
+    return -1; /* LCOV_EXCL_LINE */
   }
 
   msg->transaction_id = header->transaction_id;
@@ -4466,13 +4497,12 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   msg->num_questions = ntohs(header->num_questions);
   msg->num_answers = ntohs(header->num_answers);
 
-  for (i = 0; i < msg->num_questions
-           && i < (int)ARRAY_SIZE(msg->questions); i++) {
+  for (i = 0; i < msg->num_questions && i < (int) ARRAY_SIZE(msg->questions);
+       i++) {
     data = ns_parse_dns_resource_record(data, end, &msg->questions[i], 0);
   }
 
-  for (i = 0; i < msg->num_answers
-           && i < (int)ARRAY_SIZE(msg->answers); i++) {
+  for (i = 0; i < msg->num_answers && i < (int) ARRAY_SIZE(msg->answers); i++) {
     data = ns_parse_dns_resource_record(data, end, &msg->answers[i], 1);
   }
 
@@ -4486,7 +4516,8 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
  * and reference suffixes present elsewhere in the packet.
  *
  * If name is less than `dst_len` characters long, the remainder
- * of `dst` is terminated with `\0' characters. Otherwise, `dst` is not terminated.
+ * of `dst` is terminated with `\0' characters. Otherwise, `dst` is not
+ *terminated.
  *
  * If `dst_len` is 0 `dst` can be NULL.
  * Returns the uncompressed name length.
@@ -4502,7 +4533,7 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
     return 0;
   }
 
-  while((chunk_len = *data++)) {
+  while ((chunk_len = *data++)) {
     int leeway = dst_len - (dst - old_dst);
     if (data >= end) {
       return 0;
@@ -4513,7 +4544,7 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
       if (off >= msg->pkt.len) {
         return 0;
       }
-      data = (unsigned char *)msg->pkt.p + off;
+      data = (unsigned char *) msg->pkt.p + off;
       continue;
     }
     if (chunk_len > leeway) {
@@ -4579,14 +4610,15 @@ static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
  * handler, a user event handler will receive `NS_DNS_REQUEST` event, with
  * `ev_data` pointing to the parsed `struct ns_dns_message`.
  *
- * See https://github.com/cesanta/fossa/tree/master/examples/captive_dns_server[captive_dns_server]
+ * See
+ *https://github.com/cesanta/fossa/tree/master/examples/captive_dns_server[captive_dns_server]
  * example on how to handle DNS request and send DNS reply.
  */
 void ns_set_protocol_dns(struct ns_connection *nc) {
   nc->proto_handler = dns_handler;
 }
 
-#endif  /* NS_DISABLE_DNS */
+#endif /* NS_DISABLE_DNS */
 #ifdef NS_MODULE_LINES
 #line 1 "src/dns-server.c"
 /**/
@@ -4686,13 +4718,13 @@ int ns_dns_send_reply(struct ns_connection *nc, struct ns_dns_reply *r) {
  */
 int ns_dns_reply_record(struct ns_dns_reply *reply,
                         struct ns_dns_resource_record *question,
-                        const char *name, int rtype, int ttl,
-                        const void *rdata, size_t rdata_len) {
-  struct ns_dns_message *msg = (struct ns_dns_message *)reply->msg;
+                        const char *name, int rtype, int ttl, const void *rdata,
+                        size_t rdata_len) {
+  struct ns_dns_message *msg = (struct ns_dns_message *) reply->msg;
   char rname[512];
   struct ns_dns_resource_record *ans = &msg->answers[msg->num_answers];
   if (msg->num_answers >= NS_MAX_DNS_ANSWERS) {
-    return -1;  /* LCOV_EXCL_LINE */
+    return -1; /* LCOV_EXCL_LINE */
   }
 
   if (name == NULL) {
@@ -4706,17 +4738,16 @@ int ns_dns_reply_record(struct ns_dns_reply *reply,
   ans->rtype = rtype;
   ans->ttl = ttl;
 
-  if (ns_dns_encode_record(reply->io, ans, name, strlen(name),
-                           rdata, rdata_len) == -1) {
-    return -1;  /* LCOV_EXCL_LINE */
+  if (ns_dns_encode_record(reply->io, ans, name, strlen(name), rdata,
+                           rdata_len) == -1) {
+    return -1; /* LCOV_EXCL_LINE */
   };
 
   msg->num_answers++;
   return 0;
 }
 
-
-#endif  /* NS_ENABLE_DNS_SERVER */
+#endif /* NS_ENABLE_DNS_SERVER */
 #ifdef NS_MODULE_LINES
 #line 1 "src/resolv.c"
 /**/
@@ -4755,28 +4786,27 @@ struct ns_resolve_async_request {
  * Return 0 if OK, -1 if error
  */
 static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
-  int  ret = 0;
+  int ret = 0;
 
 #ifdef _WIN32
-  int  i;
-  LONG  err;
-  HKEY  hKey, hSub;
-  char  subkey[512], dhcpns[512], ns[512], value[128], *key =
-  "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
+  int i;
+  LONG err;
+  HKEY hKey, hSub;
+  char subkey[512], dhcpns[512], ns[512], value[128],
+      *key = "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
 
-  if ((err = RegOpenKey(HKEY_LOCAL_MACHINE,
-      key, &hKey)) != ERROR_SUCCESS) {
+  if ((err = RegOpenKey(HKEY_LOCAL_MACHINE, key, &hKey)) != ERROR_SUCCESS) {
     fprintf(stderr, "cannot open reg key %s: %d\n", key, err);
     ret--;
   } else {
-    for (ret--, i = 0; RegEnumKey(hKey, i, subkey,
-        sizeof(subkey)) == ERROR_SUCCESS; i++) {
+    for (ret--, i = 0;
+         RegEnumKey(hKey, i, subkey, sizeof(subkey)) == ERROR_SUCCESS; i++) {
       DWORD type, len = sizeof(value);
       if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
-          (RegQueryValueEx(hSub, "NameServer", 0,
-          &type, value, &len) == ERROR_SUCCESS ||
-          RegQueryValueEx(hSub, "DhcpNameServer", 0,
-          &type, value, &len) == ERROR_SUCCESS)) {
+          (RegQueryValueEx(hSub, "NameServer", 0, &type, value, &len) ==
+               ERROR_SUCCESS ||
+           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, value, &len) ==
+               ERROR_SUCCESS)) {
         /*
          * See https://github.com/cesanta/fossa/issues/176
          * The value taken from the registry can be empty, a single
@@ -4796,14 +4826,14 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     RegCloseKey(hKey);
   }
 #else
-  FILE  *fp;
-  char  line[512];
+  FILE *fp;
+  char line[512];
 
   if ((fp = fopen("/etc/resolv.conf", "r")) == NULL) {
     ret--;
   } else {
     /* Try to figure out what nameserver to use */
-    for (ret--; fgets(line, sizeof(line), fp) != NULL; ) {
+    for (ret--; fgets(line, sizeof(line), fp) != NULL;) {
       char buf[256];
       if (sscanf(line, "nameserver %255[^\n]s", buf) == 1) {
         snprintf(name, name_len, "udp://%s:53", buf);
@@ -4836,7 +4866,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     return -1;
   }
 
-  for (; fgets(line, sizeof(line), fp) != NULL; ) {
+  for (; fgets(line, sizeof(line), fp) != NULL;) {
     if (line[0] == '#') continue;
 
     if (sscanf(line, "%u.%u.%u.%u%n", &a, &b, &c, &d, &len) == 0) {
@@ -4876,7 +4906,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       }
       break;
     case NS_RECV:
-      if (ns_parse_dns(nc->recv_iobuf.buf, * (int *) data, &msg) == 0 &&
+      if (ns_parse_dns(nc->recv_iobuf.buf, *(int *) data, &msg) == 0 &&
           msg.num_answers > 0) {
         req->callback(&msg, req->data);
       } else {
@@ -4910,7 +4940,8 @@ int ns_resolve_async(struct ns_mgr *mgr, const char *name, int query,
  * [source,c]
  * ----
  * struct in_addr ina;
- * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD, NULL);
+ * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD,
+ *NULL);
  * ns_dns_parse_record_data(msg, rr, &ina, sizeof(ina));
  * ----
  */
@@ -4936,9 +4967,9 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   req->timeout = opts.timeout ? opts.timeout : 5;
 
   /* Lazily initialize dns server */
-  if (nameserver == NULL && ns_dns_server[0] == '\0'  &&
-      ns_get_ip_address_of_nameserver(ns_dns_server,
-                                      sizeof(ns_dns_server)) == -1) {
+  if (nameserver == NULL && ns_dns_server[0] == '\0' &&
+      ns_get_ip_address_of_nameserver(ns_dns_server, sizeof(ns_dns_server)) ==
+          -1) {
     strncpy(ns_dns_server, ns_default_dns_server, sizeof(ns_dns_server));
   }
 
@@ -4956,7 +4987,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   return 0;
 }
 
-#endif  /* NS_DISABLE_RESOLVE */
+#endif /* NS_DISABLE_RESOLVE */
 #ifdef NS_MODULE_LINES
 #line 1 "src/md5.c"
 /**/
@@ -5222,10 +5253,10 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
  * Returns pointer to the newly created option.
  */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
-                                          uint32_t number, char* value,
+                                          uint32_t number, char *value,
                                           size_t len) {
   struct ns_coap_option *new_option =
-      (struct ns_coap_option *)NS_CALLOC(1, sizeof(*new_option));
+      (struct ns_coap_option *) NS_CALLOC(1, sizeof(*new_option));
 
   new_option->number = number;
   new_option->value.p = value;
@@ -5244,8 +5275,8 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
       cm->options_tail = cm->options_tail->next = new_option;
     } else {
       /* looking for appropriate position */
-      struct ns_coap_option* current_opt = cm->options;
-      struct ns_coap_option* prev_opt = 0;
+      struct ns_coap_option *current_opt = cm->options;
+      struct ns_coap_option *prev_opt = 0;
 
       while (current_opt != NULL) {
         if (current_opt->number > new_option->number) {
@@ -5274,7 +5305,7 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
  *
  * Helper function.
  */
-static char *coap_parse_header(char* ptr, struct iobuf *io,
+static char *coap_parse_header(char *ptr, struct iobuf *io,
                                struct ns_coap_message *cm) {
   if (io->len < sizeof(uint32_t)) {
     cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
@@ -5287,7 +5318,7 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
    * to 1 (01 binary).  Other values are reserved for future versions.
    * Messages with unknown version numbers MUST be silently ignored.
    */
-  if (((uint8_t)*ptr >> 6) != 1) {
+  if (((uint8_t) *ptr >> 6) != 1) {
     cm->flags |= NS_COAP_IGNORE;
     return NULL;
   }
@@ -5297,7 +5328,7 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
    * type Confirmable (0), Non-confirmable (1), Acknowledgement (2), or
    * Reset (3).
    */
-  cm->msg_type = ((uint8_t)*ptr & 0x30) >> 4;
+  cm->msg_type = ((uint8_t) *ptr & 0x30) >> 4;
   cm->flags |= NS_COAP_MSG_TYPE_FIELD;
 
   /*
@@ -5318,14 +5349,14 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
    * Code:  8-bit unsigned integer, split into a 3-bit class (most
    * significant bits) and a 5-bit detail (least significant bits)
    */
-  cm->code_class = (uint8_t)*ptr >> 5;
+  cm->code_class = (uint8_t) *ptr >> 5;
   cm->code_detail = *ptr & 0x1F;
   cm->flags |= (NS_COAP_CODE_CLASS_FIELD | NS_COAP_CODE_DETAIL_FIELD);
 
   ptr++;
 
   /* Message ID:  16-bit unsigned integer in network byte order. */
-  cm->msg_id = (uint8_t)*ptr << 8 | (uint8_t)*(ptr + 1);
+  cm->msg_id = (uint8_t) *ptr << 8 | (uint8_t) * (ptr + 1);
   cm->flags |= NS_COAP_MSG_ID_FIELD;
 
   ptr += 2;
@@ -5341,7 +5372,7 @@ static char *coap_parse_header(char* ptr, struct iobuf *io,
 static char *coap_get_token(char *ptr, struct iobuf *io,
                             struct ns_coap_message *cm) {
   if (cm->token.len != 0) {
-    if (ptr + cm->token.len > io->buf + io->len ) {
+    if (ptr + cm->token.len > io->buf + io->len) {
       cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
       return NULL;
     } else {
@@ -5359,7 +5390,7 @@ static char *coap_get_token(char *ptr, struct iobuf *io,
  *
  * Helper function.
  */
-static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
+static int coap_get_ext_opt(char *ptr, struct iobuf *io, uint16_t *opt_info) {
   int ret = 0;
 
   if (*opt_info == 13) {
@@ -5368,10 +5399,10 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
      * indicates the Option Delta/Length minus 13.
      */
     if (ptr < io->buf + io->len) {
-      *opt_info = (uint8_t)*ptr + 13;
+      *opt_info = (uint8_t) *ptr + 13;
       ret = sizeof(uint8_t);
     } else {
-      ret = -1;  /* LCOV_EXCL_LINE */
+      ret = -1; /* LCOV_EXCL_LINE */
     }
   } else if (*opt_info == 14) {
     /*
@@ -5379,10 +5410,10 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
      * initial byte and indicates the Option Delta/Length minus 269.
      */
     if (ptr + sizeof(uint8_t) < io->buf + io->len) {
-      *opt_info = ((uint8_t)*ptr << 8 | (uint8_t)*(ptr + 1)) + 269;
+      *opt_info = ((uint8_t) *ptr << 8 | (uint8_t) * (ptr + 1)) + 269;
       ret = sizeof(uint16_t);
     } else {
-      ret = -1;  /* LCOV_EXCL_LINE */
+      ret = -1; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -5405,7 +5436,7 @@ static int coap_get_ext_opt(char* ptr, struct iobuf *io, uint16_t* opt_info) {
  * \         Option Value          \  0 or more bytes
  * +-------------------------------+
  */
-static char *coap_get_options(char* ptr, struct iobuf *io,
+static char *coap_get_options(char *ptr, struct iobuf *io,
                               struct ns_coap_message *cm) {
   uint16_t prev_opt = 0;
 
@@ -5415,12 +5446,12 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
   }
 
   /* 0xFF is payload marker */
-  while (ptr < io->buf + io->len && (uint8_t)*ptr != 0xFF) {
+  while (ptr < io->buf + io->len && (uint8_t) *ptr != 0xFF) {
     uint16_t option_delta, option_lenght;
     int optinfo_len;
 
     /* Option Delta:  4-bit unsigned integer */
-    option_delta = ((uint8_t)*ptr & 0xF0) >> 4;
+    option_delta = ((uint8_t) *ptr & 0xF0) >> 4;
     /* Option Length:  4-bit unsigned integer */
     option_lenght = *ptr & 0x0F;
 
@@ -5438,8 +5469,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     /* check for extended option delta */
     optinfo_len = coap_get_ext_opt(ptr, io, &option_delta);
     if (optinfo_len == -1) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
-      break;  /* LCOV_EXCL_LINE */
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA; /* LCOV_EXCL_LINE */
+      break;                                /* LCOV_EXCL_LINE */
     }
 
     ptr += optinfo_len;
@@ -5447,8 +5478,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     /* check or extended option lenght */
     optinfo_len = coap_get_ext_opt(ptr, io, &option_lenght);
     if (optinfo_len == -1) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
-      break;  /* LCOV_EXCL_LINE */
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA; /* LCOV_EXCL_LINE */
+      break;                                /* LCOV_EXCL_LINE */
     }
 
     ptr += optinfo_len;
@@ -5465,8 +5496,8 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
     prev_opt = option_delta;
 
     if (ptr + option_lenght > io->buf + io->len) {
-      cm->flags |= NS_COAP_NOT_ENOUGH_DATA;  /* LCOV_EXCL_LINE */
-      break;  /* LCOV_EXCL_LINE */
+      cm->flags |= NS_COAP_NOT_ENOUGH_DATA; /* LCOV_EXCL_LINE */
+      break;                                /* LCOV_EXCL_LINE */
     }
 
     ptr += option_lenght;
@@ -5505,7 +5536,7 @@ static char *coap_get_options(char* ptr, struct iobuf *io,
  * Helper function.
  */
 uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
-  char* ptr;
+  char *ptr;
 
   memset(cm, 0, sizeof(*cm));
 
@@ -5558,8 +5589,7 @@ static int coap_split_opt(uint32_t value, uint8_t *base, uint16_t *ext) {
 
   if (value < 13) {
     *base = value;
-  } else
-  if (value >= 13 && value <= 0xFF + 13) {
+  } else if (value >= 13 && value <= 0xFF + 13) {
     *base = 13;
     *ext = value - 13;
     ret = sizeof(uint8_t);
@@ -5611,14 +5641,14 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
   struct ns_coap_option *opt;
   uint32_t prev_opt_number;
 
-  *len = 4;  /* header */
+  *len = 4; /* header */
   if (cm->msg_type > NS_COAP_MSG_MAX) {
     return NS_COAP_ERROR | NS_COAP_MSG_TYPE_FIELD;
   }
   if (cm->token.len > 8) {
     return NS_COAP_ERROR | NS_COAP_TOKEN_FIELD;
   }
-  if (cm->code_class > 7 ) {
+  if (cm->code_class > 7) {
     return NS_COAP_ERROR | NS_COAP_CODE_CLASS_FIELD;
   }
   if (cm->code_detail > 31) {
@@ -5627,24 +5657,24 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
 
   *len += cm->token.len;
   if (cm->payload.len != 0) {
-    *len += cm->payload.len + 1;  /* ... + 1; add payload marker */
+    *len += cm->payload.len + 1; /* ... + 1; add payload marker */
   }
 
   opt = cm->options;
   prev_opt_number = 0;
   while (opt != NULL) {
-    *len += 1;  /* basic delta/length */
+    *len += 1; /* basic delta/length */
     *len += coap_get_ext_opt_size(opt->number);
-    *len += coap_get_ext_opt_size((uint32_t)opt->value.len);
+    *len += coap_get_ext_opt_size((uint32_t) opt->value.len);
     /*
      * Current implementation performs check if
      * option_number > previous option_number and produces an error
      * TODO(alashkin): write design doc with limitations
      * May be resorting is more suitable solution.
      */
-    if ((opt->next != NULL && opt->number > opt->next->number)
-        || opt->value.len > 0xFFFF + 269
-        || opt->number - prev_opt_number > 0xFFFF + 269) {
+    if ((opt->next != NULL && opt->number > opt->next->number) ||
+        opt->value.len > 0xFFFF + 269 ||
+        opt->number - prev_opt_number > 0xFFFF + 269) {
       return NS_COAP_ERROR | NS_COAP_OPTIONS_FIELD;
     }
     *len += opt->value.len;
@@ -5702,10 +5732,10 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
     uint8_t delta_base, length_base;
     uint16_t delta_ext, length_ext;
 
-    size_t opt_delta_len = coap_split_opt(opt->number - prev_opt_number,
-                                          &delta_base, &delta_ext);
-    size_t opt_lenght_len = coap_split_opt((uint32_t)opt->value.len,
-                                           &length_base, &length_ext);
+    size_t opt_delta_len =
+        coap_split_opt(opt->number - prev_opt_number, &delta_base, &delta_ext);
+    size_t opt_lenght_len =
+        coap_split_opt((uint32_t) opt->value.len, &length_base, &length_ext);
 
     *ptr = (delta_base << 4) | length_base;
     ptr++;
@@ -5744,10 +5774,10 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
   iobuf_init(&packet_out, 0);
   compose_res = ns_coap_compose(cm, &packet_out);
   if (compose_res != 0) {
-    return compose_res;  /* LCOV_EXCL_LINE */
+    return compose_res; /* LCOV_EXCL_LINE */
   }
 
-  send_res = ns_send(nc, packet_out.buf, (int)packet_out.len);
+  send_res = ns_send(nc, packet_out.buf, (int) packet_out.len);
   iobuf_free(&packet_out);
 
   if (send_res == 0) {
@@ -5755,7 +5785,7 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
      * in case of UDP ns_send tries to send immediately
      * and could return an error.
      */
-    return NS_COAP_NETWORK_ERROR;  /* LCOV_EXCL_LINE */
+    return NS_COAP_NETWORK_ERROR; /* LCOV_EXCL_LINE */
   }
 
   return 0;
@@ -5786,14 +5816,14 @@ static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_RECV:
       parse_res = ns_coap_parse(io, &cm);
-      if  ((parse_res & NS_COAP_IGNORE) == 0) {
+      if ((parse_res & NS_COAP_IGNORE) == 0) {
         if ((cm.flags & NS_COAP_NOT_ENOUGH_DATA) != 0) {
           /*
            * Since we support UDP only
            * NS_COAP_NOT_ENOUGH_DATA == NS_COAP_FORMAT_ERROR
            */
-          cm.flags |= NS_COAP_FORMAT_ERROR;  /* LCOV_EXCL_LINE */
-        }  /* LCOV_EXCL_LINE */
+          cm.flags |= NS_COAP_FORMAT_ERROR; /* LCOV_EXCL_LINE */
+        }                                   /* LCOV_EXCL_LINE */
         nc->handler(nc, NS_COAP_EVENT_BASE + cm.msg_type, &cm);
       }
 
@@ -5823,4 +5853,4 @@ int ns_set_protocol_coap(struct ns_connection *nc) {
   return 0;
 }
 
-#endif  /* NS_DISABLE_COAP */
+#endif /* NS_DISABLE_COAP */

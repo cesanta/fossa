@@ -2824,10 +2824,11 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
  *
  * [source,c]
  * ----
- *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL);
- *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL);
+ *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL,
+ *                         NULL);
+ *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL, NULL);
  *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
- *                         "var_1=value_1&var_2=value_2");
+ *                         "var_1=value_1&var_2=value_2", NULL);
  * ----
  */
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr,

@@ -45,6 +45,14 @@ an open source platform for connecting devices and bringing them online.
 - [examples](examples) - Collection of well-commented examples. To build any example,
 go into respective directory and type `make`
 
+## Contributions
+
+People who have agreed to the
+[Cesanta Software Limited CLA](http://cesanta.com/contributors_la.html)
+can make contributions. Note that the CLA isn't a copyright
+_assigment_ but rather a copyright _license_.
+You retain the copyright on your contributions.
+
 ## License
 
 Fossa is released under

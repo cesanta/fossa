@@ -94,13 +94,13 @@ int ns_dns_send_reply(struct ns_connection *nc, struct ns_dns_reply *r) {
  */
 int ns_dns_reply_record(struct ns_dns_reply *reply,
                         struct ns_dns_resource_record *question,
-                        const char *name, int rtype, int ttl,
-                        const void *rdata, size_t rdata_len) {
-  struct ns_dns_message *msg = (struct ns_dns_message *)reply->msg;
+                        const char *name, int rtype, int ttl, const void *rdata,
+                        size_t rdata_len) {
+  struct ns_dns_message *msg = (struct ns_dns_message *) reply->msg;
   char rname[512];
   struct ns_dns_resource_record *ans = &msg->answers[msg->num_answers];
   if (msg->num_answers >= NS_MAX_DNS_ANSWERS) {
-    return -1;  /* LCOV_EXCL_LINE */
+    return -1; /* LCOV_EXCL_LINE */
   }
 
   if (name == NULL) {
@@ -114,14 +114,13 @@ int ns_dns_reply_record(struct ns_dns_reply *reply,
   ans->rtype = rtype;
   ans->ttl = ttl;
 
-  if (ns_dns_encode_record(reply->io, ans, name, strlen(name),
-                           rdata, rdata_len) == -1) {
-    return -1;  /* LCOV_EXCL_LINE */
+  if (ns_dns_encode_record(reply->io, ans, name, strlen(name), rdata,
+                           rdata_len) == -1) {
+    return -1; /* LCOV_EXCL_LINE */
   };
 
   msg->num_answers++;
   return 0;
 }
 
-
-#endif  /* NS_ENABLE_DNS_SERVER */
+#endif /* NS_ENABLE_DNS_SERVER */

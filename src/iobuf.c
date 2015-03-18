@@ -60,7 +60,7 @@ size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   assert(off <= io->len);
 
   /* check overflow */
-  if (len > ~(size_t)0 - (size_t)(io->buf + io->len)) {
+  if (len > ~(size_t) 0 - (size_t)(io->buf + io->len)) {
     return 0;
   }
 

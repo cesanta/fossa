@@ -39,4 +39,4 @@ int ns_is_big_endian(void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif  /* NS_UTIL_HEADER_DEFINED */
+#endif /* NS_UTIL_HEADER_DEFINED */

@@ -83,11 +83,11 @@ static void ns_mqtt_broker_handle_subscribe(struct ns_connection *nc,
   struct ns_mqtt_topic_expression *te;
 
   for (pos = 0;
-       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1; ) {
+       (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1;) {
     qoss[qoss_len++] = qos;
   }
 
-  ss->subscriptions = (struct ns_mqtt_topic_expression *)realloc(
+  ss->subscriptions = (struct ns_mqtt_topic_expression *) realloc(
       ss->subscriptions, sizeof(*ss->subscriptions) * qoss_len);
   for (pos = 0;
        (pos = ns_mqtt_next_subscribe_topic(msg, &topic, &qos, pos)) != -1;
@@ -124,10 +124,10 @@ static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
 
   for (s = ns_mqtt_next(brk, NULL); s != NULL; s = ns_mqtt_next(brk, s)) {
     for (i = 0; i < s->num_subscriptions; i++) {
-      if (ns_mqtt_match_topic_expression(
-              s->subscriptions[i].topic, msg->topic)) {
-        ns_mqtt_publish(s->nc, msg->topic, 0, 0,
-                        msg->payload.p, msg->payload.len);
+      if (ns_mqtt_match_topic_expression(s->subscriptions[i].topic,
+                                         msg->topic)) {
+        ns_mqtt_publish(s->nc, msg->topic, 0, 0, msg->payload.p,
+                        msg->payload.len);
         break;
       }
     }
@@ -161,7 +161,7 @@ static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
  * for most events the `user_data` will thus point to a `ns_mqtt_session`.
  */
 void ns_mqtt_broker(struct ns_connection *nc, int ev, void *data) {
-  struct ns_mqtt_message *msg = (struct ns_mqtt_message *)data;
+  struct ns_mqtt_message *msg = (struct ns_mqtt_message *) data;
   struct ns_mqtt_broker *brk;
 
   if (nc->listener) {

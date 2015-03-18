@@ -32,18 +32,18 @@ struct ns_mqtt_broker;
 
 /* MQTT session (Broker side). */
 struct ns_mqtt_session {
-  struct ns_mqtt_broker *brk;           /* Broker */
-  struct ns_mqtt_session *next, *prev;  /* ns_mqtt_broker::sessions linkage */
-  struct ns_connection *nc;             /* Connection with the client */
-  size_t num_subscriptions;             /* Size of `subscriptions` array */
+  struct ns_mqtt_broker *brk;          /* Broker */
+  struct ns_mqtt_session *next, *prev; /* ns_mqtt_broker::sessions linkage */
+  struct ns_connection *nc;            /* Connection with the client */
+  size_t num_subscriptions;            /* Size of `subscriptions` array */
   struct ns_mqtt_topic_expression *subscriptions;
-  void *user_data;                      /* User data */
+  void *user_data; /* User data */
 };
 
 /* MQTT broker. */
 struct ns_mqtt_broker {
-  struct ns_mqtt_session *sessions;  /* Session list */
-  void *user_data;                   /* User data */
+  struct ns_mqtt_session *sessions; /* Session list */
+  void *user_data;                  /* User data */
 };
 
 void ns_mqtt_broker_init(struct ns_mqtt_broker *, void *);

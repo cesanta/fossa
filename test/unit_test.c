@@ -29,26 +29,28 @@
 #define NS_TEST_ABORT
 #endif
 
-#define FAIL(str, line) do {                    \
-  printf("%s:%d:1 [%s] (in %s)\n", __FILE__,    \
-         line, str, __func__);                  \
-  NS_TEST_ABORT;                                \
-  return str;                                   \
-} while (0)
+#define FAIL(str, line)                                              \
+  do {                                                               \
+    printf("%s:%d:1 [%s] (in %s)\n", __FILE__, line, str, __func__); \
+    NS_TEST_ABORT;                                                   \
+    return str;                                                      \
+  } while (0)
 
-#define ASSERT(expr) do {             \
-  static_num_tests++;                 \
-  if (!(expr)) FAIL(#expr, __LINE__); \
-} while (0)
+#define ASSERT(expr)                    \
+  do {                                  \
+    static_num_tests++;                 \
+    if (!(expr)) FAIL(#expr, __LINE__); \
+  } while (0)
 
-#define RUN_TEST(test) do {                 \
-  const char *msg = NULL;                   \
-  if (strstr(# test, filter)) msg = test(); \
-  if (msg) return msg;                      \
-} while (0)
+#define RUN_TEST(test)                       \
+  do {                                       \
+    const char *msg = NULL;                  \
+    if (strstr(#test, filter)) msg = test(); \
+    if (msg) return msg;                     \
+  } while (0)
 
 #define HTTP_PORT "45772"
-#define LOOPBACK_IP  "127.0.0.1"
+#define LOOPBACK_IP "127.0.0.1"
 #define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
 static int static_num_tests = 0;
@@ -57,15 +59,15 @@ static const char *s_argv_0 = NULL;
 #define TEST_NS_MALLOC malloc
 #define TEST_NS_CALLOC calloc
 
-void * (*test_malloc)(size_t) = TEST_NS_MALLOC;
-void * (*test_calloc)(size_t, size_t) = TEST_NS_CALLOC;
+void *(*test_malloc)(size_t) = TEST_NS_MALLOC;
+void *(*test_calloc)(size_t, size_t) = TEST_NS_CALLOC;
 
-void * failing_malloc(size_t size) {
+void *failing_malloc(size_t size) {
   (void) size;
   return NULL;
 }
 
-void * failing_calloc(size_t count, size_t size) {
+void *failing_calloc(size_t count, size_t size) {
   (void) count;
   (void) size;
   return NULL;
@@ -115,12 +117,15 @@ static const char *test_iobuf(void) {
   ASSERT(io.size == 10);
   ASSERT(io.len == strlen(data) + strlen(prefix));
 
-  ASSERT(iobuf_insert(&io, 0, big_prefix, strlen(big_prefix)) == strlen(big_prefix));
+  ASSERT(iobuf_insert(&io, 0, big_prefix, strlen(big_prefix)) ==
+         strlen(big_prefix));
   ASSERT(io.size == strlen(big_prefix) + strlen(prefix) + strlen(data));
   ASSERT(strncmp(io.buf, "Some long prefix: MYTEST", 24) == 0);
 
-  ASSERT(iobuf_insert(&io, strlen(big_prefix), data, strlen(data)) == strlen(data));
-  ASSERT(io.size == strlen(big_prefix) + strlen(data) + strlen(prefix) + strlen(data));
+  ASSERT(iobuf_insert(&io, strlen(big_prefix), data, strlen(data)) ==
+         strlen(data));
+  ASSERT(io.size ==
+         strlen(big_prefix) + strlen(data) + strlen(prefix) + strlen(data));
   ASSERT(strncmp(io.buf, "Some long prefix: TESTMYTEST", 28) == 0);
 
   /* test allocation failure */
@@ -143,7 +148,7 @@ static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_CONNECT:
-      ns_printf(nc, "%d %s there", * (int *) ev_data, "hi");
+      ns_printf(nc, "%d %s there", *(int *) ev_data, "hi");
       break;
     case NS_RECV:
       if (nc->listener != NULL) {
@@ -159,8 +164,8 @@ static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-#define S_PEM  "server.pem"
-#define C_PEM  "client.pem"
+#define S_PEM "server.pem"
+#define C_PEM "client.pem"
 #define CA_PEM "ca.pem"
 
 static const char *test_mgr_with_ssl(int use_ssl) {
@@ -169,7 +174,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   struct ns_connection *nc;
   int port, port2;
 #ifndef NS_ENABLE_SSL
-  (void)use_ssl;
+  (void) use_ssl;
 #endif
 
   ns_mgr_init(&mgr, NULL);
@@ -226,29 +231,36 @@ static const char *test_to64(void) {
 /* TODO(mkm) port these test cases to the new async parse_address */
 static const char *test_parse_address(void) {
   static const char *valid[] = {
-    "1", "1.2.3.4:1", "tcp://123", "udp://0.0.0.0:99", "tcp://localhost:99",
+    "1",
+    "1.2.3.4:1",
+    "tcp://123",
+    "udp://0.0.0.0:99",
+    "tcp://localhost:99",
     ":8080",
 #if defined(NS_ENABLE_IPV6)
-    "udp://[::1]:123", "[3ffe:2a00:100:7031::1]:900",
+    "udp://[::1]:123",
+    "[3ffe:2a00:100:7031::1]:900",
 #endif
     NULL
   };
   static const int protos[] = {
-    SOCK_STREAM, SOCK_STREAM, SOCK_STREAM, SOCK_DGRAM, SOCK_STREAM, SOCK_STREAM
+    SOCK_STREAM,
+    SOCK_STREAM,
+    SOCK_STREAM,
+    SOCK_DGRAM,
+    SOCK_STREAM,
+    SOCK_STREAM
 #if defined(NS_ENABLE_IPV6)
-    ,SOCK_DGRAM, SOCK_STREAM
+    ,
+    SOCK_DGRAM,
+    SOCK_STREAM
 #endif
   };
-  static const char *need_lookup[] = {
-    "udp://a.com:53", "locl_host:12",
-    NULL
-  };
+  static const char *need_lookup[] = {"udp://a.com:53", "locl_host:12", NULL};
   static const char *invalid[] = {
-    "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", "blah://12", ":123x",
-    "veeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeery.long:12345",
-    "udp://missingport",
-    NULL
-  };
+      "99999", "1k", "1.2.3", "1.2.3.4:", "1.2.3.4:2p", "blah://12", ":123x",
+      "veeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeery.long:12345",
+      "udp://missingport", NULL};
   char host[50];
   union socket_address sa;
   int i, proto;
@@ -263,8 +275,8 @@ static const char *test_parse_address(void) {
   }
 
   for (i = 0; need_lookup[i] != NULL; i++) {
-    ASSERT(ns_parse_address(need_lookup[i], &sa, &proto, host,
-                            sizeof(host)) == 0);
+    ASSERT(ns_parse_address(need_lookup[i], &sa, &proto, host, sizeof(host)) ==
+           0);
   }
 
   return NULL;
@@ -274,10 +286,10 @@ static void connect_fail_cb(struct ns_connection *nc, int ev, void *p) {
   switch (ev) {
     case NS_CONNECT:
       /* On connection success, set flag 1, else set 4 */
-      * (int *) nc->user_data |= * (int *) p == 0 ? 1 : 4;
+      *(int *) nc->user_data |= *(int *) p == 0 ? 1 : 4;
       break;
     case NS_CLOSE:
-      * (int *) nc->user_data |= 2;
+      *(int *) nc->user_data |= 2;
       break;
   }
 }
@@ -395,7 +407,7 @@ static void eh2(struct ns_connection *nc, int ev, void *p) {
 }
 
 static void *thread_func(void *param) {
-  sock_t sock = * (sock_t *) param;
+  sock_t sock = *(sock_t *) param;
   send(sock, ":-)", 4, 0);
   return NULL;
 }
@@ -430,7 +442,7 @@ static void eh3_srv(struct ns_connection *nc, int ev, void *p) {
   (void) p;
 
   if (ev == NS_RECV) {
-    memcpy(((struct udp_res*)nc->mgr->user_data)->buf_srv, io->buf, io->len);
+    memcpy(((struct udp_res *) nc->mgr->user_data)->buf_srv, io->buf, io->len);
     ns_send(nc, io->buf, io->len);
   }
 }
@@ -440,7 +452,7 @@ static void eh3_clnt(struct ns_connection *nc, int ev, void *p) {
   (void) p;
 
   if (ev == NS_RECV) {
-    memcpy(((struct udp_res*)nc->mgr->user_data)->buf_clnt, io->buf, io->len);
+    memcpy(((struct udp_res *) nc->mgr->user_data)->buf_clnt, io->buf, io->len);
   }
 }
 
@@ -455,7 +467,10 @@ static const char *test_udp(void) {
   ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
   ns_printf(nc2, "%s", "boo!");
 
-  { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
+  {
+    int i;
+    for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
+  }
   ASSERT(memcmp(res.buf_srv, "boo!", 4) == 0);
   ASSERT(memcmp(res.buf_clnt, "boo!", 4) == 0);
   ns_mgr_free(&mgr);
@@ -555,8 +570,8 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
 
   if (ev == NS_HTTP_REQUEST) {
     if (ns_vcmp(&hm->uri, "/foo") == 0) {
-      ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]",
-                (int) hm->uri.len, hm->uri.p, (int) hm->body.len);
+      ns_printf(nc, "HTTP/1.0 200 OK\n\n[%.*s %d]", (int) hm->uri.len,
+                hm->uri.p, (int) hm->body.len);
       nc->flags |= NSF_SEND_AND_CLOSE;
     } else {
       static struct ns_serve_http_opts opts;
@@ -587,10 +602,13 @@ static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
   if (ev == NS_HTTP_REPLY) {
     /* Make sure that we've downloaded this executable, byte-to-byte */
     data = read_file(s_argv_0, &size);
-    strcpy((char *) nc->user_data, data == NULL || size != hm->body.len ||
-           (s = ns_get_http_header(hm, "Content-Type")) == NULL ||
-           (ns_vcmp(s, "text/plain")) != 0 ||
-           memcmp(hm->body.p, data, size) != 0 ? "fail" : "success");
+    strcpy((char *) nc->user_data,
+           data == NULL || size != hm->body.len ||
+                   (s = ns_get_http_header(hm, "Content-Type")) == NULL ||
+                   (ns_vcmp(s, "text/plain")) != 0 ||
+                   memcmp(hm->body.p, data, size) != 0
+               ? "fail"
+               : "success");
     free(data);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
   }
@@ -638,7 +656,8 @@ static const char *test_http(void) {
   ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
-  ns_printf(nc, "%s", "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
+  ns_printf(nc, "%s",
+            "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
             "0123456789");
 
   /* Invalid HTTP request */
@@ -665,9 +684,9 @@ static const char *test_http(void) {
 
   /* Test digest authorization success */
   snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
-  ns_http_create_digest_auth_header(auth_hdr, sizeof(auth_hdr),
-                                    "GET", "/data/auth/a.txt",
-                                    "foo.com", "joe", "doe");
+  ns_http_create_digest_auth_header(auth_hdr, sizeof(auth_hdr), "GET",
+                                    "/data/auth/a.txt", "foo.com", "joe",
+                                    "doe");
   ASSERT((nc = ns_connect_http(&mgr, cb_auth_ok, url, auth_hdr, NULL)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_ok;
@@ -680,7 +699,7 @@ static const char *test_http(void) {
   ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
   ASSERT(strcmp(status, "success") == 0);
   ASSERT(strcmp(mime, "text/xml") == 0);
-  ASSERT(strcmp(auth_fail, "401") == 0);      /* Must be 401 Unauthorized */
+  ASSERT(strcmp(auth_fail, "401") == 0); /* Must be 401 Unauthorized */
   ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
 
   return NULL;
@@ -690,7 +709,8 @@ static void cb8(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    snprintf((char *) nc->user_data, 40, "%.*s", (int)hm->message.len, hm->message.p);
+    snprintf((char *) nc->user_data, 40, "%.*s", (int) hm->message.len,
+             hm->message.p);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 }
@@ -753,7 +773,8 @@ static void cb9(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    snprintf((char *) nc->user_data, 20, "%.*s", (int)hm->body.len, hm->body.p);
+    snprintf((char *) nc->user_data, 20, "%.*s", (int) hm->body.len,
+             hm->body.p);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 }
@@ -791,7 +812,7 @@ static void cb3(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
 
   if (ev == NS_WEBSOCKET_FRAME) {
-    const char *reply = wm->size == 2 && !memcmp(wm->data, "hi", 2) ? "A": "B";
+    const char *reply = wm->size == 2 && !memcmp(wm->data, "hi", 2) ? "A" : "B";
     ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", reply);
   }
 }
@@ -855,22 +876,25 @@ static void cb3_big(struct ns_connection *nc, int ev, void *ev_data) {
         break;
       }
     }
-    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s", success ? "success": "fail");
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%s",
+                              success ? "success" : "fail");
   }
 }
 
 static void cb4_big(struct ns_connection *nc, int ev, void *ev_data) {
   struct websocket_message *wm = (struct websocket_message *) ev_data;
-  struct big_payload_params *params = (struct big_payload_params *)nc->user_data;
+  struct big_payload_params *params =
+      (struct big_payload_params *) nc->user_data;
 
   if (ev == NS_WEBSOCKET_FRAME) {
     memcpy(params->buf, wm->data, wm->size);
     ns_send_websocket_frame(nc, WEBSOCKET_OP_CLOSE, NULL, 0);
   } else if (ev == NS_WEBSOCKET_HANDSHAKE_DONE) {
     /* Send large payload to server. server must reply "success". */
-    char *payload = (char *)malloc(params->size);
+    char *payload = (char *) malloc(params->size);
     memset(payload, 'x', params->size);
-    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%.*s", params->size, payload);
+    ns_printf_websocket_frame(nc, WEBSOCKET_OP_TEXT, "%.*s", params->size,
+                              payload);
     free(payload);
   }
 }
@@ -946,14 +970,15 @@ static const char *test_mqtt_publish(void) {
   char data[] = "dummy";
   const char *got;
 
-  ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data, sizeof(data));
+  ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data,
+                  sizeof(data));
   got = nc->send_iobuf.buf;
   ASSERT(nc->send_iobuf.len == 17);
 
   ASSERT(got[0] & NS_MQTT_RETAIN);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_PUBLISH << 4));
   ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
 
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 5);
@@ -973,15 +998,13 @@ static const char *test_mqtt_subscribe(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   const char *got;
   const int qos = 1;
-  struct ns_mqtt_topic_expression topic_expressions[] = {
-    {"/stuff", qos}
-  };
+  struct ns_mqtt_topic_expression topic_expressions[] = {{"/stuff", qos}};
 
   ns_mqtt_subscribe(nc, topic_expressions, 1, 42);
   got = nc->send_iobuf.buf;
   ASSERT(nc->send_iobuf.len == 13);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBSCRIBE << 4));
-  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
@@ -1004,7 +1027,7 @@ static const char *test_mqtt_unsubscribe(void) {
   got = nc->send_iobuf.buf;
   ASSERT(nc->send_iobuf.len == 12);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_UNSUBSCRIBE << 4));
-  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
@@ -1024,7 +1047,7 @@ static const char *test_mqtt_connack(void) {
   got = nc->send_iobuf.buf;
   ASSERT(nc->send_iobuf.len > 0);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_CONNACK << 4));
-  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
   ASSERT(got[3] == 42);
 
   iobuf_free(&nc->send_iobuf);
@@ -1044,7 +1067,7 @@ static const char *test_mqtt_suback(void) {
   ASSERT(nc->send_iobuf.len == 5);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBACK << 4));
   ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
   ASSERT(got[4] == 1);
@@ -1060,11 +1083,11 @@ static const char *test_mqtt_simple_acks(void) {
     uint8_t cmd;
     void (*f)(struct ns_connection *, uint16_t);
   } cases[] = {
-    {NS_MQTT_CMD_PUBACK, ns_mqtt_puback},
-    {NS_MQTT_CMD_PUBREC, ns_mqtt_pubrec},
-    {NS_MQTT_CMD_PUBREL, ns_mqtt_pubrel},
-    {NS_MQTT_CMD_PUBCOMP, ns_mqtt_pubcomp},
-    {NS_MQTT_CMD_UNSUBACK, ns_mqtt_unsuback},
+      {NS_MQTT_CMD_PUBACK, ns_mqtt_puback},
+      {NS_MQTT_CMD_PUBREC, ns_mqtt_pubrec},
+      {NS_MQTT_CMD_PUBREL, ns_mqtt_pubrel},
+      {NS_MQTT_CMD_PUBCOMP, ns_mqtt_pubcomp},
+      {NS_MQTT_CMD_UNSUBACK, ns_mqtt_unsuback},
   };
 
   for (i = 0; i < ARRAY_SIZE(cases); i++) {
@@ -1077,7 +1100,7 @@ static const char *test_mqtt_simple_acks(void) {
     ASSERT(nc->send_iobuf.len == 4);
     ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
     ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-    ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+    ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
     ASSERT(got[2] == 0);
     ASSERT(got[3] == 42);
 
@@ -1093,9 +1116,9 @@ static const char *test_mqtt_nullary(void) {
     uint8_t cmd;
     void (*f)(struct ns_connection *);
   } cases[] = {
-    {NS_MQTT_CMD_PINGREQ, ns_mqtt_ping},
-    {NS_MQTT_CMD_PINGRESP, ns_mqtt_pong},
-    {NS_MQTT_CMD_DISCONNECT, ns_mqtt_disconnect},
+      {NS_MQTT_CMD_PINGREQ, ns_mqtt_ping},
+      {NS_MQTT_CMD_PINGRESP, ns_mqtt_pong},
+      {NS_MQTT_CMD_DISCONNECT, ns_mqtt_disconnect},
   };
 
   for (i = 0; i < ARRAY_SIZE(cases); i++) {
@@ -1107,7 +1130,7 @@ static const char *test_mqtt_nullary(void) {
     got = nc->send_iobuf.buf;
     ASSERT(nc->send_iobuf.len == 2);
     ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
-    ASSERT((size_t)got[1] == (nc->send_iobuf.len - 2));
+    ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
 
     iobuf_free(&nc->send_iobuf);
     free(nc);
@@ -1126,30 +1149,30 @@ static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_MQTT_SUBACK:
-      *((int*)nc->user_data) = 1;
+      *((int *) nc->user_data) = 1;
       break;
     case NS_MQTT_PUBLISH:
       if (strncmp(mm->topic, "/topic", 6)) break;
 
-      for (i=0; i < mm->payload.len; i++) {
+      for (i = 0; i < mm->payload.len; i++) {
         if (nc->recv_iobuf.buf[10 + i] != 'A') break;
       }
 
       if (mm->payload.len == mqtt_long_payload_len) {
-        *((int*)nc->user_data) = 2;
+        *((int *) nc->user_data) = 2;
       } else if (mm->payload.len == mqtt_very_long_payload_len) {
-        *((int*)nc->user_data) = 3;
+        *((int *) nc->user_data) = 3;
       }
       break;
     case NS_MQTT_CONNACK:
-      *((int*)nc->user_data) = 4;
+      *((int *) nc->user_data) = 4;
       break;
   }
 }
 
 static const char *test_mqtt_parse_mqtt(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
-  char msg[] = {(char)(NS_MQTT_CMD_SUBACK << 4), 2};
+  char msg[] = {(char) (NS_MQTT_CMD_SUBACK << 4), 2};
   char *long_msg;
   int check = 0;
   int num_bytes = sizeof(msg);
@@ -1168,7 +1191,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   /* test a payload whose length encodes as two bytes */
   rest_len = 8 + mqtt_long_payload_len;
   long_msg = (char *) malloc(512);
-  long_msg[0] = (char)(NS_MQTT_CMD_PUBLISH << 4);
+  long_msg[0] = (char) (NS_MQTT_CMD_PUBLISH << 4);
   long_msg[1] = (rest_len & 127) | 0x80;
   long_msg[2] = rest_len >> 7;
   memcpy(&long_msg[3], "\0\006/topic", 8);
@@ -1185,7 +1208,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   /* test a payload whose length encodes as two bytes */
   rest_len = 8 + mqtt_very_long_payload_len;
   long_msg = (char *) malloc(20100);
-  long_msg[0] = (char)(NS_MQTT_CMD_PUBLISH << 4);
+  long_msg[0] = (char) (NS_MQTT_CMD_PUBLISH << 4);
   long_msg[1] = (rest_len & 127) | 0x80;
   long_msg[2] = ((rest_len >> 7) & 127) | 0x80;
   long_msg[3] = (rest_len >> 14);
@@ -1227,13 +1250,10 @@ static const char *test_mqtt_parse_mqtt(void) {
   return NULL;
 }
 
-struct ns_mqtt_topic_expression brk_test_te[] = {
-  {"/dummy", 0},
-  {"/unit/#", 0}
-};
+struct ns_mqtt_topic_expression brk_test_te[] = {{"/dummy", 0}, {"/unit/#", 0}};
 
 static void brk_cln_cb1(struct ns_connection *nc, int ev, void *p) {
-  struct ns_mqtt_message *msg = (struct ns_mqtt_message *)p;
+  struct ns_mqtt_message *msg = (struct ns_mqtt_message *) p;
 
   switch (ev) {
     case NS_CONNECT:
@@ -1247,10 +1267,9 @@ static void brk_cln_cb1(struct ns_connection *nc, int ev, void *p) {
       ns_mqtt_publish(nc, "/unit/test", 0, NS_MQTT_QOS(0), "payload", 7);
       break;
     case NS_MQTT_PUBLISH:
-      if (strncmp(msg->topic, "/unit/test", 10) == 0 &&
-          msg->payload.len == 7 &&
+      if (strncmp(msg->topic, "/unit/test", 10) == 0 && msg->payload.len == 7 &&
           ns_vcmp(&msg->payload, "payload") == 0) {
-        * (int *) nc->user_data = 1;
+        *(int *) nc->user_data = 1;
       }
       break;
   }
@@ -1304,15 +1323,16 @@ static int rpc_sum(char *buf, int len, struct ns_rpc_request *req) {
 
 static void rpc_server(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
-  static const char *methods[] = { "sum", NULL };
-  static ns_rpc_handler_t handlers[] = { rpc_sum, NULL };
+  static const char *methods[] = {"sum", NULL};
+  static ns_rpc_handler_t handlers[] = {rpc_sum, NULL};
   char buf[100];
 
   switch (ev) {
     case NS_HTTP_REQUEST:
-      ns_rpc_dispatch(hm->body.p, hm->body.len, buf, sizeof(buf),
-                      methods, handlers);
-      ns_printf(nc, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n"
+      ns_rpc_dispatch(hm->body.p, hm->body.len, buf, sizeof(buf), methods,
+                      handlers);
+      ns_printf(nc,
+                "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n"
                 "Content-Type: application/json\r\n\r\n%s",
                 (int) strlen(buf), buf);
       nc->flags |= NSF_SEND_AND_CLOSE;
@@ -1331,18 +1351,20 @@ static void rpc_client(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_CONNECT:
-      ns_rpc_create_request(buf, sizeof(buf), "sum", "1", "[f,f,f]",
-                            1.0, 2.0, 13.0);
-      ns_printf(nc, "POST / HTTP/1.0\r\nContent-Type: application/json\r\n"
-                "Content-Length: %d\r\n\r\n%s", (int) strlen(buf), buf);
+      ns_rpc_create_request(buf, sizeof(buf), "sum", "1", "[f,f,f]", 1.0, 2.0,
+                            13.0);
+      ns_printf(nc,
+                "POST / HTTP/1.0\r\nContent-Type: application/json\r\n"
+                "Content-Length: %d\r\n\r\n%s",
+                (int) strlen(buf), buf);
       break;
     case NS_HTTP_REPLY:
-      ns_rpc_parse_reply(hm->body.p, hm->body.len,
-                         toks, sizeof(toks) / sizeof(toks[0]),
-                         &rpc_reply, &rpc_error);
+      ns_rpc_parse_reply(hm->body.p, hm->body.len, toks,
+                         sizeof(toks) / sizeof(toks[0]), &rpc_reply,
+                         &rpc_error);
       if (rpc_reply.result != NULL) {
-        sprintf((char *) nc->user_data, "%d %.*s %.*s",
-                rpc_reply.id->type, (int) rpc_reply.id->len, rpc_reply.id->ptr,
+        sprintf((char *) nc->user_data, "%d %.*s %.*s", rpc_reply.id->type,
+                (int) rpc_reply.id->len, rpc_reply.id->ptr,
                 (int) rpc_reply.result->len, rpc_reply.result->ptr);
       }
       break;
@@ -1377,7 +1399,7 @@ static const char *test_rpc(void) {
 static void cb5(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_CONNECT:
-      sprintf((char *) nc->user_data, "%d", * (int *) ev_data);
+      sprintf((char *) nc->user_data, "%d", *(int *) ev_data);
       break;
     default:
       break;
@@ -1402,9 +1424,9 @@ static const char *test_connect_fail(void) {
 }
 
 static void cb6(struct ns_connection *nc, int ev, void *ev_data) {
-  (void)nc;
-  (void)ev;
-  (void)ev_data;
+  (void) nc;
+  (void) ev;
+  (void) ev_data;
 }
 
 static const char *test_connect_opts(void) {
@@ -1412,12 +1434,12 @@ static const char *test_connect_opts(void) {
   struct ns_connection *nc;
   struct ns_connect_opts opts;
 
-  opts.user_data = (void*)0xdeadbeef;
+  opts.user_data = (void *) 0xdeadbeef;
   opts.flags = NSF_USER_6;
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:33211", cb6, opts)) != NULL);
-  ASSERT(nc->user_data == (void*)0xdeadbeef);
+  ASSERT(nc->user_data == (void *) 0xdeadbeef);
   ASSERT(nc->flags & NSF_USER_6);
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
@@ -1457,9 +1479,9 @@ static const char *test_base64(void) {
   char enc[8192];
   char dec[8192];
 
-  for (i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
-    ns_base64_encode((unsigned char *)cases[i], strlen(cases[i]), enc);
-    ns_base64_decode((unsigned char *)enc, strlen(enc), dec);
+  for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    ns_base64_encode((unsigned char *) cases[i], strlen(cases[i]), enc);
+    ns_base64_decode((unsigned char *) enc, strlen(enc), dec);
 
     ASSERT(strcmp(cases[i], dec) == 0);
   }
@@ -1470,18 +1492,20 @@ static const char *test_hexdump(void) {
   const char *src = "\1\2\3\4abcd";
   char got[256];
 
-  const char *want ="0000  01 02 03 04 61 62 63 64"
-                    "                          ....abcd\n\n";
-  ASSERT(ns_hexdump(src, strlen(src), got, sizeof(got)) == (int)strlen(want));
+  const char *want =
+      "0000  01 02 03 04 61 62 63 64"
+      "                          ....abcd\n\n";
+  ASSERT(ns_hexdump(src, strlen(src), got, sizeof(got)) == (int) strlen(want));
   ASSERT(strcmp(got, want) == 0);
   return NULL;
 }
 
 static const char *test_hexdump_file(void) {
   const char *path = "test_hexdump";
-  const char *want =  "0xbeef :0 -> :0 3\n"
-                      "0000  66 6f 6f   "
-                      "                                      foo\n\n";
+  const char *want =
+      "0xbeef :0 -> :0 3\n"
+      "0000  66 6f 6f   "
+      "                                      foo\n\n";
   char *data, *got;
   size_t size;
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
@@ -1491,7 +1515,7 @@ static const char *test_hexdump_file(void) {
    * (Pointers might print differently in other systems.)"
    * indeed it prints 0x0 on apple.
    */
-  nc->user_data = (void *)0xbeef;
+  nc->user_data = (void *) 0xbeef;
   close(open(path, O_TRUNC | O_WRONLY));
 
   iobuf_append(&nc->send_iobuf, "foo", 3);
@@ -1506,8 +1530,9 @@ static const char *test_hexdump_file(void) {
   unlink(path);
 
   got = data;
-  while(got-data < (int)size && *got++ != ' ');
-  size -= got-data;
+  while (got - data < (int) size && *got++ != ' ')
+    ;
+  size -= got - data;
   ASSERT(strncmp(got, want, size) == 0);
 
   free(data);
@@ -1544,7 +1569,7 @@ static const char *test_dns_encode(void) {
    * is in UDP mode the data is not stored in the send buffer.
    */
 
-  for (i = 0; i<ARRAY_SIZE(query_types); i++) {
+  for (i = 0; i < ARRAY_SIZE(query_types); i++) {
     ns_send_dns_query(&nc, "www.cesanta.com", query_types[i]);
     got = nc.send_iobuf.buf;
     ASSERT(nc.send_iobuf.len == 12 + 4 + 13 + 4 + 2);
@@ -1584,7 +1609,7 @@ static const char *test_dns_uncompress(void) {
     size_t l = strlen(cases[i]);
     memset(dst, 'X', sizeof(dst));
     len = ns_dns_uncompress_name(&msg, &name, dst, l);
-    ASSERT(len == (int)l);
+    ASSERT(len == (int) l);
     ASSERT(strncmp(dst, cases[i], l) == 0);
     ASSERT(dst[l] == 'X');
   }
@@ -1629,35 +1654,35 @@ static const char *test_dns_decode(void) {
    * Captured from a reply generated by Google DNS server (8.8.8.8)
    */
   const unsigned char pkt[] = {
-    0xa1, 0x00, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
-    0x02, 0x67, 0x6f, 0x07, 0x63, 0x65, 0x73, 0x61, 0x6e, 0x74, 0x61, 0x03,
-    0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x05,
-    0x00, 0x01, 0x00, 0x00, 0x09, 0x52, 0x00, 0x13, 0x03, 0x67, 0x68, 0x73,
-    0x0c, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x68, 0x6f, 0x73, 0x74, 0x65,
-    0x64, 0xc0, 0x17, 0xc0, 0x2c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01,
-    0x2b, 0x00, 0x04, 0x4a, 0x7d, 0x88, 0x79};
+      0xa1, 0x00, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+      0x02, 0x67, 0x6f, 0x07, 0x63, 0x65, 0x73, 0x61, 0x6e, 0x74, 0x61, 0x03,
+      0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x05,
+      0x00, 0x01, 0x00, 0x00, 0x09, 0x52, 0x00, 0x13, 0x03, 0x67, 0x68, 0x73,
+      0x0c, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x68, 0x6f, 0x73, 0x74, 0x65,
+      0x64, 0xc0, 0x17, 0xc0, 0x2c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01,
+      0x2b, 0x00, 0x04, 0x4a, 0x7d, 0x88, 0x79};
 
   ASSERT(ns_parse_dns((const char *) pkt, sizeof(pkt), &msg) == 0);
   ASSERT(msg.num_questions == 1);
   ASSERT(msg.num_answers == 2);
 
   r = &msg.questions[0];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-         == strlen(hostname));
+  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+         strlen(hostname));
   ASSERT(strncmp(name, hostname, strlen(hostname)) == 0);
 
   r = &msg.answers[0];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-         == strlen(hostname));
+  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+         strlen(hostname));
   ASSERT(strncmp(name, hostname, strlen(hostname)) == 0);
 
-  ASSERT(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name))
-         == strlen(cname));
+  ASSERT(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name)) ==
+         strlen(cname));
   ASSERT(strncmp(name, cname, strlen(cname)) == 0);
 
   r = &msg.answers[1];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-         == strlen(cname));
+  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+         strlen(cname));
   ASSERT(strncmp(name, cname, strlen(cname)) == 0);
   ASSERT(ns_dns_parse_record_data(&msg, r, &tiny, sizeof(tiny)) == -1);
   ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == 0);
@@ -1698,16 +1723,17 @@ static const char *test_dns_decode_truncated(void) {
   int i;
 
   const unsigned char src[] = {
-    0xa1, 0x00, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
-    0x02, 0x67, 0x6f, 0x07, 0x63, 0x65, 0x73, 0x61, 0x6e, 0x74, 0x61, 0x03,
-    0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x05,
-    0x00, 0x01, 0x00, 0x00, 0x09, 0x52, 0x00, 0x13, 0x03, 0x67, 0x68, 0x73,
-    0x0c, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x68, 0x6f, 0x73, 0x74, 0x65,
-    0x64, 0xc0, 0x17, 0xc0, 0x2c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01,
-    0x2b, 0x00, 0x04, 0x4a, 0x7d, 0x88, 0x79};
+      0xa1, 0x00, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+      0x02, 0x67, 0x6f, 0x07, 0x63, 0x65, 0x73, 0x61, 0x6e, 0x74, 0x61, 0x03,
+      0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x05,
+      0x00, 0x01, 0x00, 0x00, 0x09, 0x52, 0x00, 0x13, 0x03, 0x67, 0x68, 0x73,
+      0x0c, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x68, 0x6f, 0x73, 0x74, 0x65,
+      0x64, 0xc0, 0x17, 0xc0, 0x2c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01,
+      0x2b, 0x00, 0x04, 0x4a, 0x7d, 0x88, 0x79};
   char *pkt = NULL;
 
-#define WONDER(expr) if (!(expr)) continue
+#define WONDER(expr) \
+  if (!(expr)) continue
 
   for (i = sizeof(src) - 1; i > 0; i--) {
     if (pkt != NULL) {
@@ -1721,22 +1747,22 @@ static const char *test_dns_decode_truncated(void) {
     WONDER(msg.num_answers == 2);
 
     r = &msg.questions[0];
-    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-           == strlen(hostname));
+    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+           strlen(hostname));
     WONDER(strncmp(name, hostname, strlen(hostname)) == 0);
 
     r = &msg.answers[0];
-    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-           == strlen(hostname));
+    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+           strlen(hostname));
     WONDER(strncmp(name, hostname, strlen(hostname)) == 0);
 
-    WONDER(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name))
-           == strlen(cname));
+    WONDER(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name)) ==
+           strlen(cname));
     WONDER(strncmp(name, cname, strlen(cname)) == 0);
 
     r = &msg.answers[1];
-    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name))
-           == strlen(cname));
+    WONDER(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
+           strlen(cname));
     WONDER(strncmp(name, cname, strlen(cname)) == 0);
     WONDER(ns_dns_parse_record_data(&msg, r, &tiny, sizeof(tiny)) == -1);
     WONDER(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == 0);
@@ -1769,8 +1795,8 @@ static const char *test_dns_decode_truncated(void) {
   return NULL;
 }
 
-static int check_record_name(struct ns_dns_message *msg,
-                             struct ns_str *n, const char *want) {
+static int check_record_name(struct ns_dns_message *msg, struct ns_str *n,
+                             const char *want) {
   char name[512];
   if (ns_dns_uncompress_name(msg, n, name, sizeof(name)) == 0) {
     return 0;
@@ -1798,8 +1824,8 @@ static const char *check_www_cesanta_com_reply(const char *pkt, size_t len) {
   ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
   ASSERT(msg.answers[0].rtype == NS_DNS_CNAME_RECORD);
   memset(name, 0, sizeof(name));
-  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], name,
-                                  sizeof(name)) != -1);
+  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], name, sizeof(name)) !=
+         -1);
   ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
   memset(name, 0, sizeof(name));
   ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[1].name, name,
@@ -1807,8 +1833,8 @@ static const char *check_www_cesanta_com_reply(const char *pkt, size_t len) {
   ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
 
   ASSERT(msg.answers[1].rtype == NS_DNS_A_RECORD);
-  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[1], &ina,
-                                  sizeof(ina)) != -1);
+  ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[1], &ina, sizeof(ina)) !=
+         -1);
   ASSERT(ina.s_addr == addr);
 
   return NULL;
@@ -1884,7 +1910,8 @@ static void dns_server_eh(struct ns_connection *nc, int ev, void *ev_data) {
           ns_dns_uncompress_name(msg, &rr->name, name, sizeof(name) - 1);
 
           if (strcmp(name, "cesanta.com") == 0) {
-            ns_dns_reply_record(&reply, rr, NULL, rr->rtype, 3600, nc->user_data, 4);
+            ns_dns_reply_record(&reply, rr, NULL, rr->rtype, 3600,
+                                nc->user_data, 4);
           } else if (strcmp(name, "www.cesanta.com") == 0) {
             ns_dns_reply_record(&reply, rr, NULL, NS_DNS_CNAME_RECORD, 3600,
                                 "cesanta.com", strlen("cesanta.com"));
@@ -1930,7 +1957,8 @@ static const char *test_dns_server(void) {
   /* remove message length from tcp buffer before manually checking */
   iobuf_remove(&nc.send_iobuf, 2);
 
-  if ((err = check_www_cesanta_com_reply(nc.send_iobuf.buf, nc.send_iobuf.len)) != NULL) {
+  if ((err = check_www_cesanta_com_reply(nc.send_iobuf.buf,
+                                         nc.send_iobuf.len)) != NULL) {
     return err;
   }
 
@@ -1984,7 +2012,7 @@ static void dns_resolve_cb(struct ns_dns_message *msg, void *data) {
   ns_dns_parse_record_data(msg, rr, cname, sizeof(cname));
 
   if (want_addr == got_addr.s_addr && strcmp(cname, "cesanta.com") == 0) {
-    * (int *) data = 1;
+    *(int *) data = 1;
   }
 }
 
@@ -1993,8 +2021,8 @@ static const char *test_dns_resolve(void) {
   int i, data = 0;
   ns_mgr_init(&mgr, NULL);
 
-  ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
-                   dns_resolve_cb, &data);
+  ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD, dns_resolve_cb,
+                   &data);
 
   /* TODO(lsm): do not depend on external name server */
   for (i = 0; i < 500 && data == 0; i++) {
@@ -2009,7 +2037,7 @@ static const char *test_dns_resolve(void) {
 
 static void dns_resolve_timeout_cb(struct ns_dns_message *msg, void *data) {
   if (msg == NULL) {
-    * (int *) data = 1;
+    *(int *) data = 1;
   }
 }
 
@@ -2027,7 +2055,7 @@ static const char *test_dns_resolve_timeout(void) {
   opts.timeout = -1; /* 0 would be the default timeout */
   opts.max_retries = 1;
   ns_resolve_async_opt(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
-                     dns_resolve_timeout_cb, &data, opts);
+                       dns_resolve_timeout_cb, &data, opts);
 
   for (i = 0; i < 50000 && data != 1; i++) {
     poll_mgr(&mgr, 1);
@@ -2052,8 +2080,9 @@ static const char *test_dns_resolve_hosts(void) {
 }
 
 static const char *test_http_parse_header(void) {
-  static struct ns_str h = NS_STR("xx=1 kl yy, ert=234 kl=123, "
-    "uri=\"/?naii=x,y\", ii=\"12\\\"34\" zz='aa bb',tt=2,gf=\"xx d=1234");
+  static struct ns_str h = NS_STR(
+      "xx=1 kl yy, ert=234 kl=123, "
+      "uri=\"/?naii=x,y\", ii=\"12\\\"34\" zz='aa bb',tt=2,gf=\"xx d=1234");
   char buf[20];
 
   ASSERT(ns_http_parse_header(&h, "ert", buf, sizeof(buf)) == 3);
@@ -2099,13 +2128,13 @@ static void coap_handler_1(struct ns_connection *nc, int ev, void *p) {
       break;
     }
     case NS_COAP_ACK: {
-      struct ns_coap_message *cm = (struct ns_coap_message *)p;
-      ((struct results*)(nc->user_data))->client = cm->msg_id + cm->msg_type;
+      struct ns_coap_message *cm = (struct ns_coap_message *) p;
+      ((struct results *) (nc->user_data))->client = cm->msg_id + cm->msg_type;
       break;
     }
     case NS_COAP_CON: {
-      struct ns_coap_message *cm = (struct ns_coap_message *)p;
-      ((struct results*)(nc->user_data))->server = cm->msg_id + cm->msg_type;
+      struct ns_coap_message *cm = (struct ns_coap_message *) p;
+      ((struct results *) (nc->user_data))->server = cm->msg_id + cm->msg_type;
       ns_coap_send_ack(nc, cm->msg_id);
       break;
     }
@@ -2117,44 +2146,32 @@ static const char *test_coap(void) {
   struct ns_coap_message cm;
   uint32_t res;
 
-  unsigned char coap_packet_1[] = {
-    0x42, 0x01, 0xe9, 0x1b, 0x07, 0x90, 0xb8, 0x73,
-    0x65, 0x70, 0x61, 0x72, 0x61, 0x74, 0x65, 0x10,
-    0xd1, 0x23, 0x11 };
-  unsigned char coap_packet_2[] = {
-    0x60, 0x00, 0xe9, 0x1b };
+  unsigned char coap_packet_1[] = {0x42, 0x01, 0xe9, 0x1b, 0x07, 0x90, 0xb8,
+                                   0x73, 0x65, 0x70, 0x61, 0x72, 0x61, 0x74,
+                                   0x65, 0x10, 0xd1, 0x23, 0x11};
+  unsigned char coap_packet_2[] = {0x60, 0x00, 0xe9, 0x1b};
   unsigned char coap_packet_3[] = {
-    0x42, 0x45, 0x57, 0x0f, 0x07, 0x90, 0xff, 0x54,
-    0x68, 0x69, 0x73, 0x20, 0x6d, 0x65, 0x73, 0x73,
-    0x61, 0x67, 0x65, 0x20, 0x77, 0x61, 0x73, 0x20,
-    0x73, 0x65, 0x6e, 0x74, 0x20, 0x62, 0x79, 0x20,
-    0x61, 0x20, 0x73, 0x65, 0x70, 0x61, 0x72, 0x61,
-    0x74, 0x65, 0x20, 0x72, 0x65, 0x73, 0x70, 0x6f,
-    0x6e, 0x73, 0x65, 0x2e, 0x0a, 0x59, 0x6f, 0x75,
-    0x72, 0x20, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74,
-    0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20, 0x6e, 0x65,
-    0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x61, 0x63,
-    0x6b, 0x6e, 0x6f, 0x77, 0x6c, 0x65, 0x64, 0x67,
-    0x65, 0x20, 0x69, 0x74, 0x2c, 0x20, 0x6f, 0x74,
-    0x68, 0x65, 0x72, 0x77, 0x69, 0x73, 0x65, 0x20,
-    0x69, 0x74, 0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20,
-    0x62, 0x65, 0x20, 0x72, 0x65, 0x74, 0x72, 0x61,
-    0x6e, 0x73, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64,
-    0x2e };
-  unsigned char coap_packet_4[] = {
-    0x60, 0x00, 0x57, 0x0f };
+      0x42, 0x45, 0x57, 0x0f, 0x07, 0x90, 0xff, 0x54, 0x68, 0x69, 0x73, 0x20,
+      0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x20, 0x77, 0x61, 0x73, 0x20,
+      0x73, 0x65, 0x6e, 0x74, 0x20, 0x62, 0x79, 0x20, 0x61, 0x20, 0x73, 0x65,
+      0x70, 0x61, 0x72, 0x61, 0x74, 0x65, 0x20, 0x72, 0x65, 0x73, 0x70, 0x6f,
+      0x6e, 0x73, 0x65, 0x2e, 0x0a, 0x59, 0x6f, 0x75, 0x72, 0x20, 0x63, 0x6c,
+      0x69, 0x65, 0x6e, 0x74, 0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20, 0x6e, 0x65,
+      0x65, 0x64, 0x20, 0x74, 0x6f, 0x20, 0x61, 0x63, 0x6b, 0x6e, 0x6f, 0x77,
+      0x6c, 0x65, 0x64, 0x67, 0x65, 0x20, 0x69, 0x74, 0x2c, 0x20, 0x6f, 0x74,
+      0x68, 0x65, 0x72, 0x77, 0x69, 0x73, 0x65, 0x20, 0x69, 0x74, 0x20, 0x77,
+      0x69, 0x6c, 0x6c, 0x20, 0x62, 0x65, 0x20, 0x72, 0x65, 0x74, 0x72, 0x61,
+      0x6e, 0x73, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x2e};
+  unsigned char coap_packet_4[] = {0x60, 0x00, 0x57, 0x0f};
   unsigned char coap_packet_5[] = {
-    0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
-    0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
-    0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xff,
-    0x6d, 0x79, 0x64, 0x61, 0x74, 0x61 };
-  unsigned char coap_packet_6[] = {
-    0xFF, 0x00, 0xFF, 0x00 };
+      0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f, 0x72, 0x61,
+      0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72, 0x65, 0x73, 0x6f, 0x75,
+      0x72, 0x63, 0x65, 0xff, 0x6d, 0x79, 0x64, 0x61, 0x74, 0x61};
+  unsigned char coap_packet_6[] = {0xFF, 0x00, 0xFF, 0x00};
   unsigned char coap_packet_7[] = {
-    0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f,
-    0x72, 0x61, 0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72,
-    0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xf1,
-    0x6d, 0x79, 0x64, 0x61, 0x74, 0x61 };
+      0x40, 0x03, 0x95, 0x22, 0xb7, 0x73, 0x74, 0x6f, 0x72, 0x61,
+      0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72, 0x65, 0x73, 0x6f, 0x75,
+      0x72, 0x63, 0x65, 0xf1, 0x6d, 0x79, 0x64, 0x61, 0x74, 0x61};
 
   iobuf_init(&packet_in, 0);
   /* empty buf */
@@ -2165,7 +2182,7 @@ static const char *test_coap(void) {
 
   iobuf_init(&packet_out, 0);
   /* ACK, MID: 59675, Empty Message */
-  packet_in.buf = (char*)coap_packet_2;
+  packet_in.buf = (char *) coap_packet_2;
   packet_in.len = sizeof(coap_packet_2);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2173,20 +2190,20 @@ static const char *test_coap(void) {
   ASSERT(cm.code_detail == 0);
   ASSERT(cm.msg_id == 59675);
   ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
-  ASSERT(cm.options == 0 );
-  ASSERT(cm.payload.len == 0 );
+  ASSERT(cm.options == 0);
+  ASSERT(cm.payload.len == 0);
   ASSERT(cm.payload.p == NULL);
   ASSERT(cm.token.len == 0);
   ASSERT(cm.token.p == NULL);
   res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_2));
-  ASSERT(memcmp(packet_out.buf, coap_packet_2, packet_out.len)==0);
+  ASSERT(memcmp(packet_out.buf, coap_packet_2, packet_out.len) == 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
   /* ACK, MID: 22287, Empty Message */
-  packet_in.buf = (char*)coap_packet_4;
+  packet_in.buf = (char *) coap_packet_4;
   packet_in.len = sizeof(coap_packet_4);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2194,20 +2211,20 @@ static const char *test_coap(void) {
   ASSERT(cm.code_detail == 0);
   ASSERT(cm.msg_id == 22287);
   ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
-  ASSERT(cm.options == 0 );
-  ASSERT(cm.payload.len == 0 );
+  ASSERT(cm.options == 0);
+  ASSERT(cm.payload.len == 0);
   ASSERT(cm.payload.p == NULL);
   ASSERT(cm.token.len == 0);
   ASSERT(cm.token.p == NULL);
   res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_4));
-  ASSERT(memcmp(packet_out.buf, coap_packet_4, packet_out.len)==0);
+  ASSERT(memcmp(packet_out.buf, coap_packet_4, packet_out.len) == 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
   /* CON, MID: 59675 ... */
-  packet_in.buf = (char*)coap_packet_1;
+  packet_in.buf = (char *) coap_packet_1;
   packet_in.len = sizeof(coap_packet_1);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2231,16 +2248,16 @@ static const char *test_coap(void) {
   ASSERT(cm.payload.p == NULL);
   ASSERT(cm.token.len == 2);
   ASSERT(*cm.token.p == 0x07);
-  ASSERT((unsigned char)*(cm.token.p + 1) == 0x90);
+  ASSERT((unsigned char) *(cm.token.p + 1) == 0x90);
   res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_1));
-  ASSERT(memcmp(packet_out.buf, coap_packet_1, packet_out.len)==0);
+  ASSERT(memcmp(packet_out.buf, coap_packet_1, packet_out.len) == 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
   /* CON, MID: 22287 ... */
-  packet_in.buf = (char*)coap_packet_3;
+  packet_in.buf = (char *) coap_packet_3;
   packet_in.len = sizeof(coap_packet_3);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2251,19 +2268,21 @@ static const char *test_coap(void) {
   ASSERT(cm.options == 0);
   ASSERT(cm.token.len == 2);
   ASSERT(*cm.token.p == 0x07);
-  ASSERT((unsigned char)*(cm.token.p + 1) == 0x90);
+  ASSERT((unsigned char) *(cm.token.p + 1) == 0x90);
   ASSERT(cm.payload.len == 122);
-  ASSERT(strncmp(cm.payload.p, "This message was sent by a separate response.\n"
+  ASSERT(strncmp(cm.payload.p,
+                 "This message was sent by a separate response.\n"
                  "Your client will need to acknowledge it,"
-                 " otherwise it will be retransmitted.", 122) == 0);
+                 " otherwise it will be retransmitted.",
+                 122) == 0);
   res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_3));
-  ASSERT(memcmp(packet_out.buf, coap_packet_3, packet_out.len)==0);
+  ASSERT(memcmp(packet_out.buf, coap_packet_3, packet_out.len) == 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
-  packet_in.buf = (char*)coap_packet_5;
+  packet_in.buf = (char *) coap_packet_5;
   packet_in.len = sizeof(coap_packet_5);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) == 0);
@@ -2286,35 +2305,33 @@ static const char *test_coap(void) {
   res = ns_coap_compose(&cm, &packet_out);
   ASSERT(res == 0);
   ASSERT(packet_out.len == sizeof(coap_packet_5));
-  ASSERT(memcmp(packet_out.buf, coap_packet_5, packet_out.len)==0);
+  ASSERT(memcmp(packet_out.buf, coap_packet_5, packet_out.len) == 0);
   ns_coap_free_options(&cm);
   iobuf_free(&packet_out);
 
-  packet_in.buf = (char*)coap_packet_6;
+  packet_in.buf = (char *) coap_packet_6;
   packet_in.len = sizeof(coap_packet_6);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
   ns_coap_free_options(&cm);
 
-  packet_in.buf = (char*)coap_packet_7;
+  packet_in.buf = (char *) coap_packet_7;
   packet_in.len = sizeof(coap_packet_7);
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_ERROR) != 0);
   ns_coap_free_options(&cm);
 
   {
-    unsigned char coap_packet_2_broken[] = {
-      0x6F, 0x00, 0xe9, 0x1b };
-    packet_in.buf = (char*)coap_packet_2_broken;
+    unsigned char coap_packet_2_broken[] = {0x6F, 0x00, 0xe9, 0x1b};
+    packet_in.buf = (char *) coap_packet_2_broken;
     packet_in.len = sizeof(coap_packet_2_broken);
     res = ns_coap_parse(&packet_in, &cm);
     ASSERT((res & NS_COAP_FORMAT_ERROR) != 0);
   }
 
   {
-    unsigned char coap_packet_2_broken[] = {
-      0x65, 0x00, 0xe9, 0x1b };
-    packet_in.buf = (char*)coap_packet_2_broken;
+    unsigned char coap_packet_2_broken[] = {0x65, 0x00, 0xe9, 0x1b};
+    packet_in.buf = (char *) coap_packet_2_broken;
     packet_in.len = sizeof(coap_packet_2_broken);
     res = ns_coap_parse(&packet_in, &cm);
     ASSERT((res & NS_COAP_NOT_ENOUGH_DATA) != 0);
@@ -2342,11 +2359,11 @@ static const char *test_coap(void) {
 
   {
     unsigned char value16[] = {0xCC, 0xDD};
-    packet_in.buf = (char*)coap_packet_4;
+    packet_in.buf = (char *) coap_packet_4;
     packet_in.len = sizeof(coap_packet_4);
     res = ns_coap_parse(&packet_in, &cm);
     ASSERT((res & NS_COAP_ERROR) == 0);
-    ns_coap_add_option(&cm, 0xAABB, (char*)value16, sizeof(value16));
+    ns_coap_add_option(&cm, 0xAABB, (char *) value16, sizeof(value16));
     res = ns_coap_compose(&cm, &packet_out);
     ns_coap_free_options(&cm);
     ASSERT(res == 0);
@@ -2363,32 +2380,27 @@ static const char *test_coap(void) {
   cm.msg_id = 1;
   cm.msg_type = NS_COAP_MSG_MAX + 1;
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT((res & NS_COAP_ERROR) != 0 &&
-         (res & NS_COAP_MSG_TYPE_FIELD) != 0);
+  ASSERT((res & NS_COAP_ERROR) != 0 && (res & NS_COAP_MSG_TYPE_FIELD) != 0);
 
   cm.msg_type = NS_COAP_MSG_ACK;
   cm.token.len = 10000;
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT((res & NS_COAP_ERROR) != 0 &&
-         (res & NS_COAP_TOKEN_FIELD) != 0);
+  ASSERT((res & NS_COAP_ERROR) != 0 && (res & NS_COAP_TOKEN_FIELD) != 0);
 
   cm.token.len = 0;
   cm.code_class = 0xFF;
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT((res & NS_COAP_ERROR) != 0 &&
-         (res & NS_COAP_CODE_CLASS_FIELD) != 0);
+  ASSERT((res & NS_COAP_ERROR) != 0 && (res & NS_COAP_CODE_CLASS_FIELD) != 0);
 
   cm.code_class = 0;
   cm.code_detail = 0xFF;
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT((res & NS_COAP_ERROR) != 0 &&
-         (res & NS_COAP_CODE_DETAIL_FIELD) != 0);
+  ASSERT((res & NS_COAP_ERROR) != 0 && (res & NS_COAP_CODE_DETAIL_FIELD) != 0);
 
   cm.code_detail = 0;
   ns_coap_add_option(&cm, 0xFFFFFFF, 0, 0);
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT((res & NS_COAP_ERROR) != 0 &&
-         (res & NS_COAP_OPTIONS_FIELD) != 0);
+  ASSERT((res & NS_COAP_ERROR) != 0 && (res & NS_COAP_OPTIONS_FIELD) != 0);
   ns_coap_free_options(&cm);
 
   {
@@ -2421,7 +2433,10 @@ static const char *test_coap(void) {
     ns_set_protocol_coap(nc2);
     nc2->user_data = &res;
 
-    { int i; for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1); }
+    {
+      int i;
+      for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
+    }
 
     ns_mgr_free(&mgr);
 

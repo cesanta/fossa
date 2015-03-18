@@ -28,11 +28,11 @@
 
 #include "internal.h"
 
-#define NS_CTL_MSG_MESSAGE_SIZE     8192
-#define NS_READ_BUFFER_SIZE         2048
-#define NS_UDP_RECEIVE_BUFFER_SIZE  2000
-#define NS_VPRINTF_BUFFER_SIZE      500
-#define NS_MAX_HOST_LEN             200
+#define NS_CTL_MSG_MESSAGE_SIZE 8192
+#define NS_READ_BUFFER_SIZE 2048
+#define NS_UDP_RECEIVE_BUFFER_SIZE 2000
+#define NS_VPRINTF_BUFFER_SIZE 500
+#define NS_MAX_HOST_LEN 200
 
 struct ctl_msg {
   ns_event_handler_t callback;
@@ -57,7 +57,7 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
 
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
-    int len = (ev == NS_RECV || ev == NS_SEND) ? * (int *) ev_data : 0;
+    int len = (ev == NS_RECV || ev == NS_SEND) ? *(int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
   /* LCOV_EXCL_STOP */
@@ -66,7 +66,7 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
    * If protocol handler is specified, call it. Otherwise, call user-specified
    * event handler.
    */
-  ev_handler = nc->proto_handler ?  nc->proto_handler : nc->handler;
+  ev_handler = nc->proto_handler ? nc->proto_handler : nc->handler;
   if (ev_handler != NULL) {
     ev_handler(nc, ev, ev_data);
   }
@@ -185,8 +185,8 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
     ns_out(nc, buf, len);
   }
   if (buf != mem && buf != NULL) {
-    NS_FREE(buf);  /* LCOV_EXCL_LINE */
-  }                /* LCOV_EXCL_LINE */
+    NS_FREE(buf); /* LCOV_EXCL_LINE */
+  }               /* LCOV_EXCL_LINE */
 
   return len;
 }
@@ -243,8 +243,9 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   } else if (sock_type == SOCK_DGRAM &&
              (getsockname(sp[0], &sa.sa, &len) != 0 ||
               connect(sock, &sa.sa, len) != 0)) {
-  } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock :
-                       accept(sock, &sa.sa, &len))) == INVALID_SOCKET) {
+  } else if ((sp[1] = (sock_type == SOCK_DGRAM ? sock
+                                               : accept(sock, &sa.sa, &len))) ==
+             INVALID_SOCKET) {
   } else {
     ns_set_close_on_exec(sp[0]);
     ns_set_close_on_exec(sp[1]);
@@ -255,13 +256,13 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   if (!ret) {
     if (sp[0] != INVALID_SOCKET) closesocket(sp[0]);
     if (sp[1] != INVALID_SOCKET) closesocket(sp[1]);
-    if (sock  != INVALID_SOCKET) closesocket(sock);
+    if (sock != INVALID_SOCKET) closesocket(sock);
     sock = sp[0] = sp[1] = INVALID_SOCKET;
   }
 
   return ret;
 }
-#endif  /* NS_DISABLE_SOCKETPAIR */
+#endif /* NS_DISABLE_SOCKETPAIR */
 
 /* TODO(lsm): use non-blocking resolver */
 static int ns_resolve2(const char *host, struct in_addr *ina) {
@@ -274,11 +275,11 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
-  if((rv = getaddrinfo(host, NULL , NULL, &servinfo)) != 0) {
+  if ((rv = getaddrinfo(host, NULL, NULL, &servinfo)) != 0) {
     DBG(("getaddrinfo(%s) failed: %s", host, strerror(errno)));
     return 0;
   }
-  for(p = servinfo; p != NULL; p = p->ai_next) {
+  for (p = servinfo; p != NULL; p = p->ai_next) {
     memcpy(&h, &p->ai_addr, sizeof(struct sockaddr_in *));
     memcpy(ina, &h->sin_addr, sizeof(ina));
   }
@@ -401,17 +402,16 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
 /* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
-  socklen_t sa_len = (sa->sa.sa_family == AF_INET) ?
-                     sizeof(sa->sin) : sizeof(sa->sin6);
+  socklen_t sa_len =
+      (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
   int on = 1;
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
-
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
       /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
-      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
-                  (void *) &on, sizeof(on)) &&
+      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (void *) &on,
+                  sizeof(on)) &&
 #endif
 
 #if 1 || !defined(_WIN32) || defined(SO_EXCLUSIVEADDRUSE)
@@ -513,7 +513,7 @@ static int ns_ssl_err(struct ns_connection *conn, int res) {
   if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
   return ssl_err;
 }
-#endif  /* NS_ENABLE_SSL */
+#endif /* NS_ENABLE_SSL */
 
 static struct ns_connection *accept_conn(struct ns_connection *ls) {
   struct ns_connection *c = NULL;
@@ -526,9 +526,8 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
   } else if ((c = ns_add_sock(ls->mgr, sock, ls->handler)) == NULL) {
     closesocket(sock);
 #ifdef NS_ENABLE_SSL
-  } else if (ls->ssl_ctx != NULL &&
-             ((c->ssl = SSL_new(ls->ssl_ctx)) == NULL ||
-              SSL_set_fd(c->ssl, sock) != 1)) {
+  } else if (ls->ssl_ctx != NULL && ((c->ssl = SSL_new(ls->ssl_ctx)) == NULL ||
+                                     SSL_set_fd(c->ssl, sock) != 1)) {
     DBG(("SSL error"));
     ns_close_conn(c);
     c = NULL;
@@ -546,13 +545,13 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 }
 
 static int ns_is_error(int n) {
-  return n == 0 ||
-      (n < 0 && errno != EINTR && errno != EINPROGRESS &&
-       errno != EAGAIN && errno != EWOULDBLOCK
+  return n == 0 || (n < 0 && errno != EINTR && errno != EINPROGRESS &&
+                    errno != EAGAIN && errno != EWOULDBLOCK
 #ifdef _WIN32
-       && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK
+                    && WSAGetLastError() != WSAEINTR &&
+                    WSAGetLastError() != WSAEWOULDBLOCK
 #endif
-       );
+                    );
 }
 
 static void ns_read_from_socket(struct ns_connection *conn) {
@@ -649,7 +648,9 @@ static void ns_write_to_socket(struct ns_connection *conn) {
     }
   } else
 #endif
-  { n = (int) send(conn->sock, io->buf, io->len, 0); }
+  {
+    n = (int) send(conn->sock, io->buf, io->len, 0);
+  }
 
   DBG(("%p %lu -> %d bytes", conn, conn->flags, n));
 
@@ -773,8 +774,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     current_time = time(NULL);
 
     /* Read wakeup messages */
-    if (mgr->ctl[1] != INVALID_SOCKET &&
-        FD_ISSET(mgr->ctl[1], &read_set)) {
+    if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
       int len = (int) recv(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
       send(mgr->ctl[1], ctl_msg.message, 1, 0);
@@ -826,8 +826,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
-        (nc->send_iobuf.len == 0 &&
-         (nc->flags & NSF_SEND_AND_CLOSE))) {
+        (nc->send_iobuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
       ns_close_conn(nc);
     }
   }
@@ -1037,8 +1036,8 @@ struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
  * Returns a new listening connection, or `NULL` on error.
  */
 struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
-                              ns_event_handler_t callback,
-                              struct ns_bind_opts opts) {
+                                  ns_event_handler_t callback,
+                                  struct ns_bind_opts opts) {
   union socket_address sa;
   struct ns_connection *nc = NULL;
   int proto;
@@ -1053,8 +1052,8 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   } else if ((sock = ns_open_listening_socket(&sa, proto)) == INVALID_SOCKET) {
     DBG(("Failed to open listener: %d", errno));
     NS_SET_PTRPTR(opts.error_string, "failed to open listener");
-  } else if ((nc = ns_add_sock_opt(mgr, sock, callback,
-                                   add_sock_opts)) == NULL) {
+  } else if ((nc = ns_add_sock_opt(mgr, sock, callback, add_sock_opts)) ==
+             NULL) {
     /* opts.error_string set by ns_add_sock_opt */
     DBG(("Failed to ns_add_sock"));
     closesocket(sock);
@@ -1131,8 +1130,8 @@ struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
  * in event manager thread. Note that `ns_broadcast()` is the only function
  * that can be, and must be, called from a different thread.
  */
-void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb,
-                  void *data, size_t len) {
+void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
+                  size_t len) {
   struct ctl_msg ctl_msg;
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {

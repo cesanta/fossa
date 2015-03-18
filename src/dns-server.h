@@ -33,4 +33,4 @@ int ns_dns_reply_record(struct ns_dns_reply *, struct ns_dns_resource_record *,
 #endif /* __cplusplus */
 
 #endif /* NS_ENABLE_DNS_SERVER */
-#endif  /* NS_HTTP_HEADER_DEFINED */
+#endif /* NS_HTTP_HEADER_DEFINED */

@@ -48,7 +48,7 @@ go into respective directory and type `make`
 ## Contributions
 
 People who have agreed to the
-[Cesanta Software Limited CLA](http://cesanta.com/contributors_la.html)
+[Cesanta CLA](http://cesanta.com/contributors_la.html)
 can make contributions. Note that the CLA isn't a copyright
 _assigment_ but rather a copyright _license_.
 You retain the copyright on your contributions.
@@ -58,4 +58,4 @@ You retain the copyright on your contributions.
 Fossa is released under
 [GNU GPL v.2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
 Businesses have an option to get non-restrictive, royalty-free commercial
-license and professional support from [Cesanta Software](http://cesanta.com).
+license and professional support from [Cesanta](http://cesanta.com).

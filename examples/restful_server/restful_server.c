@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
   nc = ns_bind(&mgr, s_http_port, ev_handler);
   ns_set_protocol_http_websocket(nc);
   s_http_server_opts.document_root = ".";
+  s_http_server_opts.enable_directory_listing = 1;
 
   /* Process command line options to customize HTTP server */
   for (i = 1; i < argc; i++) {

@@ -101,6 +101,7 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>

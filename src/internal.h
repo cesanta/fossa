@@ -42,4 +42,8 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 
+#ifdef _WIN32
+NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
+#endif
+
 #endif /* NS_INTERNAL_HEADER_INCLUDED */

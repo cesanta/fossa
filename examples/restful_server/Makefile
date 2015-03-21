@@ -14,7 +14,7 @@ $(PROG): $(SOURCES)
 	$(CC) $(SOURCES) -o $@ $(CFLAGS)
 
 $(PROG).exe: $(SOURCES)
-	cl $(SOURCES) /I../.. /MD /Fe$@
+	cl $(SOURCES) /I../.. /MD /Fe$@ advapi32.lib
 
 clean:
 	rm -rf *.gc* *.dSYM *.exe *.obj *.o a.out $(PROG)

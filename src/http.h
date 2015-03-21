@@ -121,6 +121,9 @@ struct ns_serve_http_opts {
    * is located outside document root to prevent people fetching it.
    */
   const char *global_auth_file;
+
+  /* Set to non-zero to enable directory listing */
+  int enable_directory_listing;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

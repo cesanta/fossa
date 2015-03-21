@@ -55,6 +55,7 @@
 
 static int static_num_tests = 0;
 static const char *s_argv_0 = NULL;
+static struct ns_serve_http_opts s_http_server_opts;
 
 #define TEST_NS_MALLOC malloc
 #define TEST_NS_CALLOC calloc
@@ -574,11 +575,10 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
                 hm->uri.p, (int) hm->body.len);
       nc->flags |= NSF_SEND_AND_CLOSE;
     } else {
-      static struct ns_serve_http_opts opts;
-      opts.document_root = ".";
-      opts.per_directory_auth_file = "passwords.txt";
-      opts.auth_domain = "foo.com";
-      ns_serve_http(nc, hm, opts);
+      s_http_server_opts.document_root = ".";
+      s_http_server_opts.per_directory_auth_file = "passwords.txt";
+      s_http_server_opts.auth_domain = "foo.com";
+      ns_serve_http(nc, hm, s_http_server_opts);
     }
   }
 }
@@ -722,6 +722,7 @@ static const char *test_http_errors(void) {
   char status[40] = "";
 
   ns_mgr_init(&mgr, NULL);
+  s_http_server_opts.enable_directory_listing = 0;
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
@@ -761,7 +762,7 @@ static const char *test_http_errors(void) {
   poll_mgr(&mgr, 20);
 
   /* Check that it failed */
-  ASSERT(strncmp(status, "HTTP/1.1 403", strlen("HTTP/1.1 403")) == 0);
+  ASSERT(strncmp(status, "HTTP/1.1 403", 12) == 0);
 
   /* Cleanup */
   ns_mgr_free(&mgr);
@@ -783,27 +784,32 @@ static const char *test_http_index(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "";
+  char buf[20] = "", buf2[20] = "";
 
   ns_mgr_init(&mgr, NULL);
+  s_http_server_opts.enable_directory_listing = 1;
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
-  /* Test directory. */
+  /* Test directory with index file. */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
-  ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/");
+  ns_printf(nc, "%s", "GET /data/dir_with_index HTTP/1.0\n\n");
 
-  system("echo testdata >index.html");
+  /* Test directory with no index file. */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf2;
+  ns_printf(nc, "%s", "GET /data/dir_no_index HTTP/1.0\n\n");
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 200);
+  poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
-  system("rm index.html");
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "testdata\n") == 0);
+  ASSERT(strcmp(buf, "foo") == 0);
+  ASSERT(strcmp(buf2, "116\r\n<html><head><t") == 0);
 
   return NULL;
 }

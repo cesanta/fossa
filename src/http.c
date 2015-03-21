@@ -951,6 +951,179 @@ static int is_authorized(struct http_message *hm, const char *path,
 }
 #endif
 
+#ifndef NS_NO_DIRECTORY_LISTING
+
+/* Implementation of POSIX opendir/closedir/readdir for Windows. */
+#ifdef _WIN32
+struct dirent {
+  char d_name[MAX_PATH_SIZE];
+};
+
+typedef struct DIR {
+  HANDLE handle;
+  WIN32_FIND_DATAW info;
+  struct dirent result;
+} DIR;
+
+static DIR *opendir(const char *name) {
+  DIR *dir = NULL;
+  wchar_t wpath[MAX_PATH_SIZE];
+  DWORD attrs;
+
+  if (name == NULL) {
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  } else if ((dir = (DIR *) NS_MALLOC(sizeof(*dir))) == NULL) {
+    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+  } else {
+    to_wchar(name, wpath, ARRAY_SIZE(wpath));
+    attrs = GetFileAttributesW(wpath);
+    if (attrs != 0xFFFFFFFF &&
+        ((attrs & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)) {
+      (void) wcscat(wpath, L"\\*");
+      dir->handle = FindFirstFileW(wpath, &dir->info);
+      dir->result.d_name[0] = '\0';
+    } else {
+      NS_FREE(dir);
+      dir = NULL;
+    }
+  }
+
+  return dir;
+}
+
+static int closedir(DIR *dir) {
+  int result = 0;
+
+  if (dir != NULL) {
+    if (dir->handle != INVALID_HANDLE_VALUE)
+      result = FindClose(dir->handle) ? 0 : -1;
+
+    NS_FREE(dir);
+  } else {
+    result = -1;
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  }
+
+  return result;
+}
+
+static struct dirent *readdir(DIR *dir) {
+  struct dirent *result = 0;
+
+  if (dir) {
+    if (dir->handle != INVALID_HANDLE_VALUE) {
+      result = &dir->result;
+      (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
+                                 result->d_name, sizeof(result->d_name), NULL,
+                                 NULL);
+
+      if (!FindNextFileW(dir->handle, &dir->info)) {
+        (void) FindClose(dir->handle);
+        dir->handle = INVALID_HANDLE_VALUE;
+      }
+
+    } else {
+      SetLastError(ERROR_FILE_NOT_FOUND);
+    }
+  } else {
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  }
+
+  return result;
+}
+#endif /* _WIN32  POSIX opendir/closedir/readdir implementation */
+
+size_t ns_url_encode(const char *src, size_t s_len, char *dst, size_t dst_len) {
+  static const char *dont_escape = "._-$,;~()";
+  static const char *hex = "0123456789abcdef";
+  size_t i = 0, j = 0;
+
+  for (i = j = 0; dst_len > 0 && i < s_len && j + 2 < dst_len - 1; i++, j++) {
+    if (isalnum(*(const unsigned char *) (src + i)) ||
+        strchr(dont_escape, *(const unsigned char *) (src + i)) != NULL) {
+      dst[j] = src[i];
+    } else if (j + 3 < dst_len) {
+      dst[j] = '%';
+      dst[j + 1] = hex[(*(const unsigned char *) (src + i)) >> 4];
+      dst[j + 2] = hex[(*(const unsigned char *) (src + i)) & 0xf];
+      j += 2;
+    }
+  }
+
+  dst[j] = '\0';
+  return j;
+}
+
+static void print_dir_entry(struct ns_connection *nc, const struct dirent *dp,
+                            ns_stat_t *stp) {
+  char size[64], mod[64], href[MAX_PATH_SIZE * 3];
+  int64_t fsize = stp->st_size;
+  int is_dir = S_ISDIR(stp->st_mode);
+  const char *slash = is_dir ? "/" : "";
+
+  if (is_dir) {
+    snprintf(size, sizeof(size), "%s", "[DIRECTORY]");
+  } else {
+    /*
+     * We use (signed) cast below because MSVC 6 compiler cannot
+     * convert unsigned __int64 to double.
+     */
+    if (fsize < 1024) {
+      snprintf(size, sizeof(size), "%d", (int) fsize);
+    } else if (fsize < 0x100000) {
+      snprintf(size, sizeof(size), "%.1fk", (double) fsize / 1024.0);
+    } else if (fsize < 0x40000000) {
+      snprintf(size, sizeof(size), "%.1fM", (double) fsize / 1048576);
+    } else {
+      snprintf(size, sizeof(size), "%.1fG", (double) fsize / 1073741824);
+    }
+  }
+  strftime(mod, sizeof(mod), "%d-%b-%Y %H:%M", localtime(&stp->st_mtime));
+  ns_url_encode(dp->d_name, strlen(dp->d_name), href, sizeof(href));
+  ns_printf_http_chunk(nc,
+                       "<tr><td><a href=\"%s%s\">%s%s</a></td>"
+                       "<td>&nbsp;%s</td><td>&nbsp;&nbsp;%s</td></tr>\n",
+                       href, slash, dp->d_name, slash, mod, size);
+}
+
+static void send_directory_listing(struct ns_connection *nc,
+                                   struct http_message *hm, const char *dir) {
+  char path[MAX_PATH_SIZE];
+  ns_stat_t st;
+  struct dirent *dp;
+  DIR *dirp;
+
+  ns_printf(nc, "%s\r\n%s: %s\r\n%s: %s\r\n\r\n", "HTTP/1.1 200 OK",
+            "Transfer-Encoding", "chunked", "Content-Type",
+            "text/html; charset=utf-8");
+
+  ns_printf_http_chunk(
+      nc,
+      "<html><head><title>Index of %.*s</title>"
+      "<style>th {text-align: left;}</style></head>"
+      "<body><h1>Index of %.*s</h1><pre><table cellpadding=\"0\">"
+      "<tr><th>Name</th><th>Modified</th><th>Size</th></tr>"
+      "<tr><td colspan=\"3\"><hr></td></tr>",
+      (int) hm->uri.len, hm->uri.p, (int) hm->uri.len, hm->uri.p);
+
+  if ((dirp = (opendir(dir))) != NULL) {
+    while ((dp = readdir(dirp)) != NULL) {
+      /* Do not show current dir and hidden files */
+      if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
+        continue;
+      }
+      snprintf(path, sizeof(path), "%s/%s", dir, dp->d_name);
+      if (ns_stat(path, &st) == 0) {
+        print_dir_entry(nc, dp, &st);
+      }
+    }
+    closedir(dirp);
+  }
+
+  ns_send_http_chunk(nc, "", 0);
+}
+#endif /* NS_NO_DIRECTORY_LISTING */
+
 /*
  * Serve given HTTP request according to the `options`.
  *
@@ -976,6 +1149,7 @@ static int is_authorized(struct http_message *hm, const char *path,
  */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
+  static const char index_file[] = "/index.html";
   char path[NS_MAX_PATH];
   ns_stat_t st;
   int stat_result, is_directory;
@@ -996,9 +1170,14 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   } else if (stat_result != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
   } else if (S_ISDIR(st.st_mode)) {
-    strncat(path, "/index.html", sizeof(path) - (strlen(path) + 1));
+    strncat(path, index_file, sizeof(path) - (strlen(path) + 1));
     if (ns_stat(path, &st) == 0) {
       ns_send_http_file(nc, path, &st);
+#ifndef NS_NO_DIRECTORY_LISTING
+    } else if (opts.enable_directory_listing) {
+      path[strlen(path) - sizeof(index_file)] = '\0';
+      send_directory_listing(nc, hm, path);
+#endif
     } else {
       ns_printf(nc, "%s",
                 "HTTP/1.1 403 Access Denied\r\n"

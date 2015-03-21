@@ -35,6 +35,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
 
 int ns_is_big_endian(void);
+void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 
 #ifdef __cplusplus
 }

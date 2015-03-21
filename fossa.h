@@ -101,6 +101,7 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -504,6 +505,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
 
 int ns_is_big_endian(void);
+void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 
 #ifdef __cplusplus
 }
@@ -631,6 +633,9 @@ struct ns_serve_http_opts {
    * is located outside document root to prevent people fetching it.
    */
   const char *global_auth_file;
+
+  /* Set to non-zero to enable directory listing */
+  int enable_directory_listing;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

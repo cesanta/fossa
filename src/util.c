@@ -69,7 +69,7 @@ int ns_vcmp(const struct ns_str *str2, const char *str1) {
 }
 
 #ifdef _WIN32
-static void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
+void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
   char buf[MAX_PATH_SIZE * 2], buf2[MAX_PATH_SIZE * 2], *p;
 
   strncpy(buf, path, sizeof(buf));

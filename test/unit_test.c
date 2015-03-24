@@ -653,12 +653,9 @@ static const char *test_http(void) {
   ns_set_protocol_http_websocket(nc);
 
   /* Valid HTTP request. Pass test buffer to the callback. */
-  ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
-  ns_set_protocol_http_websocket(nc);
+  ASSERT((nc = ns_connect_http(&mgr, cb2, "http://127.0.0.1:7777/foo", NULL,
+         "0123456789")) != NULL);
   nc->user_data = buf;
-  ns_printf(nc, "%s",
-            "POST /foo HTTP/1.0\nContent-Length: 10\n\n"
-            "0123456789");
 
   /* Invalid HTTP request */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);

@@ -3030,7 +3030,7 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
  *                         NULL);
  *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL, NULL);
  *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
- *                         "var_1=value_1&var_2=value_2", NULL);
+ *                         NULL, "var_1=value_1&var_2=value_2");
  * ----
  */
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
@@ -3070,10 +3070,11 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
     }
 
     ns_printf(nc,
-              "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n",
+              "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n%s",
               post_data == NULL ? "GET" : "POST", path, addr,
               post_data == NULL ? 0 : strlen(post_data),
-              extra_headers == NULL ? "" : extra_headers);
+              extra_headers == NULL ? "" : extra_headers,
+              post_data == NULL ? "" : post_data);
   }
 
   return nc;

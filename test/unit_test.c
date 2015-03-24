@@ -654,7 +654,7 @@ static const char *test_http(void) {
 
   /* Valid HTTP request. Pass test buffer to the callback. */
   ASSERT((nc = ns_connect_http(&mgr, cb2, "http://127.0.0.1:7777/foo", NULL,
-         "0123456789")) != NULL);
+                               "0123456789")) != NULL);
   nc->user_data = buf;
 
   /* Invalid HTTP request */

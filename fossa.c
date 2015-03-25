@@ -1310,6 +1310,69 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
     recv(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
+
+static int isbyte(int n) {
+  return n >= 0 && n <= 255;
+}
+
+static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
+  int n, a, b, c, d, slash = 32, len = 0;
+
+  if ((sscanf(spec, "%d.%d.%d.%d/%d%n", &a, &b, &c, &d, &slash, &n) == 5 ||
+       sscanf(spec, "%d.%d.%d.%d%n", &a, &b, &c, &d, &n) == 4) &&
+      isbyte(a) && isbyte(b) && isbyte(c) && isbyte(d) && slash >= 0 &&
+      slash < 33) {
+    len = n;
+    *net =
+        ((uint32_t) a << 24) | ((uint32_t) b << 16) | ((uint32_t) c << 8) | d;
+    *mask = slash ? 0xffffffffU << (32 - slash) : 0;
+  }
+
+  return len;
+}
+
+/*
+ * Verify given IP address against the ACL.
+ *
+ * `remote_ip` - an IPv4 address to check, in network byte order
+ * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
+ * Each subnet is
+ * prepended by either a - or a + sign. A plus sign means allow, where a
+ * minus sign means deny. If a subnet mask is omitted, such as `-1.2.3.4`,
+ * this means to deny only that single IP address.
+ * Subnet masks may vary from 0 to 32, inclusive. The default setting
+ * is to allow all accesses. On each request the full list is traversed,
+ * and the last match wins. Example:
+ *
+ * `-0.0.0.0/0,+192.168/16` - deny all acccesses, only allow 192.168/16 subnet
+ *
+ * To learn more about subnet masks, see the
+ * link:https://en.wikipedia.org/wiki/Subnetwork[Wikipedia page on Subnetwork]
+ *
+ * Return -1 if ACL is malformed, 0 if address is disallowed, 1 if allowed.
+ */
+int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
+  int allowed, flag;
+  uint32_t net, mask;
+  struct ns_str vec;
+
+  /* If any ACL is set, deny by default */
+  allowed = (acl == NULL || *acl == '\0') ? '+' : '-';
+
+  while ((acl = ns_next_comma_list_entry(acl, &vec, NULL)) != NULL) {
+    flag = vec.p[0];
+    if ((flag != '+' && flag != '-') ||
+        parse_net(&vec.p[1], &net, &mask) == 0) {
+      return -1;
+    }
+
+    if (net == (remote_ip & mask)) {
+      allowed = flag;
+    }
+  }
+
+  return allowed == '+';
+}
 #ifdef NS_MODULE_LINES
 #line 1 "src/../deps/frozen/frozen.c"
 /**/
@@ -3848,6 +3911,47 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 int ns_is_big_endian(void) {
   static const int n = 1;
   return ((char *) &n)[0] == 0;
+}
+
+/*
+ * A helper function for traversing a comma separated list of values.
+ * It returns a list pointer shifted to the next value, or NULL if the end
+ * of the list found.
+ * Value is stored in val vector. If value has form "x=y", then eq_val
+ * vector is initialized to point to the "y" part, and val vector length
+ * is adjusted to point only to "x".
+ */
+const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
+                                     struct ns_str *eq_val) {
+  if (list == NULL || *list == '\0') {
+    /* End of the list */
+    list = NULL;
+  } else {
+    val->p = list;
+    if ((list = strchr(val->p, ',')) != NULL) {
+      /* Comma found. Store length and shift the list ptr */
+      val->len = list - val->p;
+      list++;
+    } else {
+      /* This value is the last one */
+      list = val->p + strlen(val->p);
+      val->len = list - val->p;
+    }
+
+    if (eq_val != NULL) {
+      /* Value has form "x=y", adjust pointers and lengths */
+      /* so that val points to "x", and eq_val points to "y". */
+      eq_val->len = 0;
+      eq_val->p = (const char *) memchr(val->p, '=', val->len);
+      if (eq_val->p != NULL) {
+        eq_val->p++; /* Skip over '=' character */
+        eq_val->len = val->p + val->len - eq_val->p;
+        val->len = (eq_val->p - val->p) - 1;
+      }
+    }
+  }
+
+  return list;
 }
 #ifdef NS_MODULE_LINES
 #line 1 "src/json-rpc.c"

@@ -94,6 +94,8 @@
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) *1000)
 #define to64(x) _atoi64(x)
+#define popen(x, y) _popen((x), (y))
+#define pclose(x) _pclose(x)
 typedef int socklen_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -646,6 +648,9 @@ struct ns_serve_http_opts {
 
   /* Set to non-zero to enable directory listing */
   int enable_directory_listing;
+
+  /* SSI files suffix. By default is NULL, SSI is disabled */
+  const char *ssi_suffix;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

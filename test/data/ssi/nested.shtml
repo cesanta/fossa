@@ -1,0 +1,2 @@
+<!--#include file="f1.txt"-->
+<!--#exec "echo b"-->

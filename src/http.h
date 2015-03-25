@@ -124,6 +124,9 @@ struct ns_serve_http_opts {
 
   /* Set to non-zero to enable directory listing */
   int enable_directory_listing;
+
+  /* SSI files suffix. By default is NULL, SSI is disabled */
+  const char *ssi_suffix;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

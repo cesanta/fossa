@@ -28,6 +28,11 @@ difftest:
 	if [ -s "$$TMP" ]; then echo found diffs in checkout:; git status -s;  exit 1; fi; \
 	rm $$TMP
 
+w:
+	wine cl test/unit_test.c fossa.c /Zi /nologo /MD advapi32.lib \
+	-DNS_ENABLE_COAP -DNS_ENABLE_THREADS -DNS_INTERNAL= \
+	-DNS_ENABLE_MQTT_BROKER -DNS_ENABLE_DNS_SERVER
+
 update-frozen:
 	git subtree pull --prefix deps/frozen https://github.com/cesanta/frozen master --squash
 

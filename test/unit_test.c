@@ -76,7 +76,7 @@ void *failing_calloc(size_t count, size_t size) {
 
 static char *read_file(const char *path, size_t *size) {
   FILE *fp;
-  ns_stat_t st;
+  struct stat st;
   char *data = NULL;
   if ((fp = ns_fopen(path, "rb")) != NULL && !fstat(fileno(fp), &st)) {
     *size = st.st_size;
@@ -578,6 +578,7 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.document_root = ".";
       s_http_server_opts.per_directory_auth_file = "passwords.txt";
       s_http_server_opts.auth_domain = "foo.com";
+      s_http_server_opts.ssi_suffix = ".shtml";
       ns_serve_http(nc, hm, s_http_server_opts);
     }
   }
@@ -807,6 +808,31 @@ static const char *test_http_index(void) {
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "foo") == 0);
   ASSERT(strcmp(buf2, "116\r\n<html><head><t") == 0);
+
+  return NULL;
+}
+
+static const char *test_ssi(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7277";
+  char buf[20] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+
+  /* Test directory with index file. */
+  ASSERT((nc = ns_connect_http(&mgr, cb9, "127.0.0.1:7277/data/ssi/", NULL,
+                               NULL)) != NULL);
+  nc->user_data = buf;
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  /* Check that test buffer has been filled by the callback properly. */
+  ASSERT(strcmp(buf, "a\n\nb\n\n\n") == 0);
 
   return NULL;
 }
@@ -2469,6 +2495,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_errors);
   RUN_TEST(test_http_index);
   RUN_TEST(test_http_parse_header);
+  RUN_TEST(test_ssi);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);

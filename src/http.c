@@ -565,8 +565,180 @@ static void send_http_error(struct ns_connection *nc, int code,
   ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
 }
 
+static int has_suffix(const char *str, const char *suffix) {
+  return str != NULL && suffix != NULL &&
+         strcmp(str + strlen(str) - strlen(suffix), suffix) == 0;
+}
+
+#ifndef NS_DISABLE_SSI
+static void send_ssi_file(struct ns_connection *, const char *, FILE *, int,
+                          const struct ns_serve_http_opts *);
+
+static void send_file_data(struct ns_connection *nc, FILE *fp) {
+  char buf[BUFSIZ];
+  size_t n;
+  while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+    ns_send(nc, buf, n);
+  }
+}
+
+static void do_ssi_include(struct ns_connection *nc, const char *ssi, char *tag,
+                           int include_level,
+                           const struct ns_serve_http_opts *opts) {
+  char file_name[BUFSIZ], path[MAX_PATH_SIZE], *p;
+  FILE *fp;
+
+  /*
+   * sscanf() is safe here, since send_ssi_file() also uses buffer
+   * of size MG_BUF_LEN to get the tag. So strlen(tag) is always < MG_BUF_LEN.
+   */
+  if (sscanf(tag, " virtual=\"%[^\"]\"", file_name) == 1) {
+    /* File name is relative to the webserver root */
+    snprintf(path, sizeof(path), "%s%c%s", opts->document_root, '/', file_name);
+  } else if (sscanf(tag, " abspath=\"%[^\"]\"", file_name) == 1) {
+    /*
+     * File name is relative to the webserver working directory
+     * or it is absolute system path
+     */
+    snprintf(path, sizeof(path), "%s", file_name);
+  } else if (sscanf(tag, " file=\"%[^\"]\"", file_name) == 1 ||
+             sscanf(tag, " \"%[^\"]\"", file_name) == 1) {
+    /* File name is relative to the currect document */
+    snprintf(path, sizeof(path), "%s", ssi);
+    if ((p = strrchr(path, '/')) != NULL) {
+      p[1] = '\0';
+    }
+    snprintf(path + strlen(path), sizeof(path) - strlen(path), "%s", file_name);
+  } else {
+    ns_printf(nc, "Bad SSI #include: [%s]", tag);
+    return;
+  }
+
+  if ((fp = fopen(path, "rb")) == NULL) {
+    ns_printf(nc, "SSI include error: fopen(%s): %s", path, strerror(errno));
+  } else {
+    ns_set_close_on_exec(fileno(fp));
+    if (has_suffix(path, opts->ssi_suffix)) {
+      send_ssi_file(nc, path, fp, include_level + 1, opts);
+    } else {
+      send_file_data(nc, fp);
+    }
+    fclose(fp);
+  }
+}
+
+#ifndef NS_DISABLE_POPEN
+static void do_ssi_exec(struct ns_connection *nc, char *tag) {
+  char cmd[BUFSIZ];
+  FILE *fp;
+
+  if (sscanf(tag, " \"%[^\"]\"", cmd) != 1) {
+    ns_printf(nc, "Bad SSI #exec: [%s]", tag);
+  } else if ((fp = popen(cmd, "r")) == NULL) {
+    ns_printf(nc, "Cannot SSI #exec: [%s]: %s", cmd, strerror(errno));
+  } else {
+    send_file_data(nc, fp);
+    pclose(fp);
+  }
+}
+#endif /* !NS_DISABLE_POPEN */
+
+static void send_ssi_file(struct ns_connection *nc, const char *path, FILE *fp,
+                          int include_level,
+                          const struct ns_serve_http_opts *opts) {
+  char buf[BUFSIZ];
+  int ch, offset, len, in_ssi_tag;
+
+  if (include_level > 10) {
+    ns_printf(nc, "SSI #include level is too deep (%s)", path);
+    return;
+  }
+
+  in_ssi_tag = len = offset = 0;
+  while ((ch = fgetc(fp)) != EOF) {
+    if (in_ssi_tag && ch == '>') {
+      in_ssi_tag = 0;
+      buf[len++] = (char) ch;
+      buf[len] = '\0';
+      assert(len <= (int) sizeof(buf));
+      if (len < 6 || memcmp(buf, "<!--#", 5) != 0) {
+        /* Not an SSI tag, pass it */
+        (void) ns_send(nc, buf, (size_t) len);
+      } else {
+        if (!memcmp(buf + 5, "include", 7)) {
+          do_ssi_include(nc, path, buf + 12, include_level, opts);
+#ifndef NS_DISABLE_POPEN
+        } else if (!memcmp(buf + 5, "exec", 4)) {
+          do_ssi_exec(nc, buf + 9);
+#endif /* !NO_POPEN */
+        } else {
+          ns_printf(nc,
+                    "%s: unknown SSI "
+                    "command: \"%s\"",
+                    path, buf);
+        }
+      }
+      len = 0;
+    } else if (in_ssi_tag) {
+      if (len == 5 && memcmp(buf, "<!--#", 5) != 0) {
+        /* Not an SSI tag */
+        in_ssi_tag = 0;
+      } else if (len == (int) sizeof(buf) - 2) {
+        ns_printf(nc, "%s: SSI tag is too large", path);
+        len = 0;
+      }
+      buf[len++] = ch & 0xff;
+    } else if (ch == '<') {
+      in_ssi_tag = 1;
+      if (len > 0) {
+        ns_send(nc, buf, (size_t) len);
+      }
+      len = 0;
+      buf[len++] = ch & 0xff;
+    } else {
+      buf[len++] = ch & 0xff;
+      if (len == (int) sizeof(buf)) {
+        ns_send(nc, buf, (size_t) len);
+        len = 0;
+      }
+    }
+  }
+
+  /* Send the rest of buffered data */
+  if (len > 0) {
+    ns_send(nc, buf, (size_t) len);
+  }
+}
+
+static void handle_ssi_request(struct ns_connection *nc, const char *path,
+                               const struct ns_serve_http_opts *opts) {
+  FILE *fp;
+
+  if ((fp = fopen(path, "rb")) == NULL) {
+    send_http_error(nc, 404, "Not Found");
+  } else {
+    ns_set_close_on_exec(fileno(fp));
+    ns_printf(nc,
+              "HTTP/1.1 200 OK\r\n"
+              "Content-Type: %s\r\n"
+              "Connection: close\r\n\r\n",
+              get_mime_type(path, "text/plain"));
+    send_ssi_file(nc, path, fp, 0, opts);
+    fclose(fp);
+    nc->flags |= NSF_SEND_AND_CLOSE;
+  }
+}
+#else
+static void handle_ssi_request(struct ns_connection *nc, const char *path,
+                               const struct ns_serve_http_opts *opts) {
+  (void) nc;
+  (void) path;
+  (void) opts;
+}
+#endif /* NS_DISABLE_SSI */
+
 void ns_send_http_file(struct ns_connection *nc, const char *path,
-                       ns_stat_t *st) {
+                       ns_stat_t *st, struct ns_serve_http_opts *opts) {
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
@@ -574,6 +746,8 @@ void ns_send_http_file(struct ns_connection *nc, const char *path,
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
     send_http_error(nc, 500, "Server Error");
+  } else if (has_suffix(path, opts->ssi_suffix)) {
+    handle_ssi_request(nc, path, opts);
   } else {
     ns_printf(nc,
               "HTTP/1.1 200 OK\r\n"
@@ -1138,6 +1312,49 @@ static void send_directory_listing(struct ns_connection *nc,
 }
 #endif /* NS_NO_DIRECTORY_LISTING */
 
+static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
+  static const char *index_file_extensions[] = {"html", "htm", "shtml", "shtm",
+                                                "cgi",  "php", NULL};
+  ns_stat_t st;
+  size_t n = strlen(path);
+  int i, found = 0;
+
+  /* The 'path' given to us points to the directory. Remove all trailing */
+  /* directory separator characters from the end of the path, and */
+  /* then append single directory separator character. */
+  while (n > 0 && (path[n - 1] == '/' || path[n - 1] == '\\')) {
+    n--;
+  }
+  path[n] = '/';
+
+  /* Traverse index files list. For each entry, append it to the given */
+  /* path and see if the file exists. If it exists, break the loop */
+  for (i = 0; index_file_extensions[i] != NULL; i++) {
+    if (path_len <= n + 2) {
+      continue;
+    }
+
+    /* Prepare full path to the index file */
+    snprintf(path + n + 1, path_len - (n + 1), "index.%s",
+             index_file_extensions[i]);
+
+    /* Does it exist? */
+    if (!stat(path, &st)) {
+      /* Yes it does, break the loop */
+      *stp = st;
+      found = 1;
+      break;
+    }
+  }
+
+  /* If no index file exists, restore directory path */
+  if (!found) {
+    path[n] = '\0';
+  }
+
+  return found;
+}
+
 /*
  * Serve given HTTP request according to the `options`.
  *
@@ -1163,7 +1380,6 @@ static void send_directory_listing(struct ns_connection *nc,
  */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
-  static const char index_file[] = "/index.html";
   char path[NS_MAX_PATH], tmp[NS_MAX_PATH];
   ns_stat_t st;
   int stat_result, is_directory;
@@ -1184,22 +1400,18 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
               opts.auth_domain, (unsigned long) time(NULL));
   } else if (stat_result != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-  } else if (S_ISDIR(st.st_mode)) {
-    strncat(path, index_file, sizeof(path) - (strlen(path) + 1));
-    if (ns_stat(path, &st) == 0) {
-      ns_send_http_file(nc, path, &st);
+  } else if (S_ISDIR(st.st_mode) && !find_index_file(path, sizeof(path), &st)) {
+    if (opts.enable_directory_listing) {
 #ifndef NS_NO_DIRECTORY_LISTING
-    } else if (opts.enable_directory_listing) {
-      path[strlen(path) - sizeof(index_file)] = '\0';
       send_directory_listing(nc, hm, path);
+#else
+      send_http_error(nc, 501, NULL);
 #endif
     } else {
-      ns_printf(nc, "%s",
-                "HTTP/1.1 403 Access Denied\r\n"
-                "Content-Length: 0\r\n\r\n");
+      send_http_error(nc, 403, NULL);
     }
   } else {
-    ns_send_http_file(nc, path, &st);
+    ns_send_http_file(nc, path, &st, &opts);
   }
 }
 

@@ -35,6 +35,17 @@
 #endif
 #define _FILE_OFFSET_BITS 64 /* Enable 64-bit file offsets */
 
+/*
+ * MSVC++ 12.0 _MSC_VER == 1800 (Visual Studio 2013)
+ * MSVC++ 11.0 _MSC_VER == 1700 (Visual Studio 2012)
+ * MSVC++ 10.0 _MSC_VER == 1600 (Visual Studio 2010)
+ * MSVC++ 9.0  _MSC_VER == 1500 (Visual Studio 2008)
+ * MSVC++ 8.0  _MSC_VER == 1400 (Visual Studio 2005)
+ * MSVC++ 7.1  _MSC_VER == 1310 (Visual Studio 2003)
+ * MSVC++ 7.0  _MSC_VER == 1300
+ * MSVC++ 6.0  _MSC_VER == 1200
+ * MSVC++ 5.0  _MSC_VER == 1100
+ */
 #ifdef _MSC_VER
 #pragma warning(disable : 4127) /* FD_SET() emits warning, disable it */
 #pragma warning(disable : 4204) /* missing c99 support */
@@ -83,6 +94,8 @@
 #define vsnprintf _vsnprintf
 #define sleep(x) Sleep((x) *1000)
 #define to64(x) _atoi64(x)
+#define popen(x, y) _popen((x), (y))
+#define pclose(x) _pclose(x)
 typedef int socklen_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -635,6 +648,9 @@ struct ns_serve_http_opts {
 
   /* Set to non-zero to enable directory listing */
   int enable_directory_listing;
+
+  /* SSI files suffix. By default is NULL, SSI is disabled */
+  const char *ssi_suffix;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

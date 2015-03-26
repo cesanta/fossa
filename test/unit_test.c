@@ -230,13 +230,13 @@ static const char *test_to64(void) {
 }
 
 static const char *test_check_ip_acl(void) {
-  uint32_t ip = htonl(0x01010101);
+  uint32_t ip = 0x01020304;
   ASSERT(ns_check_ip_acl(NULL, ip) == 1);
   ASSERT(ns_check_ip_acl("", ip) == 1);
   ASSERT(ns_check_ip_acl("invalid", ip) == -1);
   ASSERT(ns_check_ip_acl("-0.0.0.0/0", ip) == 0);
   ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/8", ip) == 1);
-  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.1.1.1", ip) == 1);
+  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.2.3.4", ip) == 1);
   ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/16", ip) == 0);
   return NULL;
 }

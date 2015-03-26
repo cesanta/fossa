@@ -127,6 +127,9 @@ struct ns_serve_http_opts {
 
   /* SSI files suffix. By default is NULL, SSI is disabled */
   const char *ssi_suffix;
+
+  /* IP ACL. By default, NULL, meaning all IPs are allowed to connect */
+  const char *ip_acl;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

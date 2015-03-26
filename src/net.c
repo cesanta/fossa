@@ -1166,7 +1166,7 @@ static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
 /*
  * Verify given IP address against the ACL.
  *
- * `remote_ip` - an IPv4 address to check, in network byte order
+ * `remote_ip` - an IPv4 address to check, in host byte order
  * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
  * Each subnet is
  * prepended by either a - or a + sign. A plus sign means allow, where a

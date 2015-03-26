@@ -1334,7 +1334,7 @@ static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
 /*
  * Verify given IP address against the ACL.
  *
- * `remote_ip` - an IPv4 address to check, in network byte order
+ * `remote_ip` - an IPv4 address to check, in host byte order
  * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
  * Each subnet is
  * prepended by either a - or a + sign. A plus sign means allow, where a
@@ -3259,6 +3259,7 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   char path[NS_MAX_PATH], tmp[NS_MAX_PATH];
   ns_stat_t st;
   int stat_result, is_directory;
+  uint32_t remote_ip = ntohl(*(uint32_t *) &nc->sa.sin.sin_addr);
 
   snprintf(tmp, sizeof(tmp), "%s/%.*s", opts.document_root, (int) hm->uri.len,
            hm->uri.p);
@@ -3267,7 +3268,10 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   stat_result = ns_stat(path, &st);
   is_directory = !stat_result && S_ISDIR(st.st_mode);
 
-  if (!is_authorized(hm, path, is_directory, &opts)) {
+  if (ns_check_ip_acl(opts.ip_acl, remote_ip) != 1) {
+    /* Not allowed to connect */
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  } else if (!is_authorized(hm, path, is_directory, &opts)) {
     ns_printf(nc,
               "HTTP/1.1 401 Unauthorized\r\n"
               "WWW-Authenticate: Digest qop=\"auth\", "

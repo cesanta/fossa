@@ -33,8 +33,9 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev);
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
-
 int ns_is_big_endian(void);
+const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
+                                     struct ns_str *eq_val);
 
 #ifdef __cplusplus
 }

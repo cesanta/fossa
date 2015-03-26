@@ -416,3 +416,44 @@ int ns_is_big_endian(void) {
   static const int n = 1;
   return ((char *) &n)[0] == 0;
 }
+
+/*
+ * A helper function for traversing a comma separated list of values.
+ * It returns a list pointer shifted to the next value, or NULL if the end
+ * of the list found.
+ * Value is stored in val vector. If value has form "x=y", then eq_val
+ * vector is initialized to point to the "y" part, and val vector length
+ * is adjusted to point only to "x".
+ */
+const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
+                                     struct ns_str *eq_val) {
+  if (list == NULL || *list == '\0') {
+    /* End of the list */
+    list = NULL;
+  } else {
+    val->p = list;
+    if ((list = strchr(val->p, ',')) != NULL) {
+      /* Comma found. Store length and shift the list ptr */
+      val->len = list - val->p;
+      list++;
+    } else {
+      /* This value is the last one */
+      list = val->p + strlen(val->p);
+      val->len = list - val->p;
+    }
+
+    if (eq_val != NULL) {
+      /* Value has form "x=y", adjust pointers and lengths */
+      /* so that val points to "x", and eq_val points to "y". */
+      eq_val->len = 0;
+      eq_val->p = (const char *) memchr(val->p, '=', val->len);
+      if (eq_val->p != NULL) {
+        eq_val->p++; /* Skip over '=' character */
+        eq_val->len = val->p + val->len - eq_val->p;
+        val->len = (eq_val->p - val->p) - 1;
+      }
+    }
+  }
+
+  return list;
+}

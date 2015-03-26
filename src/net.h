@@ -183,6 +183,7 @@ int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 /* Utility functions */
 int ns_socketpair(sock_t[2], int sock_type); /* SOCK_STREAM or SOCK_DGRAM */
 int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
+int ns_check_ip_acl(const char *acl, uint32_t remote_ip);
 
 #ifdef __cplusplus
 }

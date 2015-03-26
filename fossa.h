@@ -381,6 +381,7 @@ int ns_vprintf(struct ns_connection *, const char *fmt, va_list ap);
 /* Utility functions */
 int ns_socketpair(sock_t[2], int sock_type); /* SOCK_STREAM or SOCK_DGRAM */
 int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
+int ns_check_ip_acl(const char *acl, uint32_t remote_ip);
 
 #ifdef __cplusplus
 }
@@ -516,8 +517,9 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len);
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev);
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
-
 int ns_is_big_endian(void);
+const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
+                                     struct ns_str *eq_val);
 
 #ifdef __cplusplus
 }

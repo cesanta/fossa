@@ -1142,3 +1142,66 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
     recv(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
+
+static int isbyte(int n) {
+  return n >= 0 && n <= 255;
+}
+
+static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
+  int n, a, b, c, d, slash = 32, len = 0;
+
+  if ((sscanf(spec, "%d.%d.%d.%d/%d%n", &a, &b, &c, &d, &slash, &n) == 5 ||
+       sscanf(spec, "%d.%d.%d.%d%n", &a, &b, &c, &d, &n) == 4) &&
+      isbyte(a) && isbyte(b) && isbyte(c) && isbyte(d) && slash >= 0 &&
+      slash < 33) {
+    len = n;
+    *net =
+        ((uint32_t) a << 24) | ((uint32_t) b << 16) | ((uint32_t) c << 8) | d;
+    *mask = slash ? 0xffffffffU << (32 - slash) : 0;
+  }
+
+  return len;
+}
+
+/*
+ * Verify given IP address against the ACL.
+ *
+ * `remote_ip` - an IPv4 address to check, in network byte order
+ * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
+ * Each subnet is
+ * prepended by either a - or a + sign. A plus sign means allow, where a
+ * minus sign means deny. If a subnet mask is omitted, such as `-1.2.3.4`,
+ * this means to deny only that single IP address.
+ * Subnet masks may vary from 0 to 32, inclusive. The default setting
+ * is to allow all accesses. On each request the full list is traversed,
+ * and the last match wins. Example:
+ *
+ * `-0.0.0.0/0,+192.168/16` - deny all acccesses, only allow 192.168/16 subnet
+ *
+ * To learn more about subnet masks, see the
+ * link:https://en.wikipedia.org/wiki/Subnetwork[Wikipedia page on Subnetwork]
+ *
+ * Return -1 if ACL is malformed, 0 if address is disallowed, 1 if allowed.
+ */
+int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
+  int allowed, flag;
+  uint32_t net, mask;
+  struct ns_str vec;
+
+  /* If any ACL is set, deny by default */
+  allowed = (acl == NULL || *acl == '\0') ? '+' : '-';
+
+  while ((acl = ns_next_comma_list_entry(acl, &vec, NULL)) != NULL) {
+    flag = vec.p[0];
+    if ((flag != '+' && flag != '-') ||
+        parse_net(&vec.p[1], &net, &mask) == 0) {
+      return -1;
+    }
+
+    if (net == (remote_ip & mask)) {
+      allowed = flag;
+    }
+  }
+
+  return allowed == '+';
+}

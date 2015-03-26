@@ -229,6 +229,18 @@ static const char *test_to64(void) {
   return NULL;
 }
 
+static const char *test_check_ip_acl(void) {
+  uint32_t ip = htonl(0x01010101);
+  ASSERT(ns_check_ip_acl(NULL, ip) == 1);
+  ASSERT(ns_check_ip_acl("", ip) == 1);
+  ASSERT(ns_check_ip_acl("invalid", ip) == -1);
+  ASSERT(ns_check_ip_acl("-0.0.0.0/0", ip) == 0);
+  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/8", ip) == 1);
+  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.1.1.1", ip) == 1);
+  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/16", ip) == 0);
+  return NULL;
+}
+
 /* TODO(mkm) port these test cases to the new async parse_address */
 static const char *test_parse_address(void) {
   static const char *valid[] = {
@@ -2480,6 +2492,7 @@ static const char *test_coap(void) {
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
+  RUN_TEST(test_check_ip_acl);
   RUN_TEST(test_connect_fail);
   RUN_TEST(test_connect_opts);
   RUN_TEST(test_connect_opts_error_string);

@@ -36,6 +36,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap);
 int ns_is_big_endian(void);
 const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
                                      struct ns_str *eq_val);
+int ns_match_prefix(const char *pattern, int pattern_len, const char *str);
 
 #ifdef __cplusplus
 }

@@ -457,3 +457,45 @@ const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
 
   return list;
 }
+
+/*
+ * Match 0-terminated string against a glob pattern.
+ * Match is case-insensitive. Return number of bytes matched, or -1 if no match.
+ */
+int ns_match_prefix(const char *pattern, int pattern_len, const char *str) {
+  const char *or_str;
+  int len, res, i = 0, j = 0;
+
+  if ((or_str = (const char *) memchr(pattern, '|', pattern_len)) != NULL) {
+    res = ns_match_prefix(pattern, or_str - pattern, str);
+    return res > 0 ? res : ns_match_prefix(
+                               or_str + 1,
+                               (pattern + pattern_len) - (or_str + 1), str);
+  }
+
+  for (; i < pattern_len; i++, j++) {
+    if (pattern[i] == '?' && str[j] != '\0') {
+      continue;
+    } else if (pattern[i] == '$') {
+      return str[j] == '\0' ? j : -1;
+    } else if (pattern[i] == '*') {
+      i++;
+      if (pattern[i] == '*') {
+        i++;
+        len = (int) strlen(str + j);
+      } else {
+        len = (int) strcspn(str + j, "/");
+      }
+      if (i == pattern_len) {
+        return j + len;
+      }
+      do {
+        res = ns_match_prefix(pattern + i, pattern_len - i, str + j + len);
+      } while (res == -1 && len-- > 0);
+      return res == -1 ? -1 : j + res + len;
+    } else if (lowercase(&pattern[i]) != lowercase(&str[j])) {
+      return -1;
+    }
+  }
+  return j;
+}

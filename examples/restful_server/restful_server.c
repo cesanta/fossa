@@ -64,6 +64,8 @@ int main(int argc, char *argv[]) {
       s_http_server_opts.global_auth_file = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
       s_http_server_opts.per_directory_auth_file = argv[++i];
+    } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
+      s_http_server_opts.url_rewrites = argv[++i];
 #ifdef NS_ENABLE_SSL
     } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
       const char *ssl_cert = argv[++i];

@@ -591,6 +591,9 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.per_directory_auth_file = "passwords.txt";
       s_http_server_opts.auth_domain = "foo.com";
       s_http_server_opts.ssi_suffix = ".shtml";
+      s_http_server_opts.url_rewrites =
+          "/~joe=./data/rewrites,"
+          "@foo.com=./data/rewrites/foo.com";
       ns_serve_http(nc, hm, s_http_server_opts);
     }
   }
@@ -805,13 +808,13 @@ static const char *test_http_index(void) {
   ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
-  ns_printf(nc, "%s", "GET /data/dir_with_index HTTP/1.0\n\n");
+  ns_printf(nc, "%s", "GET /data/dir_with_index/ HTTP/1.0\n\n");
 
   /* Test directory with no index file. */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf2;
-  ns_printf(nc, "%s", "GET /data/dir_no_index HTTP/1.0\n\n");
+  ns_printf(nc, "%s", "GET /data/dir_no_index/ HTTP/1.0\n\n");
 
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 50);
@@ -819,7 +822,7 @@ static const char *test_http_index(void) {
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "foo") == 0);
-  ASSERT(strcmp(buf2, "116\r\n<html><head><t") == 0);
+  ASSERT(strcmp(buf2, "118\r\n<html><head><t") == 0);
 
   return NULL;
 }
@@ -845,6 +848,44 @@ static const char *test_ssi(void) {
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "a\n\nb\n\n\n") == 0);
+
+  return NULL;
+}
+
+static const char *test_http_rewrites(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  const char *local_addr = "127.0.0.1:7377";
+  char buf[20] = "", buf2[20] = "", buf3[40] = "";
+
+  ns_mgr_init(&mgr, NULL);
+  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+
+  /* Test rewrite. */
+  ASSERT((nc = ns_connect_http(&mgr, cb9, "127.0.0.1:7377/~joe/msg.txt",
+                               "Host: foo.co\r\n", NULL)) != NULL);
+  nc->user_data = buf;
+
+  /* Test rewrite that points to directory, expect redirect */
+  ASSERT((nc = ns_connect_http(&mgr, cb8, "http://127.0.0.1:7377/~joe", NULL,
+                               NULL)) != NULL);
+  nc->user_data = buf3;
+
+  /* Test domain-based rewrite. */
+  ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf2;
+  ns_printf(nc, "%s", "GET / HTTP/1.0\nHost: foo.com\n\n");
+
+  /* Run event loop. Use more cycles to let file download complete. */
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+
+  /* Check that test buffer has been filled by the callback properly. */
+  ASSERT(strcmp(buf, "works\n") == 0);
+  ASSERT(strcmp(buf2, "foo_root\n") == 0);
+  ASSERT(strcmp(buf3, "HTTP/1.1 301 Moved\r\nLocation: /~joe/\r\nC") == 0);
 
   return NULL;
 }
@@ -2509,6 +2550,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_index);
   RUN_TEST(test_http_parse_header);
   RUN_TEST(test_ssi);
+  RUN_TEST(test_http_rewrites);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);

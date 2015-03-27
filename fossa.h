@@ -96,6 +96,11 @@
 #define to64(x) _atoi64(x)
 #define popen(x, y) _popen((x), (y))
 #define pclose(x) _pclose(x)
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+#define fseeko(x, y, z) _fseeki64((x), (y), (z))
+#else
+#define fseeko(x, y, z) fseek((x), (y), (z))
+#endif
 typedef int socklen_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -104,6 +109,7 @@ typedef unsigned __int64 uint64_t;
 typedef __int64 int64_t;
 typedef SOCKET sock_t;
 typedef uint32_t in_addr_t;
+#define INT64_FMT "I64d"
 #ifdef __MINGW32__
 typedef struct stat ns_stat_t;
 #else
@@ -117,6 +123,7 @@ typedef struct _stati64 ns_stat_t;
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -131,6 +138,7 @@ typedef struct _stati64 ns_stat_t;
 #ifdef __APPLE__
 int64_t strtoll(const char* str, char** endptr, int base);
 #endif
+#define INT64_FMT PRId64
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;

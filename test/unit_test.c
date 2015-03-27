@@ -630,6 +630,16 @@ static void cb7(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void cb8(struct ns_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+
+  if (ev == NS_HTTP_REPLY) {
+    snprintf((char *) nc->user_data, 1000, "%.*s", (int) hm->message.len,
+             hm->message.p);
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+}
+
 static void cb10(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
   struct ns_str *s;
@@ -657,12 +667,39 @@ static void cb_auth_ok(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void fetch_http(char *buf, const char *request_fmt, ...) {
+  static int listening_port = 23456;
+  struct ns_mgr mgr;
+  struct ns_connection *nc;
+  char local_addr[50];
+  va_list ap;
+
+  /* Setup server. Use different local port for the next invocation. */
+  ns_mgr_init(&mgr, NULL);
+  snprintf(local_addr, sizeof(local_addr), "127.0.0.1:%d", listening_port++);
+  nc = ns_bind(&mgr, local_addr, cb1);
+  ns_set_protocol_http_websocket(nc);
+
+  /* Setup client */
+  nc = ns_connect(&mgr, local_addr, cb8);
+  ns_set_protocol_http_websocket(nc);
+  nc->user_data = buf;
+  va_start(ap, request_fmt);
+  ns_vprintf(nc, request_fmt, ap);
+  va_end(ap);
+
+  /* Run event loop, destroy server */
+  buf[0] = '\0';
+  poll_mgr(&mgr, 50);
+  ns_mgr_free(&mgr);
+}
+
 static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[20] = "", mime[20] = "", auth_fail[20] = "";
-  char auth_ok[20] = "", auth_hdr[200] = "", url[100];
+  char buf[20] = "", status[100] = "", mime[20] = "", auth_fail[20] = "";
+  char auth_ok[20] = "", auth_hdr[200] = "", url[1000];
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -705,7 +742,7 @@ static const char *test_http(void) {
   nc->user_data = auth_ok;
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 200);
+  poll_mgr(&mgr, 250);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -718,21 +755,11 @@ static const char *test_http(void) {
   return NULL;
 }
 
-static void cb8(struct ns_connection *nc, int ev, void *ev_data) {
-  struct http_message *hm = (struct http_message *) ev_data;
-
-  if (ev == NS_HTTP_REPLY) {
-    snprintf((char *) nc->user_data, 40, "%.*s", (int) hm->message.len,
-             hm->message.p);
-    nc->flags |= NSF_CLOSE_IMMEDIATELY;
-  }
-}
-
 static const char *test_http_errors(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *local_addr = "127.0.0.1:7777";
-  char status[40] = "";
+  char status[1000] = "";
 
   ns_mgr_init(&mgr, NULL);
   s_http_server_opts.enable_directory_listing = 0;
@@ -828,64 +855,68 @@ static const char *test_http_index(void) {
 }
 
 static const char *test_ssi(void) {
-  struct ns_mgr mgr;
-  struct ns_connection *nc;
-  const char *local_addr = "127.0.0.1:7277";
-  char buf[20] = "";
-
-  ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
-  ns_set_protocol_http_websocket(nc);
-
-  /* Test directory with index file. */
-  ASSERT((nc = ns_connect_http(&mgr, cb9, "127.0.0.1:7277/data/ssi/", NULL,
-                               NULL)) != NULL);
-  nc->user_data = buf;
-
-  /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 50);
-  ns_mgr_free(&mgr);
-
-  /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "a\n\nb\n\n\n") == 0);
-
+  char buf[1000];
+  fetch_http(buf, "%s", "GET /data/ssi/ HTTP/1.0\n\n");
+  ASSERT(strcmp(buf,
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
+                "Connection: close\r\n\r\na\n\nb\n\n\n") == 0);
   return NULL;
 }
 
 static const char *test_http_rewrites(void) {
-  struct ns_mgr mgr;
-  struct ns_connection *nc;
-  const char *local_addr = "127.0.0.1:7377";
-  char buf[20] = "", buf2[20] = "", buf3[40] = "";
+  char buf[1000];
 
-  ns_mgr_init(&mgr, NULL);
-  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
-  ns_set_protocol_http_websocket(nc);
-
-  /* Test rewrite. */
-  ASSERT((nc = ns_connect_http(&mgr, cb9, "127.0.0.1:7377/~joe/msg.txt",
-                               "Host: foo.co\r\n", NULL)) != NULL);
-  nc->user_data = buf;
+  /* Test rewrite */
+  fetch_http(buf, "%s", "GET /~joe/msg.txt HTTP/1.0\nHost: foo.co\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT(strstr(buf, "Content-Length: 6\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 8, "\r\nworks\n") == 0);
 
   /* Test rewrite that points to directory, expect redirect */
-  ASSERT((nc = ns_connect_http(&mgr, cb8, "http://127.0.0.1:7377/~joe", NULL,
-                               NULL)) != NULL);
-  nc->user_data = buf3;
+  fetch_http(buf, "%s", "GET /~joe HTTP/1.0\n\n");
+  ASSERT(strcmp(buf,
+                "HTTP/1.1 301 Moved\r\nLocation: /~joe/\r\n"
+                "Content-Length: 0\r\n\r\n") == 0);
 
-  /* Test domain-based rewrite. */
-  ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
-  ns_set_protocol_http_websocket(nc);
-  nc->user_data = buf2;
-  ns_printf(nc, "%s", "GET / HTTP/1.0\nHost: foo.com\n\n");
+  /* Test domain-based rewrite */
+  fetch_http(buf, "%s", "GET / HTTP/1.0\nHost: foo.com\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT(strstr(buf, "Content-Length: 9\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 11, "\r\nfoo_root\n") == 0);
 
-  /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 50);
-  ns_mgr_free(&mgr);
+  return NULL;
+}
 
-  /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "works\n") == 0);
-  ASSERT(strcmp(buf2, "foo_root\n") == 0);
-  ASSERT(strcmp(buf3, "HTTP/1.1 301 Moved\r\nLocation: /~joe/\r\nC") == 0);
+static const char *test_http_range(void) {
+  char buf[1000];
+
+  fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT(strstr(buf, "Content-Length: 312\r\n") != 0);
+
+  /* Fetch a piece from the middle of the file */
+  fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=5-10\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 206 Partial Content", 28) == 0);
+  ASSERT(strstr(buf, "Content-Length: 6\r\n") != 0);
+  ASSERT(strstr(buf, "Content-Range: bytes 5-10/312\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 8, "\r\n of co") == 0);
+
+  /* Fetch till EOF */
+  fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=300-\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 206 Partial Content", 28) == 0);
+  ASSERT(strstr(buf, "Content-Length: 12\r\n") != 0);
+  ASSERT(strstr(buf, "Content-Range: bytes 300-311/312\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 14, "\r\nis disease.\n") == 0);
+
+  /* Fetch past EOF, must trigger 416 response */
+  fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=1000-\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 416", 12) == 0);
+  ASSERT(strstr(buf, "Content-Length: 0\r\n") != 0);
+  ASSERT(strstr(buf, "Content-Range: bytes */312\r\n") != 0);
+
+  /* Request range past EOF, must trigger 416 response */
+  fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=0-312\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 416", 12) == 0);
 
   return NULL;
 }
@@ -2534,7 +2565,6 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
   RUN_TEST(test_check_ip_acl);
-  RUN_TEST(test_connect_fail);
   RUN_TEST(test_connect_opts);
   RUN_TEST(test_connect_opts_error_string);
   RUN_TEST(test_to64);
@@ -2542,7 +2572,6 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_socketpair);
   RUN_TEST(test_thread);
   RUN_TEST(test_mgr);
-  RUN_TEST(test_connection_errors);
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
   RUN_TEST(test_http);
@@ -2551,6 +2580,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_parse_header);
   RUN_TEST(test_ssi);
   RUN_TEST(test_http_rewrites);
+  RUN_TEST(test_http_range);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
@@ -2574,6 +2604,8 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_resolve);
   RUN_TEST(test_dns_resolve_timeout);
   RUN_TEST(test_dns_resolve_hosts);
+  RUN_TEST(test_connection_errors);
+  RUN_TEST(test_connect_fail);
 #ifndef NO_DNS_TEST
   RUN_TEST(test_resolve);
 #endif

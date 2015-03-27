@@ -2334,18 +2334,27 @@ static void transfer_file_data(struct ns_connection *nc) {
   struct iobuf *io = &nc->send_iobuf;
   char buf[NS_MAX_HTTP_SEND_IOBUF];
   int64_t left = dp->cl - dp->sent;
+<<<<<<< HEAD
   size_t n = 0, to_read = 0;
 
   if (io->len < sizeof(buf)) {
     to_read = sizeof(buf) - io->len;
   }
+=======
+  size_t n = 0, to_read = sizeof(buf) - io->len;
+>>>>>>> Add Range: header support (#237)
 
   if (left > 0 && to_read > (size_t) left) {
     to_read = left;
   }
 
+<<<<<<< HEAD
   if (to_read == 0) {
     /* Rate limiting. send_iobuf is too full, wait until it's drained. */
+=======
+  if (nc->send_iobuf.len >= NS_MAX_HTTP_SEND_IOBUF) {
+    /* If output buffer is too big, do nothing until it's drained */
+>>>>>>> Add Range: header support (#237)
   } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
     ns_send(nc, buf, n);
     dp->sent += n;

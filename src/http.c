@@ -12,7 +12,9 @@
 #include "internal.h"
 
 struct proto_data_http {
-  FILE *fp; /* Opened file */
+  FILE *fp;     /* Opened file. */
+  int64_t cl;   /* Content-Length. How many bytes to send. */
+  int64_t sent; /* How many bytes have been already sent. */
 };
 
 #define MIME_ENTRY(_ext, _type) \
@@ -442,12 +444,18 @@ static void transfer_file_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
   struct iobuf *io = &nc->send_iobuf;
   char buf[NS_MAX_HTTP_SEND_IOBUF];
-  size_t n;
+  int64_t left = dp->cl - dp->sent;
+  size_t n = 0, to_read = sizeof(buf) - io->len;
+
+  if (left > 0 && to_read > (size_t) left) {
+    to_read = left;
+  }
 
   if (nc->send_iobuf.len >= NS_MAX_HTTP_SEND_IOBUF) {
     /* If output buffer is too big, do nothing until it's drained */
-  } else if ((n = fread(buf, 1, sizeof(buf) - io->len, dp->fp)) > 0) {
+  } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
     ns_send(nc, buf, n);
+    dp->sent += n;
   } else {
     fclose(dp->fp);
     NS_FREE(dp);
@@ -735,24 +743,85 @@ static void handle_ssi_request(struct ns_connection *nc, const char *path,
 }
 #endif /* NS_DISABLE_SSI */
 
+static void construct_etag(char *buf, size_t buf_len, const ns_stat_t *st) {
+  snprintf(buf, buf_len, "\"%lx.%" INT64_FMT "\"", (unsigned long) st->st_mtime,
+           (int64_t) st->st_size);
+}
+
+static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
+  strftime(buf, buf_len, "%a, %d %b %Y %H:%M:%S GMT", gmtime(t));
+}
+
+static int parse_range_header(const char *header, int64_t *a, int64_t *b) {
+  return sscanf(header, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
+}
+
 void ns_send_http_file(struct ns_connection *nc, const char *path,
-                       ns_stat_t *st, struct ns_serve_http_opts *opts) {
+                       ns_stat_t *st, struct http_message *hm,
+                       struct ns_serve_http_opts *opts) {
   struct proto_data_http *dp;
 
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
     send_http_error(nc, 500, "Server Error"); /* LCOV_EXCL_LINE */
   } else if ((dp->fp = fopen(path, "rb")) == NULL) {
     NS_FREE(dp);
+    nc->proto_data = NULL;
     send_http_error(nc, 500, "Server Error");
   } else if (has_suffix(path, opts->ssi_suffix)) {
     handle_ssi_request(nc, path, opts);
   } else {
+    char etag[50], current_time[50], last_modified[50], range[50];
+    time_t t = time(NULL);
+    int64_t r1 = 0, r2 = 0, cl = st->st_size;
+    struct ns_str *range_hdr = ns_get_http_header(hm, "Range");
+    int n, status_code = 200;
+    const char *status_message = "OK";
+
+    /* Handle Range header */
+    range[0] = '\0';
+    if (range_hdr != NULL &&
+        (n = parse_range_header(range_hdr->p, &r1, &r2)) > 0 && r1 >= 0 &&
+        r2 >= 0) {
+      /* If range is specified like "400-", set second limit to content len */
+      if (n == 1) {
+        r2 = cl - 1;
+      }
+      if (r1 > r2 || r2 >= cl) {
+        status_code = 416;
+        status_message = "Requested range not satisfiable";
+        cl = 0;
+        snprintf(range, sizeof(range),
+                 "Content-Range: bytes */%" INT64_FMT "\r\n",
+                 (int64_t) st->st_size);
+      } else {
+        status_code = 206;
+        status_message = "Partial Content";
+        cl = r2 - r1 + 1;
+        snprintf(range, sizeof(range), "Content-Range: bytes %" INT64_FMT
+                                       "-%" INT64_FMT "/%" INT64_FMT "\r\n",
+                 r1, r1 + cl - 1, (int64_t) st->st_size);
+        fseeko(dp->fp, r1, SEEK_SET);
+      }
+    }
+
+    construct_etag(etag, sizeof(etag), st);
+    gmt_time_string(current_time, sizeof(current_time), &t);
+    gmt_time_string(last_modified, sizeof(last_modified), &st->st_mtime);
     ns_printf(nc,
-              "HTTP/1.1 200 OK\r\n"
+              "HTTP/1.1 %d %s\r\n"
+              "Date: %s\r\n"
+              "Last-Modified: %s\r\n"
+              "Accept-Ranges: bytes\r\n"
               "Content-Type: %s\r\n"
-              "Content-Length: %lu\r\n\r\n",
-              get_mime_type(path, "text/plain"), (unsigned long) st->st_size);
+              "Content-Length: %" INT64_FMT
+              "\r\n"
+              "%s"
+              "Etag: %s\r\n"
+              "\r\n",
+              status_code, status_message, current_time, last_modified,
+              get_mime_type(path, "text/plain"), cl, range, etag);
     nc->proto_data = (void *) dp;
+    dp->cl = cl;
     transfer_file_data(nc);
   }
 }
@@ -1443,7 +1512,7 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
       send_http_error(nc, 403, NULL);
     }
   } else {
-    ns_send_http_file(nc, path, &st, &opts);
+    ns_send_http_file(nc, path, &st, hm, &opts);
   }
 }
 

@@ -5,7 +5,8 @@
 ![](https://img.shields.io/badge/license-GPL_2-green.svg "License")
 
 Fossa is a
-http://cesanta.com/fossa.shtml[multi-protocol networking library] written in C.
+[multi-protocol networking library](http://cesanta.com/fossa.shtml)
+written in C.
 It provides easy to use event-driven interface that allows to implement
 network protocols or scalable network applications  with little effort.
 Fossa helps developers to manage the complexity of network programming

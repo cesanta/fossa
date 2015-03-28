@@ -1893,6 +1893,7 @@ struct proto_data_http {
   FILE *fp;     /* Opened file. */
   int64_t cl;   /* Content-Length. How many bytes to send. */
   int64_t sent; /* How many bytes have been already sent. */
+  int is_put_request;
 };
 
 #define MIME_ENTRY(_ext, _type) \
@@ -2331,26 +2332,39 @@ static void free_http_proto_data(struct ns_connection *nc) {
 
 static void transfer_file_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
-  struct iobuf *io = &nc->send_iobuf;
+  struct iobuf *io = dp->is_put_request ? &nc->recv_iobuf : &nc->send_iobuf;
   char buf[NS_MAX_HTTP_SEND_IOBUF];
   int64_t left = dp->cl - dp->sent;
   size_t n = 0, to_read = 0;
 
-  if (io->len < sizeof(buf)) {
-    to_read = sizeof(buf) - io->len;
-  }
+  if (dp->is_put_request == 0) {
+    if (io->len < sizeof(buf)) {
+      to_read = sizeof(buf) - io->len;
+    }
 
-  if (left > 0 && to_read > (size_t) left) {
-    to_read = left;
-  }
+    if (left > 0 && to_read > (size_t) left) {
+      to_read = left;
+    }
 
-  if (to_read == 0) {
-    /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-  } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
-    ns_send(nc, buf, n);
-    dp->sent += n;
+    if (to_read == 0) {
+      /* Rate limiting. send_iobuf is too full, wait until it's drained. */
+    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
+      ns_send(nc, buf, n);
+      dp->sent += n;
+    } else {
+      free_http_proto_data(nc);
+    }
   } else {
-    free_http_proto_data(nc);
+    size_t to_write =
+        left <= 0 ? 0 : left < (int64_t) io->len ? (size_t) left : io->len;
+    size_t n = fwrite(io->buf, 1, to_write, dp->fp);
+    if (n > 0) {
+      iobuf_remove(io, n);
+      dp->sent += n;
+    }
+    if (n == 0 || dp->sent >= dp->cl) {
+      free_http_proto_data(nc);
+    }
   }
 }
 
@@ -2462,6 +2476,9 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
 
 static void send_http_error(struct ns_connection *nc, int code,
                             const char *reason) {
+  if (reason == NULL) {
+    reason = "";
+  }
   ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
 }
 
@@ -2900,6 +2917,15 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
   return len;
 }
 
+static int is_file_hidden(const char *path,
+                          const struct ns_serve_http_opts *opts) {
+  const char *p1 = opts->per_directory_auth_file;
+  const char *p2 = opts->hidden_file_pattern;
+  return !strcmp(path, ".") || !strcmp(path, "..") ||
+         (p1 != NULL && !strcmp(path, p1)) ||
+         (p2 != NULL && ns_match_prefix(p2, strlen(p2), path) > 0);
+}
+
 #ifndef NS_DISABLE_HTTP_DIGEST_AUTH
 static FILE *open_auth_file(const char *path, int is_directory,
                             const struct ns_serve_http_opts *opts) {
@@ -2914,10 +2940,10 @@ static FILE *open_auth_file(const char *path, int is_directory,
              opts->per_directory_auth_file);
     fp = fopen(buf, "r");
   } else if (opts->per_directory_auth_file) {
-    if ((p = strrchr(path, DIRSEP)) == NULL) {
+    if ((p = strrchr(path, '/')) == NULL && (p = strrchr(path, '\\')) == NULL) {
       p = path;
     }
-    snprintf(buf, sizeof(buf), "%.*s%c%s", (int) (p - path), path, DIRSEP,
+    snprintf(buf, sizeof(buf), "%.*s/%s", (int) (p - path), path,
              opts->per_directory_auth_file);
     fp = fopen(buf, "r");
   }
@@ -3085,7 +3111,7 @@ static int is_authorized(struct http_message *hm, const char *path,
 }
 #endif
 
-#ifndef NS_NO_DIRECTORY_LISTING
+#ifndef NS_DISABLE_DIRECTORY_LISTING
 
 /* Implementation of POSIX opendir/closedir/readdir for Windows. */
 #ifdef _WIN32
@@ -3201,7 +3227,7 @@ static void escape(const char *src, char *dst, size_t dst_len) {
   dst[n] = '\0';
 }
 
-static void print_dir_entry(struct ns_connection *nc, const struct dirent *dp,
+static void print_dir_entry(struct ns_connection *nc, const char *file_name,
                             ns_stat_t *stp) {
   char size[64], mod[64], href[MAX_PATH_SIZE * 3], path[MAX_PATH_SIZE];
   int64_t fsize = stp->st_size;
@@ -3226,8 +3252,8 @@ static void print_dir_entry(struct ns_connection *nc, const struct dirent *dp,
     }
   }
   strftime(mod, sizeof(mod), "%d-%b-%Y %H:%M", localtime(&stp->st_mtime));
-  escape(dp->d_name, path, sizeof(path));
-  ns_url_encode(dp->d_name, strlen(dp->d_name), href, sizeof(href));
+  escape(file_name, path, sizeof(path));
+  ns_url_encode(file_name, strlen(file_name), href, sizeof(href));
   ns_printf_http_chunk(nc,
                        "<tr><td><a href=\"%s%s\">%s%s</a></td>"
                        "<td>%s</td><td name=%" INT64_FMT ">%s</td></tr>\n",
@@ -3235,12 +3261,33 @@ static void print_dir_entry(struct ns_connection *nc, const struct dirent *dp,
                        size);
 }
 
-static void send_directory_listing(struct ns_connection *nc,
-                                   struct http_message *hm, const char *dir) {
+static void scan_directory(struct ns_connection *nc, const char *dir,
+                           const struct ns_serve_http_opts *opts,
+                           void (*func)(struct ns_connection *, const char *,
+                                        ns_stat_t *)) {
   char path[MAX_PATH_SIZE];
   ns_stat_t st;
   struct dirent *dp;
   DIR *dirp;
+
+  if ((dirp = (opendir(dir))) != NULL) {
+    while ((dp = readdir(dirp)) != NULL) {
+      /* Do not show current dir and hidden files */
+      if (is_file_hidden(dp->d_name, opts)) {
+        continue;
+      }
+      snprintf(path, sizeof(path), "%s/%s", dir, dp->d_name);
+      if (ns_stat(path, &st) == 0) {
+        func(nc, dp->d_name, &st);
+      }
+    }
+    closedir(dirp);
+  }
+}
+
+static void send_directory_listing(struct ns_connection *nc, const char *dir,
+                                   struct http_message *hm,
+                                   struct ns_serve_http_opts *opts) {
   static const char *sort_js_code =
       "<script>function srt(tb, col) {"
       "var tr = Array.prototype.slice.call(tb.rows, 0),"
@@ -3273,25 +3320,187 @@ static void send_directory_listing(struct ns_connection *nc,
       "<tr><td colspan=\"3\"><hr></td></tr></thead><tbody id=tb>",
       (int) hm->uri.len, hm->uri.p, sort_js_code, sort_js_code2,
       (int) hm->uri.len, hm->uri.p);
-
-  if ((dirp = (opendir(dir))) != NULL) {
-    while ((dp = readdir(dirp)) != NULL) {
-      /* Do not show current dir and hidden files */
-      if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
-        continue;
-      }
-      snprintf(path, sizeof(path), "%s/%s", dir, dp->d_name);
-      if (ns_stat(path, &st) == 0) {
-        print_dir_entry(nc, dp, &st);
-      }
-    }
-    closedir(dirp);
-  }
-
+  scan_directory(nc, dir, opts, print_dir_entry);
   ns_printf_http_chunk(nc, "%s", "</tbody></body></html>");
   ns_send_http_chunk(nc, "", 0);
 }
-#endif /* NS_NO_DIRECTORY_LISTING */
+#endif /* NS_DISABLE_DIRECTORY_LISTING */
+
+#ifndef NS_DISABLE_DAV
+static void print_props(struct ns_connection *nc, const char *name,
+                        ns_stat_t *stp) {
+  char mtime[64], buf[MAX_PATH_SIZE * 3];
+  time_t t = stp->st_mtime; /* store in local variable for NDK compile */
+  gmt_time_string(mtime, sizeof(mtime), &t);
+  ns_url_encode(name, strlen(name), buf, sizeof(buf));
+  ns_printf(nc,
+            "<d:response>"
+            "<d:href>%s</d:href>"
+            "<d:propstat>"
+            "<d:prop>"
+            "<d:resourcetype>%s</d:resourcetype>"
+            "<d:getcontentlength>%" INT64_FMT
+            "</d:getcontentlength>"
+            "<d:getlastmodified>%s</d:getlastmodified>"
+            "</d:prop>"
+            "<d:status>HTTP/1.1 200 OK</d:status>"
+            "</d:propstat>"
+            "</d:response>\n",
+            buf, S_ISDIR(stp->st_mode) ? "<d:collection/>" : "",
+            (int64_t) stp->st_size, mtime);
+}
+
+static void handle_propfind(struct ns_connection *nc, const char *path,
+                            ns_stat_t *stp, struct http_message *hm,
+                            struct ns_serve_http_opts *opts) {
+  static const char header[] =
+      "HTTP/1.1 207 Multi-Status\r\n"
+      "Connection: close\r\n"
+      "Content-Type: text/xml; charset=utf-8\r\n\r\n"
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+      "<d:multistatus xmlns:d='DAV:'>\n";
+  static const char footer[] = "</d:multistatus>\n";
+  const struct ns_str *depth = ns_get_http_header(hm, "Depth");
+
+  /* Print properties for the requested resource itself */
+  if (S_ISDIR(stp->st_mode) && opts->enable_directory_listing == 0) {
+    ns_printf(nc, "%s", "HTTP/1.1 403 Directory Listing Denied\r\n\r\n");
+  } else {
+    char uri[MAX_PATH_SIZE];
+    ns_send(nc, header, sizeof(header) - 1);
+    snprintf(uri, sizeof(uri), "%.*s", (int) hm->uri.len, hm->uri.p);
+    print_props(nc, uri, stp);
+    if (S_ISDIR(stp->st_mode) && (depth == NULL || ns_vcmp(depth, "0") != 0)) {
+      scan_directory(nc, path, opts, print_props);
+    }
+    ns_send(nc, footer, sizeof(footer) - 1);
+    nc->flags |= NSF_SEND_AND_CLOSE;
+  }
+}
+
+static void handle_mkcol(struct ns_connection *nc, const char *path,
+                         struct http_message *hm) {
+  int status_code = 500;
+  if (ns_get_http_header(hm, "Content-Length") != NULL) {
+    status_code = 415;
+  } else if (!mkdir(path, 0755)) {
+    status_code = 201;
+  } else if (errno == EEXIST) {
+    status_code = 405;
+  } else if (errno == EACCES) {
+    status_code = 403;
+  } else if (errno == ENOENT) {
+    status_code = 409;
+  }
+  send_http_error(nc, status_code, NULL);
+}
+
+static int remove_directory(const char *dir) {
+  char path[MAX_PATH_SIZE];
+  struct dirent *dp;
+  ns_stat_t st;
+  DIR *dirp;
+
+  if ((dirp = opendir(dir)) == NULL) return 0;
+
+  while ((dp = readdir(dirp)) != NULL) {
+    if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) continue;
+    snprintf(path, sizeof(path), "%s%c%s", dir, '/', dp->d_name);
+    ns_stat(path, &st);
+    if (S_ISDIR(st.st_mode)) {
+      remove_directory(path);
+    } else {
+      remove(path);
+    }
+  }
+  closedir(dirp);
+  rmdir(dir);
+
+  return 1;
+}
+
+static void handle_delete(struct ns_connection *nc, const char *path) {
+  ns_stat_t st;
+  if (ns_stat(path, &st) != 0) {
+    send_http_error(nc, 404, NULL);
+  } else if (S_ISDIR(st.st_mode)) {
+    remove_directory(path);
+    send_http_error(nc, 204, NULL);
+  } else if (remove(path) == 0) {
+    send_http_error(nc, 204, NULL);
+  } else {
+    send_http_error(nc, 423, NULL);
+  }
+}
+
+/* Return -1 on error, 1 on success. */
+static int create_itermediate_directories(const char *path) {
+  const char *s = path;
+
+  /* Create intermediate directories if they do not exist */
+  while (*s) {
+    if (*s == '/') {
+      char buf[MAX_PATH_SIZE];
+      ns_stat_t st;
+      snprintf(buf, sizeof(buf), "%.*s", (int) (s - path), path);
+      buf[sizeof(buf) - 1] = '\0';
+      if (ns_stat(buf, &st) != 0 && mkdir(buf, 0755) != 0) {
+        return -1;
+      }
+    }
+    s++;
+  }
+
+  return 1;
+}
+
+static void handle_put(struct ns_connection *nc, const char *path,
+                       struct http_message *hm) {
+  ns_stat_t st;
+  const struct ns_str *cl_hdr = ns_get_http_header(hm, "Content-Length");
+  int rc, status_code = ns_stat(path, &st) == 0 ? 200 : 201;
+  struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
+
+  if (nc->proto_data != NULL) {
+    free_http_proto_data(nc);
+  }
+
+  if ((rc = create_itermediate_directories(path)) == 0) {
+    ns_printf(nc, "HTTP/1.1 %d OK\r\nContent-Length: 0\r\n\r\n", status_code);
+  } else if (rc == -1) {
+    send_http_error(nc, 500, NULL);
+  } else if (cl_hdr == NULL) {
+    send_http_error(nc, 411, NULL);
+  } else if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) ==
+             NULL) {
+    send_http_error(nc, 500, NULL); /* LCOV_EXCL_LINE */
+  } else if ((dp->fp = fopen(path, "w+b")) == NULL) {
+    send_http_error(nc, 500, NULL);
+    free_http_proto_data(nc);
+  } else {
+    const struct ns_str *range_hdr = ns_get_http_header(hm, "Content-Range");
+    int64_t r1 = 0, r2 = 0;
+    dp->is_put_request = 1;
+    ns_set_close_on_exec(fileno(dp->fp));
+    dp->cl = to64(cl_hdr->p);
+    if (range_hdr != NULL && parse_range_header(range_hdr->p, &r1, &r2) > 0) {
+      status_code = 206;
+      fseeko(dp->fp, r1, SEEK_SET);
+      dp->cl = r2 > r1 ? r2 - r1 + 1 : dp->cl - r1;
+    }
+    ns_printf(nc, "HTTP/1.1 %d OK\r\nContent-Length: 0\r\n\r\n", status_code);
+    nc->proto_data = dp;
+    /* Remove HTTP request from the iobuf, leave only payload */
+    iobuf_remove(&nc->recv_iobuf, hm->message.len - hm->body.len);
+    transfer_file_data(nc);
+  }
+}
+#endif /* NS_DISABLE_DAV */
+
+static int is_dav_request(const struct ns_str *s) {
+  return !ns_vcmp(s, "PUT") || !ns_vcmp(s, "DELETE") || !ns_vcmp(s, "MKCOL") ||
+         !ns_vcmp(s, "PROPFIND");
+}
 
 static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
   static const char *index_file_extensions[] = {"html", "htm", "shtml", "shtm",
@@ -3337,13 +3546,20 @@ static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
 }
 
 static void uri_to_path(struct http_message *hm, char *buf, size_t buf_len,
-                        const char *document_root, const char *rewrites) {
+                        const struct ns_serve_http_opts *opts) {
   char uri[NS_MAX_PATH];
   struct ns_str a, b, *host_hdr = ns_get_http_header(hm, "Host");
+  const char *rewrites = opts->url_rewrites;
 
   ns_url_decode(hm->uri.p, hm->uri.len, uri, sizeof(uri), 0);
   remove_double_dots(uri);
-  snprintf(buf, buf_len, "%s%s", document_root, uri);
+  snprintf(buf, buf_len, "%s%s", opts->document_root, uri);
+
+#ifndef NS_DISABLE_DAV
+  if (is_dav_request(&hm->method) && opts->dav_document_root != NULL) {
+    snprintf(buf, buf_len, "%s%s", opts->dav_document_root, uri);
+  }
+#endif
 
   /* Handle URL rewrites */
   while ((rewrites = ns_next_comma_list_entry(rewrites, &a, &b)) != NULL) {
@@ -3391,16 +3607,22 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
   ns_stat_t st;
-  int stat_result, is_directory;
+  int stat_result, is_directory, is_dav = is_dav_request(&hm->method);
   uint32_t remote_ip = ntohl(*(uint32_t *) &nc->sa.sin.sin_addr);
 
-  uri_to_path(hm, path, sizeof(path), opts.document_root, opts.url_rewrites);
+  uri_to_path(hm, path, sizeof(path), &opts);
   stat_result = ns_stat(path, &st);
   is_directory = !stat_result && S_ISDIR(st.st_mode);
+
+  if (opts.per_directory_auth_file == NULL) {
+    opts.per_directory_auth_file = ".htpasswd";
+  }
 
   if (ns_check_ip_acl(opts.ip_acl, remote_ip) != 1) {
     /* Not allowed to connect */
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  } else if (is_dav && opts.dav_document_root == NULL) {
+    send_http_error(nc, 501, NULL);
   } else if (!is_authorized(hm, path, is_directory, &opts)) {
     ns_printf(nc,
               "HTTP/1.1 401 Unauthorized\r\n"
@@ -3408,17 +3630,27 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
               "realm=\"%s\", nonce=\"%lu\"\r\n"
               "Content-Length: 0\r\n\r\n",
               opts.auth_domain, (unsigned long) time(NULL));
-  } else if (is_directory && path[strlen(path) - 1] != '/') {
+  } else if ((stat_result != 0 || is_file_hidden(path, &opts)) && !is_dav) {
+    ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+  } else if (is_directory && path[strlen(path) - 1] != '/' && !is_dav) {
     ns_printf(nc,
               "HTTP/1.1 301 Moved\r\nLocation: %.*s/\r\n"
               "Content-Length: 0\r\n\r\n",
               (int) hm->uri.len, hm->uri.p);
-  } else if (stat_result != 0) {
-    ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+#ifndef NS_DISABLE_DAV
+  } else if (!ns_vcmp(&hm->method, "PROPFIND")) {
+    handle_propfind(nc, path, &st, hm, &opts);
+  } else if (!ns_vcmp(&hm->method, "MKCOL")) {
+    handle_mkcol(nc, path, hm);
+  } else if (!ns_vcmp(&hm->method, "DELETE")) {
+    handle_delete(nc, path);
+  } else if (!ns_vcmp(&hm->method, "PUT")) {
+    handle_put(nc, path, hm);
+#endif
   } else if (S_ISDIR(st.st_mode) && !find_index_file(path, sizeof(path), &st)) {
     if (opts.enable_directory_listing) {
-#ifndef NS_NO_DIRECTORY_LISTING
-      send_directory_listing(nc, hm, path);
+#ifndef NS_DISABLE_DIRECTORY_LISTING
+      send_directory_listing(nc, path, hm, &opts);
 #else
       send_http_error(nc, 501, NULL);
 #endif

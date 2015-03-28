@@ -130,6 +130,23 @@ struct ns_serve_http_opts {
 
   /* IP ACL. By default, NULL, meaning all IPs are allowed to connect */
   const char *ip_acl;
+
+  /* URL rewrites.
+   *
+   * Comma-separated list of `uri_pattern=file_or_directory_path` rewrites.
+   * When HTTP request is received, Fossa constructs a file name from the
+   * requested URI by combining `document_root` and the URI. However, if the
+   * rewrite option is used and `uri_pattern` matches requested URI, then
+   * `document_root` is ignored. Instead, `file_or_directory_path` is used,
+   * which should be a full path name or a path relative to the web server's
+   * current working directory. Note that `uri_pattern`, as all Fossa patterns,
+   * is a prefix pattern.
+   *
+   * If uri_pattern starts with `@` symbol, then Fossa compares it with the
+   * HOST header of the request. If they are equal, Fossa sets document root
+   * to `file_or_directory_path`, implementing virtual hosts support.
+   */
+  const char *url_rewrites;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

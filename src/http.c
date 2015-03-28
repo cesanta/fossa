@@ -1353,6 +1353,34 @@ static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
   return found;
 }
 
+static void uri_to_path(struct http_message *hm, char *buf, size_t buf_len,
+                        const char *document_root, const char *rewrites) {
+  char uri[NS_MAX_PATH];
+  struct ns_str a, b, *host_hdr = ns_get_http_header(hm, "Host");
+
+  ns_url_decode(hm->uri.p, hm->uri.len, uri, sizeof(uri), 0);
+  remove_double_dots(uri);
+  snprintf(buf, buf_len, "%s%s", document_root, uri);
+
+  /* Handle URL rewrites */
+  while ((rewrites = ns_next_comma_list_entry(rewrites, &a, &b)) != NULL) {
+    if (a.len > 1 && a.p[0] == '@' && host_hdr != NULL &&
+        host_hdr->len == a.len - 1 &&
+        ns_ncasecmp(a.p + 1, host_hdr->p, a.len - 1) == 0) {
+      /* This is a virtual host rewrite: @domain.name=document_root_dir */
+      snprintf(buf, buf_len, "%.*s%s", (int) b.len, b.p, uri);
+      break;
+    } else {
+      /* This is a usual rewrite, URI=directory */
+      int match_len = ns_match_prefix(a.p, a.len, uri);
+      if (match_len > 0) {
+        snprintf(buf, buf_len, "%.*s%s", (int) b.len, b.p, uri + match_len);
+        break;
+      }
+    }
+  }
+}
+
 /*
  * Serve given HTTP request according to the `options`.
  *
@@ -1378,15 +1406,12 @@ static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
  */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
-  char path[NS_MAX_PATH], tmp[NS_MAX_PATH];
+  char path[NS_MAX_PATH];
   ns_stat_t st;
   int stat_result, is_directory;
   uint32_t remote_ip = ntohl(*(uint32_t *) &nc->sa.sin.sin_addr);
 
-  snprintf(tmp, sizeof(tmp), "%s/%.*s", opts.document_root, (int) hm->uri.len,
-           hm->uri.p);
-  ns_url_decode(tmp, strlen(tmp), path, sizeof(path), 0);
-  remove_double_dots(path);
+  uri_to_path(hm, path, sizeof(path), opts.document_root, opts.url_rewrites);
   stat_result = ns_stat(path, &st);
   is_directory = !stat_result && S_ISDIR(st.st_mode);
 
@@ -1400,6 +1425,11 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
               "realm=\"%s\", nonce=\"%lu\"\r\n"
               "Content-Length: 0\r\n\r\n",
               opts.auth_domain, (unsigned long) time(NULL));
+  } else if (is_directory && path[strlen(path) - 1] != '/') {
+    ns_printf(nc,
+              "HTTP/1.1 301 Moved\r\nLocation: %.*s/\r\n"
+              "Content-Length: 0\r\n\r\n",
+              (int) hm->uri.len, hm->uri.p);
   } else if (stat_result != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
   } else if (S_ISDIR(st.st_mode) && !find_index_file(path, sizeof(path), &st)) {

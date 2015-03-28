@@ -440,6 +440,13 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             b64_sha, "\r\n\r\n");
 }
 
+static void free_http_proto_data(struct ns_connection *nc) {
+  struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
+  fclose(dp->fp);
+  NS_FREE(dp);
+  nc->proto_data = NULL;
+}
+
 static void transfer_file_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
   struct iobuf *io = &nc->send_iobuf;
@@ -457,9 +464,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     ns_send(nc, buf, n);
     dp->sent += n;
   } else {
-    fclose(dp->fp);
-    NS_FREE(dp);
-    nc->proto_data = NULL;
+    free_http_proto_data(nc);
   }
 }
 
@@ -478,6 +483,9 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     hm.message.len = io->len;
     hm.body.len = io->buf + io->len - hm.body.p;
     nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+    if (nc->proto_data != NULL) {
+      free_http_proto_data(nc);
+    }
   }
 
   if (nc->proto_data != NULL) {
@@ -1337,8 +1345,9 @@ static void print_dir_entry(struct ns_connection *nc, const struct dirent *dp,
   ns_url_encode(dp->d_name, strlen(dp->d_name), href, sizeof(href));
   ns_printf_http_chunk(nc,
                        "<tr><td><a href=\"%s%s\">%s%s</a></td>"
-                       "<td>%s</td><td>%s</td></tr>\n",
-                       href, slash, path, slash, mod, size);
+                       "<td>%s</td><td name=%" INT64_FMT ">%s</td></tr>\n",
+                       href, slash, path, slash, mod, is_dir ? -1 : fsize,
+                       size);
 }
 
 static void send_directory_listing(struct ns_connection *nc,
@@ -1347,6 +1356,22 @@ static void send_directory_listing(struct ns_connection *nc,
   ns_stat_t st;
   struct dirent *dp;
   DIR *dirp;
+  static const char *sort_js_code =
+      "<script>function srt(tb, col) {"
+      "var tr = Array.prototype.slice.call(tb.rows, 0),"
+      "tr = tr.sort(function (a, b) { var c1 = a.cells[col], c2 = b.cells[col],"
+      "n1 = c1.getAttribute('name'), n2 = c2.getAttribute('name'), "
+      "t1 = a.cells[2].getAttribute('name'), "
+      "t2 = b.cells[2].getAttribute('name'); "
+      "return t1 < 0 && t2 >= 0 ? -1 : t2 < 0 && t1 >= 0 ? 1 : "
+      "n1 ? parseInt(n2) - parseInt(n1) : "
+      "c1.textContent.trim().localeCompare(c2.textContent.trim()); });";
+  static const char *sort_js_code2 =
+      "for (var i = 0; i < tr.length; i++) tb.appendChild(tr[i]);}"
+      "window.onload = function() { "
+      "var tb = document.getElementById('tb');"
+      "document.onclick = function(ev){ "
+      "var c = ev.target.rel; if (c) srt(tb, c)}; srt(tb, 2); };</script>";
 
   ns_printf(nc, "%s\r\n%s: %s\r\n%s: %s\r\n\r\n", "HTTP/1.1 200 OK",
             "Transfer-Encoding", "chunked", "Content-Type",
@@ -1354,12 +1379,15 @@ static void send_directory_listing(struct ns_connection *nc,
 
   ns_printf_http_chunk(
       nc,
-      "<html><head><title>Index of %.*s</title>"
+      "<html><head><title>Index of %.*s</title>%s%s"
       "<style>th,td {text-align: left; padding-right: 1em; }</style></head>"
-      "<body><h1>Index of %.*s</h1><pre><table cellpadding=\"0\">"
-      "<tr><th>Name</th><th>Modified</th><th>Size</th></tr>"
-      "<tr><td colspan=\"3\"><hr></td></tr>",
-      (int) hm->uri.len, hm->uri.p, (int) hm->uri.len, hm->uri.p);
+      "<body><h1>Index of %.*s</h1><pre><table cellpadding=\"0\"><thead>"
+      "<tr><th><a href=# rel=0>Name</a></th><th>"
+      "<a href=# rel=1>Modified</a</th>"
+      "<th><a href=# rel=2>Size</a></th></tr>"
+      "<tr><td colspan=\"3\"><hr></td></tr></thead><tbody id=tb>",
+      (int) hm->uri.len, hm->uri.p, sort_js_code, sort_js_code2,
+      (int) hm->uri.len, hm->uri.p);
 
   if ((dirp = (opendir(dir))) != NULL) {
     while ((dp = readdir(dirp)) != NULL) {
@@ -1375,6 +1403,7 @@ static void send_directory_listing(struct ns_connection *nc,
     closedir(dirp);
   }
 
+  ns_printf_http_chunk(nc, "%s", "</tbody></body></html>");
   ns_send_http_chunk(nc, "", 0);
 }
 #endif /* NS_NO_DIRECTORY_LISTING */

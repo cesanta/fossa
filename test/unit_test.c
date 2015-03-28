@@ -849,7 +849,7 @@ static const char *test_http_index(void) {
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "foo") == 0);
-  ASSERT(strcmp(buf2, "118\r\n<html><head><t") == 0);
+  ASSERT(strcmp(buf2, "40A\r\n<html><head><t") == 0);
 
   return NULL;
 }

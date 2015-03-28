@@ -2344,11 +2344,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     to_read = left;
   }
 
-<<<<<<< HEAD
   if (to_read == 0) {
-=======
-  if (n == 0) {
->>>>>>> Add Range: header support (#237)
     /* Rate limiting. send_iobuf is too full, wait until it's drained. */
   } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
     ns_send(nc, buf, n);

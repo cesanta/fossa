@@ -591,6 +591,8 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.per_directory_auth_file = "passwords.txt";
       s_http_server_opts.auth_domain = "foo.com";
       s_http_server_opts.ssi_suffix = ".shtml";
+      s_http_server_opts.dav_document_root = "./data/dav";
+      s_http_server_opts.hidden_file_pattern = "hidden_file.*$";
       s_http_server_opts.url_rewrites =
           "/~joe=./data/rewrites,"
           "@foo.com=./data/rewrites/foo.com";
@@ -883,6 +885,47 @@ static const char *test_http_rewrites(void) {
   ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
   ASSERT(strstr(buf, "Content-Length: 9\r\n") != 0);
   ASSERT(strcmp(buf + strlen(buf) - 11, "\r\nfoo_root\n") == 0);
+
+  return NULL;
+}
+
+static const char *test_http_dav(void) {
+  char buf[1000];
+  ns_stat_t st;
+
+  remove("./data/dav/b.txt");
+  rmdir("./data/dav/d");
+
+  /* Test PROPFIND  */
+  fetch_http(buf, "%s", "PROPFIND / HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 207", 12) == 0);
+  ASSERT(strstr(buf, "a.txt") != NULL);
+  ASSERT(strstr(buf, "hidden_file.txt") == NULL);
+
+  /* Test MKCOL */
+  fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\nContent-Length:5\n\n12345");
+  ASSERT(strncmp(buf, "HTTP/1.1 415", 12) == 0);
+  fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 201", 12) == 0);
+  fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 405", 12) == 0);
+  fetch_http(buf, "%s", "MKCOL /x/d HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 409", 12) == 0);
+
+  /* Test PUT */
+  fetch_http(buf, "%s", "PUT /b.txt HTTP/1.0\nContent-Length: 5\n\n12345");
+  ASSERT(strncmp(buf, "HTTP/1.1 201", 12) == 0);
+  fetch_http(buf, "%s", "GET /data/dav/b.txt HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 200", 12) == 0);
+  ASSERT(strstr(buf, "Content-Length: 5\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 7, "\r\n12345") == 0);
+
+  /* Test DELETE */
+  fetch_http(buf, "%s", "DELETE /b.txt HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 204", 12) == 0);
+  ASSERT(ns_stat("./data/dav/b.txt", &st) != 0);
+  fetch_http(buf, "%s", "DELETE /d HTTP/1.0\n\n");
+  ASSERT(ns_stat("./data/dav/d", &st) != 0);
 
   return NULL;
 }
@@ -2580,6 +2623,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_parse_header);
   RUN_TEST(test_ssi);
   RUN_TEST(test_http_rewrites);
+  RUN_TEST(test_http_dav);
   RUN_TEST(test_http_range);
   RUN_TEST(test_websocket);
   RUN_TEST(test_websocket_big);

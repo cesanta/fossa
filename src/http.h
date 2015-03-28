@@ -147,6 +147,12 @@ struct ns_serve_http_opts {
    * to `file_or_directory_path`, implementing virtual hosts support.
    */
   const char *url_rewrites;
+
+  /* DAV document root. If NULL, DAV requests are going to fail. */
+  const char *dav_document_root;
+
+  /* Glob pattern for the files to hide. */
+  const char *hidden_file_pattern;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

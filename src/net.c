@@ -55,12 +55,14 @@ static void ns_remove_conn(struct ns_connection *conn) {
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   ns_event_handler_t ev_handler;
 
+#ifndef AVR_NOFS
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? *(int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
-  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_STOP */
+#endif
 
   /*
    * If protocol handler is specified, call it. Otherwise, call user-specified
@@ -126,7 +128,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     WSADATA data;
     WSAStartup(MAKEWORD(2, 2), &data);
   }
-#else
+#elif !defined(AVR_LIBC)
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
@@ -374,7 +376,9 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
   if (sscanf(str, "%u.%u.%u.%u:%u%n", &a, &b, &c, &d, &port, &len) == 5) {
     /* Bind to a specific IPv4 address, e.g. 192.168.1.5:8080 */
-    sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
+    sa->sin.sin_addr.s_addr = htonl(
+        ((uint32_t) a << 24) | ((uint32_t) b << 16) | ((uint32_t) c << 8) | d);
+
     sa->sin.sin_port = htons((uint16_t) port);
 #ifdef NS_ENABLE_IPV6
   } else if (sscanf(str, "[%99[^]]]:%u%n", buf, &port, &len) == 2 &&
@@ -383,12 +387,14 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
     sa->sin6.sin6_family = AF_INET6;
     sa->sin.sin_port = htons((uint16_t) port);
 #endif
+#ifndef NS_DISABLE_RESOLVER
   } else if (strlen(str) < host_len &&
              sscanf(str, "%[^ :]:%u%n", host, &port, &len) == 2) {
     sa->sin.sin_port = htons((uint16_t) port);
     if (ns_resolve_from_hosts_file(host, sa) != 0) {
       return 0;
     }
+#endif
   } else if (sscanf(str, ":%u%n", &port, &len) == 1 ||
              sscanf(str, "%u%n", &port, &len) == 1) {
     /* If only port is specified, bind to IPv4, INADDR_ANY */
@@ -578,6 +584,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       }
     }
 #endif
+    (void) ret;
     conn->flags &= ~NSF_CONNECTING;
     DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {

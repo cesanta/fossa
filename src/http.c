@@ -75,6 +75,7 @@ static const struct {
     MIME_ENTRY("bmp", "image/bmp"),
     {NULL, 0, NULL}};
 
+#ifndef AVR_NOFS
 static const char *get_mime_type(const char *path, const char *dflt) {
   const char *ext;
   size_t i, path_len;
@@ -91,6 +92,7 @@ static const char *get_mime_type(const char *path, const char *dflt) {
 
   return dflt;
 }
+#endif
 
 /*
  * Check whether full request is buffered. Return:
@@ -316,13 +318,17 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
     header[1] = len;
     header_len = 2;
   } else if (len < 65535) {
+    uint16_t tmp = htons((uint16_t) len);
     header[1] = 126;
-    *(uint16_t *) &header[2] = htons((uint16_t) len);
+    memcpy(&header[2], &tmp, sizeof(tmp));
     header_len = 4;
   } else {
+    uint32_t tmp;
     header[1] = 127;
-    *(uint32_t *) &header[2] = htonl((uint32_t)((uint64_t) len >> 32));
-    *(uint32_t *) &header[6] = htonl((uint32_t)(len & 0xffffffff));
+    tmp = htonl((uint32_t)((uint64_t) len >> 32));
+    memcpy(&header[2], &tmp, sizeof(tmp));
+    tmp = htonl((uint32_t)(len & 0xffffffff));
+    memcpy(&header[6], &tmp, sizeof(tmp));
     header_len = 10;
   }
   ns_send(nc, header, header_len);
@@ -470,7 +476,7 @@ static void transfer_file_data(struct ns_connection *nc) {
 
     if (to_read == 0) {
       /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
+    } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
     } else {
@@ -596,6 +602,7 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
 
+#ifndef AVR_NOFS
 static void send_http_error(struct ns_connection *nc, int code,
                             const char *reason) {
   if (reason == NULL) {
@@ -778,7 +785,6 @@ static void construct_etag(char *buf, size_t buf_len, const ns_stat_t *st) {
   snprintf(buf, buf_len, "\"%lx.%" INT64_FMT "\"", (unsigned long) st->st_mtime,
            (int64_t) st->st_size);
 }
-
 static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
   strftime(buf, buf_len, "%a, %d %b %Y %H:%M:%S GMT", gmtime(t));
 }
@@ -878,6 +884,8 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
+#endif
+
 static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
                          int is_form_url_encoded) {
   int i, j, a, b;
@@ -973,7 +981,8 @@ void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   char chunk_size[50];
   int n;
 
-  n = snprintf(chunk_size, sizeof(chunk_size), "%lX\r\n", len);
+  n = snprintf(chunk_size, sizeof(chunk_size), "%lX\r\n",
+               (long unsigned int) len);
   ns_send(nc, chunk_size, n);
   ns_send(nc, buf, len);
   ns_send(nc, "\r\n", 2);
@@ -1039,6 +1048,7 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
   return len;
 }
 
+#ifndef AVR_NOFS
 static int is_file_hidden(const char *path,
                           const struct ns_serve_http_opts *opts) {
   const char *p1 = opts->per_directory_auth_file;
@@ -1234,7 +1244,6 @@ static int is_authorized(struct http_message *hm, const char *path,
 #endif
 
 #ifndef NS_DISABLE_DIRECTORY_LISTING
-
 /* Implementation of POSIX opendir/closedir/readdir for Windows. */
 #ifdef _WIN32
 struct dirent {
@@ -1783,6 +1792,8 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
     ns_send_http_file(nc, path, &st, hm, &opts);
   }
 }
+
+#endif /* AVR_NOFS */
 
 /*
  * Helper function that creates outbound HTTP connection.

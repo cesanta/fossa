@@ -11,6 +11,11 @@
 #ifndef NS_INTERNAL_HEADER_INCLUDED
 #define NS_INTERNAL_HEADER_INCLUDED
 
+#ifdef __AVR__
+/* -I<path_to_avrsupport> should be specified */
+#include <avrsupport.h>
+#endif
+
 #ifndef NS_MALLOC
 #define NS_MALLOC malloc
 #endif
@@ -223,12 +228,14 @@ static void ns_remove_conn(struct ns_connection *conn) {
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   ns_event_handler_t ev_handler;
 
+#ifndef AVR_NOFS
   /* LCOV_EXCL_START */
   if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
     int len = (ev == NS_RECV || ev == NS_SEND) ? *(int *) ev_data : 0;
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
-  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_STOP */
+#endif
 
   /*
    * If protocol handler is specified, call it. Otherwise, call user-specified
@@ -294,7 +301,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     WSADATA data;
     WSAStartup(MAKEWORD(2, 2), &data);
   }
-#else
+#elif !defined(AVR_LIBC)
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
@@ -542,7 +549,9 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
   if (sscanf(str, "%u.%u.%u.%u:%u%n", &a, &b, &c, &d, &port, &len) == 5) {
     /* Bind to a specific IPv4 address, e.g. 192.168.1.5:8080 */
-    sa->sin.sin_addr.s_addr = htonl((a << 24) | (b << 16) | (c << 8) | d);
+    sa->sin.sin_addr.s_addr = htonl(
+        ((uint32_t) a << 24) | ((uint32_t) b << 16) | ((uint32_t) c << 8) | d);
+
     sa->sin.sin_port = htons((uint16_t) port);
 #ifdef NS_ENABLE_IPV6
   } else if (sscanf(str, "[%99[^]]]:%u%n", buf, &port, &len) == 2 &&
@@ -551,12 +560,14 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
     sa->sin6.sin6_family = AF_INET6;
     sa->sin.sin_port = htons((uint16_t) port);
 #endif
+#ifndef NS_DISABLE_RESOLVER
   } else if (strlen(str) < host_len &&
              sscanf(str, "%[^ :]:%u%n", host, &port, &len) == 2) {
     sa->sin.sin_port = htons((uint16_t) port);
     if (ns_resolve_from_hosts_file(host, sa) != 0) {
       return 0;
     }
+#endif
   } else if (sscanf(str, ":%u%n", &port, &len) == 1 ||
              sscanf(str, "%u%n", &port, &len) == 1) {
     /* If only port is specified, bind to IPv4, INADDR_ANY */
@@ -746,6 +757,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       }
     }
 #endif
+    (void) ret;
     conn->flags &= ~NSF_CONNECTING;
     DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {
@@ -1953,6 +1965,7 @@ static const struct {
     MIME_ENTRY("bmp", "image/bmp"),
     {NULL, 0, NULL}};
 
+#ifndef AVR_NOFS
 static const char *get_mime_type(const char *path, const char *dflt) {
   const char *ext;
   size_t i, path_len;
@@ -1969,6 +1982,7 @@ static const char *get_mime_type(const char *path, const char *dflt) {
 
   return dflt;
 }
+#endif
 
 /*
  * Check whether full request is buffered. Return:
@@ -2194,13 +2208,17 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
     header[1] = len;
     header_len = 2;
   } else if (len < 65535) {
+    uint16_t tmp = htons((uint16_t) len);
     header[1] = 126;
-    *(uint16_t *) &header[2] = htons((uint16_t) len);
+    memcpy(&header[2], &tmp, sizeof(tmp));
     header_len = 4;
   } else {
+    uint32_t tmp;
     header[1] = 127;
-    *(uint32_t *) &header[2] = htonl((uint32_t)((uint64_t) len >> 32));
-    *(uint32_t *) &header[6] = htonl((uint32_t)(len & 0xffffffff));
+    tmp = htonl((uint32_t)((uint64_t) len >> 32));
+    memcpy(&header[2], &tmp, sizeof(tmp));
+    tmp = htonl((uint32_t)(len & 0xffffffff));
+    memcpy(&header[6], &tmp, sizeof(tmp));
     header_len = 10;
   }
   ns_send(nc, header, header_len);
@@ -2348,7 +2366,7 @@ static void transfer_file_data(struct ns_connection *nc) {
 
     if (to_read == 0) {
       /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
+    } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
     } else {
@@ -2474,6 +2492,7 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
 
+#ifndef AVR_NOFS
 static void send_http_error(struct ns_connection *nc, int code,
                             const char *reason) {
   if (reason == NULL) {
@@ -2656,7 +2675,6 @@ static void construct_etag(char *buf, size_t buf_len, const ns_stat_t *st) {
   snprintf(buf, buf_len, "\"%lx.%" INT64_FMT "\"", (unsigned long) st->st_mtime,
            (int64_t) st->st_size);
 }
-
 static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
   strftime(buf, buf_len, "%a, %d %b %Y %H:%M:%S GMT", gmtime(t));
 }
@@ -2756,6 +2774,8 @@ static void remove_double_dots(char *s) {
   *p = '\0';
 }
 
+#endif
+
 static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
                          int is_form_url_encoded) {
   int i, j, a, b;
@@ -2851,7 +2871,8 @@ void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   char chunk_size[50];
   int n;
 
-  n = snprintf(chunk_size, sizeof(chunk_size), "%lX\r\n", len);
+  n = snprintf(chunk_size, sizeof(chunk_size), "%lX\r\n",
+               (long unsigned int) len);
   ns_send(nc, chunk_size, n);
   ns_send(nc, buf, len);
   ns_send(nc, "\r\n", 2);
@@ -2917,6 +2938,7 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
   return len;
 }
 
+#ifndef AVR_NOFS
 static int is_file_hidden(const char *path,
                           const struct ns_serve_http_opts *opts) {
   const char *p1 = opts->per_directory_auth_file;
@@ -3112,7 +3134,6 @@ static int is_authorized(struct http_message *hm, const char *path,
 #endif
 
 #ifndef NS_DISABLE_DIRECTORY_LISTING
-
 /* Implementation of POSIX opendir/closedir/readdir for Windows. */
 #ifdef _WIN32
 struct dirent {
@@ -3662,6 +3683,8 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   }
 }
 
+#endif /* AVR_NOFS */
+
 /*
  * Helper function that creates outbound HTTP connection.
  *
@@ -3960,6 +3983,7 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 }
 #endif /* _WIN32 */
 
+#ifndef AVR_NOFS
 /*
  * Perform a 64-bit `stat()` call against given file.
  *
@@ -3977,7 +4001,9 @@ int ns_stat(const char *path, ns_stat_t *st) {
   return stat(path, st);
 #endif
 }
+#endif
 
+#ifndef AVR_NOFS
 /*
  * Open the given file and return a file stream.
  *
@@ -3995,7 +4021,9 @@ FILE *ns_fopen(const char *path, const char *mode) {
   return fopen(path, mode);
 #endif
 }
+#endif
 
+#ifndef AVR_NOFS
 /*
  * Open the given file and return a file stream.
  *
@@ -4012,6 +4040,7 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
   return open(path, flag, mode); /* LCOV_EXCL_LINE */
 #endif
 }
+#endif
 
 /*
  * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
@@ -4249,6 +4278,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
+#ifndef AVR_NOFS
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev) {
   const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
@@ -4277,6 +4307,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     fclose(fp);
   }
 }
+#endif
 
 /* TODO(mkm) use compiletime check with 4-byte char literal */
 int ns_is_big_endian(void) {
@@ -5392,7 +5423,8 @@ static unsigned char *ns_parse_dns_resource_record(
       return data;
     }
 
-    rr->ttl = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
+    rr->ttl = (uint32_t) data[0] << 24 | (uint32_t) data[1] << 16 |
+              data[2] << 8 | data[3];
     data += 4;
 
     data_len = *data << 8 | *(data + 1);
@@ -5751,7 +5783,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     }
     RegCloseKey(hKey);
   }
-#else
+#elif !defined(AVR_NOFS)
   FILE *fp;
   char line[512];
 
@@ -5780,6 +5812,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
  * Returns 0 on success, -1 on failure.
  */
 int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
+#ifndef AVR_NOFS
   /* TODO(mkm) cache /etc/hosts */
   FILE *fp;
   char line[1024];
@@ -5808,6 +5841,8 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
   }
 
   fclose(fp);
+#endif
+
   return -1;
 }
 
@@ -6062,7 +6097,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   t = ctx->bits[0];
   if ((ctx->bits[0] = t + ((uint32_t) len << 3)) < t)
     ctx->bits[1]++;
-  ctx->bits[1] += len >> 29;
+  ctx->bits[1] += (uint32_t)len >> 29;
 
   t = (t >> 3) & 0x3f;
 
@@ -6655,7 +6690,7 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   opt = cm->options;
   prev_opt_number = 0;
   while (opt != NULL) {
-    uint8_t delta_base, length_base;
+    uint8_t delta_base = 0, length_base = 0;
     uint16_t delta_ext, length_ext;
 
     size_t opt_delta_len =

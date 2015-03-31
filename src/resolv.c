@@ -72,7 +72,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     }
     RegCloseKey(hKey);
   }
-#else
+#elif !defined(AVR_NOFS)
   FILE *fp;
   char line[512];
 
@@ -101,6 +101,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
  * Returns 0 on success, -1 on failure.
  */
 int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
+#ifndef AVR_NOFS
   /* TODO(mkm) cache /etc/hosts */
   FILE *fp;
   char line[1024];
@@ -129,6 +130,8 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
   }
 
   fclose(fp);
+#endif
+
   return -1;
 }
 

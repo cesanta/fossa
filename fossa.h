@@ -20,6 +20,11 @@
 
 #define NS_FOSSA_VERSION "2.0.0"
 
+#ifdef __AVR__
+/* -I<path_to_avrsupport> should be specified */
+#include <avrsupport.h>
+#endif
+
 #undef UNICODE                  /* Use ANSI WinAPI functions */
 #undef _UNICODE                 /* Use multibyte encoding on Windows */
 #define _MBCS                   /* Use multibyte encoding on Windows */
@@ -51,19 +56,22 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
+#ifndef AVR_LIBC
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+#include <signal.h>
+#endif
+
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <signal.h>
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -120,29 +128,33 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
+#ifndef AVR_LIBC
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <netdb.h>
 #include <pthread.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <arpa/inet.h> /* For inet_pton() when NS_ENABLE_IPV6 is defined */
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#endif
+#include <errno.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#ifndef AVR_LIBC
 #define closesocket(x) close(x)
 #define __cdecl
 #define INVALID_SOCKET (-1)
-#ifdef __APPLE__
-int64_t strtoll(const char* str, char** endptr, int base);
-#endif
 #define INT64_FMT PRId64
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;
 #define DIRSEP '/'
+#endif
+#ifdef __APPLE__
+int64_t strtoll(const char* str, char** endptr, int base);
+#endif
 #endif /* _WIN32 */
 
 #ifdef NS_ENABLE_DEBUG
@@ -338,8 +350,7 @@ void ns_broadcast(struct ns_mgr *, ns_event_handler_t, void *, size_t);
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 
 #define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
-  *((struct ns_connection_common_opts *) (dst)) =   \
-      *((struct ns_connection_common_opts *) (src));
+  memcpy(dst, src, sizeof(*dst));
 
 struct ns_connection_common_opts {
   void *user_data;
@@ -515,10 +526,14 @@ int ns_vcmp(const struct ns_str *str2, const char *str1);
 int ns_vcasecmp(const struct ns_str *str2, const char *str1);
 void ns_base64_decode(const unsigned char *s, int len, char *dst);
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
+#ifndef AVR_NOFS
 int ns_stat(const char *path, ns_stat_t *st);
 FILE *ns_fopen(const char *path, const char *mode);
 int ns_open(const char *path, int flag, int mode);
+#endif
+#ifndef AVR_LIBC
 void *ns_start_thread(void *(*thread_func)(void *), void *thread_func_param);
+#endif
 void ns_set_close_on_exec(sock_t);
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len);

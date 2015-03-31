@@ -23,6 +23,8 @@
 #define __func__ ""
 #endif
 
+#define FETCH_BUF_SIZE (1024 * 16)
+
 #ifdef NS_TEST_ABORT_ON_FAIL
 #define NS_TEST_ABORT abort()
 #else
@@ -597,6 +599,9 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.ssi_suffix = ".shtml";
       s_http_server_opts.dav_document_root = "./data/dav";
       s_http_server_opts.hidden_file_pattern = "hidden_file.*$";
+#ifdef _WIN32
+      s_http_server_opts.cgi_interpreter = "perl.exe";
+#endif
       s_http_server_opts.url_rewrites =
           "/~joe=./data/rewrites,"
           "@foo.com=./data/rewrites/foo.com";
@@ -638,8 +643,8 @@ static void cb8(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    snprintf((char *) nc->user_data, 1000, "%.*s", (int) hm->message.len,
-             hm->message.p);
+    snprintf((char *) nc->user_data, FETCH_BUF_SIZE, "%.*s",
+             (int) hm->message.len, hm->message.p);
     nc->flags |= NSF_CLOSE_IMMEDIATELY;
   }
 }
@@ -773,7 +778,7 @@ static const char *test_http_errors(void) {
   char status[1000] = "";
 
   ns_mgr_init(&mgr, NULL);
-  s_http_server_opts.enable_directory_listing = 0;
+  s_http_server_opts.enable_directory_listing = NULL;
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
 
@@ -810,6 +815,8 @@ static const char *test_http_errors(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/");
 
+  s_http_server_opts.enable_directory_listing = "no";
+
   poll_mgr(&mgr, 20);
 
   /* Check that it failed */
@@ -821,53 +828,28 @@ static const char *test_http_errors(void) {
   return NULL;
 }
 
-static void cb9(struct ns_connection *nc, int ev, void *ev_data) {
-  struct http_message *hm = (struct http_message *) ev_data;
-
-  if (ev == NS_HTTP_REPLY) {
-    snprintf((char *) nc->user_data, 20, "%.*s", (int) hm->body.len,
-             hm->body.p);
-    ((char *) nc->user_data)[19] = '\0';
-    nc->flags |= NSF_CLOSE_IMMEDIATELY;
-  }
-}
-
 static const char *test_http_index(void) {
-  struct ns_mgr mgr;
-  struct ns_connection *nc;
-  const char *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", buf2[20] = "";
+  char buf[FETCH_BUF_SIZE];
 
-  ns_mgr_init(&mgr, NULL);
-  s_http_server_opts.enable_directory_listing = 1;
-  ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
-  ns_set_protocol_http_websocket(nc);
+  fetch_http(buf, "%s", "GET /data/dir_with_index/ HTTP/1.0\n\n");
+  ASSERT(strncmp(buf, "HTTP/1.1 200", 12) == 0);
+  ASSERT(strstr(buf, "Content-Length: 3\r\n") != 0);
+  ASSERT(strcmp(buf + strlen(buf) - 5, "\r\nfoo") == 0);
 
-  /* Test directory with index file. */
-  ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
-  ns_set_protocol_http_websocket(nc);
-  nc->user_data = buf;
-  ns_printf(nc, "%s", "GET /data/dir_with_index/ HTTP/1.0\n\n");
+  s_http_server_opts.enable_directory_listing = "yes";
 
-  /* Test directory with no index file. */
-  ASSERT((nc = ns_connect(&mgr, local_addr, cb9)) != NULL);
-  ns_set_protocol_http_websocket(nc);
-  nc->user_data = buf2;
-  ns_printf(nc, "%s", "GET /data/dir_no_index/ HTTP/1.0\n\n");
-
-  /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 50);
-  ns_mgr_free(&mgr);
-
-  /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "foo") == 0);
-  ASSERT(strcmp(buf2, "40A\r\n<html><head><t") == 0);
+  fetch_http(buf, "%s", "GET /data/dir_no_index/ HTTP/1.0\n\n");
+  ASSERT(strncmp(buf,
+                 "HTTP/1.1 200 OK\r\n"
+                 "Transfer-Encoding: chunked\r\n",
+                 45) == 0);
+  ASSERT(strstr(buf, "40A\r\n<html><head><title>") != NULL);
 
   return NULL;
 }
 
 static const char *test_ssi(void) {
-  char buf[1000];
+  char buf[FETCH_BUF_SIZE];
   fetch_http(buf, "%s", "GET /data/ssi/ HTTP/1.0\n\n");
   ASSERT(strcmp(buf,
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
@@ -875,8 +857,29 @@ static const char *test_ssi(void) {
   return NULL;
 }
 
+static const char *test_cgi(void) {
+  char buf[FETCH_BUF_SIZE];
+  const char *post_data = "aa=1234&bb=hi there";
+
+  fetch_http(buf, "POST /data/cgi/ HTTP/1.0\nContent-Length: %d\n\n%s",
+             (int) strlen(post_data), post_data);
+
+/* Needs perl interpreter to run the test */
+#ifndef _WIN32
+  ASSERT(strncmp(buf, "HTTP/1.1 201 Created\r\n", 20) == 0);
+  ASSERT(strstr(buf, "\nSCRIPT_NAME=/data/cgi/index.cgi\n") != NULL);
+  ASSERT(strstr(buf, "\nREQUEST_URI=/data/cgi/\n") != NULL);
+  ASSERT(strstr(buf, "\nHTTP_CONTENT_LENGTH=19\n") != NULL);
+  ASSERT(strstr(buf, "\nPATH_TRANSLATED=./data/cgi/index.cgi\n") != NULL);
+  ASSERT(strstr(buf, "\naa=1234\n") != NULL);
+  ASSERT(strstr(buf, "\nbb=hi there\n") != NULL);
+#endif
+
+  return NULL;
+}
+
 static const char *test_http_rewrites(void) {
-  char buf[1000];
+  char buf[FETCH_BUF_SIZE];
 
   /* Test rewrite */
   fetch_http(buf, "%s", "GET /~joe/msg.txt HTTP/1.0\nHost: foo.co\n\n");
@@ -900,7 +903,7 @@ static const char *test_http_rewrites(void) {
 }
 
 static const char *test_http_dav(void) {
-  char buf[1000];
+  char buf[FETCH_BUF_SIZE];
   ns_stat_t st;
 
   remove("./data/dav/b.txt");
@@ -941,7 +944,7 @@ static const char *test_http_dav(void) {
 }
 
 static const char *test_http_range(void) {
-  char buf[1000];
+  char buf[FETCH_BUF_SIZE];
 
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\n\n");
   ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
@@ -2642,6 +2645,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_http_index);
   RUN_TEST(test_http_parse_header);
   RUN_TEST(test_ssi);
+  RUN_TEST(test_cgi);
   RUN_TEST(test_http_rewrites);
   RUN_TEST(test_http_dav);
   RUN_TEST(test_http_range);

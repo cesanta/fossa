@@ -121,6 +121,9 @@ typedef unsigned __int64 uint64_t;
 typedef __int64 int64_t;
 typedef SOCKET sock_t;
 typedef uint32_t in_addr_t;
+#ifndef pid_t
+#define pid_t HANDLE
+#endif
 #define INT64_FMT "I64d"
 #ifdef __MINGW32__
 typedef struct stat ns_stat_t;

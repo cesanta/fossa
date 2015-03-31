@@ -17,6 +17,9 @@ extern "C" {
 #define NS_MAX_PATH 1024
 #define NS_MAX_HTTP_SEND_IOBUF 4096
 #define NS_WEBSOCKET_PING_INTERVAL_SECONDS 5
+#define NS_CGI_ENVIRONMENT_SIZE 8192
+#define NS_MAX_CGI_ENVIR_VARS 64
+#define NS_ENV_EXPORT_TO_CGI "FOSSA_CGI"
 
 /* HTTP message */
 struct http_message {
@@ -98,6 +101,9 @@ struct ns_serve_http_opts {
   /* Path to web root directory */
   const char *document_root;
 
+  /* List of index files. Default is "" */
+  const char *index_files;
+
   /*
    * Leave as NULL to disable authentication.
    * To enable directory protection with authentication, set this to ".htpasswd"
@@ -122,8 +128,8 @@ struct ns_serve_http_opts {
    */
   const char *global_auth_file;
 
-  /* Set to non-zero to enable directory listing */
-  int enable_directory_listing;
+  /* Set to "no" to disable directory listing. Enabled by default. */
+  const char *enable_directory_listing;
 
   /* SSI files suffix. By default is NULL, SSI is disabled */
   const char *ssi_suffix;
@@ -153,6 +159,12 @@ struct ns_serve_http_opts {
 
   /* Glob pattern for the files to hide. */
   const char *hidden_file_pattern;
+
+  /* Set to non-NULL to enable CGI, e.g. **.cgi$|**.php$" */
+  const char *cgi_file_pattern;
+
+  /* If not NULL, ignore CGI script hashbang and use this interpreter */
+  const char *cgi_interpreter;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

@@ -20,6 +20,15 @@
 
 #define NS_FOSSA_VERSION "2.0.0"
 
+#ifdef __AVR__
+/* -I<path_to_avrsupport> should be specified */
+#include <avrsupport.h>
+#endif
+
+#if !defined(NS_DISABLE_FILESYSTEM) && defined(AVR_NOFS)
+#define NS_DISABLE_FILESYSTEM
+#endif
+
 #undef UNICODE                  /* Use ANSI WinAPI functions */
 #undef _UNICODE                 /* Use multibyte encoding on Windows */
 #define _MBCS                   /* Use multibyte encoding on Windows */
@@ -51,19 +60,22 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
+#ifndef AVR_LIBC
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+#include <signal.h>
+#endif
+
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <signal.h>
 
 #ifndef va_copy
 #ifdef __va_copy
@@ -120,29 +132,33 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
+#ifndef AVR_LIBC
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <netdb.h>
 #include <pthread.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <arpa/inet.h> /* For inet_pton() when NS_ENABLE_IPV6 is defined */
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#endif
+#include <errno.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#ifndef AVR_LIBC
 #define closesocket(x) close(x)
 #define __cdecl
 #define INVALID_SOCKET (-1)
-#ifdef __APPLE__
-int64_t strtoll(const char* str, char** endptr, int base);
-#endif
 #define INT64_FMT PRId64
 #define to64(x) strtoll(x, NULL, 10)
 typedef int sock_t;
 typedef struct stat ns_stat_t;
 #define DIRSEP '/'
+#endif
+#ifdef __APPLE__
+int64_t strtoll(const char* str, char** endptr, int base);
+#endif
 #endif /* _WIN32 */
 
 #ifdef NS_ENABLE_DEBUG

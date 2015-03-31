@@ -143,7 +143,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   t = ctx->bits[0];
   if ((ctx->bits[0] = t + ((uint32_t) len << 3)) < t)
     ctx->bits[1]++;
-  ctx->bits[1] += len >> 29;
+  ctx->bits[1] += (uint32_t) len >> 29;
 
   t = (t >> 3) & 0x3f;
 

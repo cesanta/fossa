@@ -270,7 +270,8 @@ static unsigned char *ns_parse_dns_resource_record(
       return data;
     }
 
-    rr->ttl = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
+    rr->ttl = (uint32_t) data[0] << 24 | (uint32_t) data[1] << 16 |
+              data[2] << 8 | data[3];
     data += 4;
 
     data_len = *data << 8 | *(data + 1);

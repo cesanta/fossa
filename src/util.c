@@ -93,6 +93,7 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 }
 #endif /* _WIN32 */
 
+#ifndef NS_DISABLE_FILESYSTEM
 /*
  * Perform a 64-bit `stat()` call against given file.
  *
@@ -145,6 +146,7 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
   return open(path, flag, mode); /* LCOV_EXCL_LINE */
 #endif
 }
+#endif
 
 /*
  * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
@@ -382,6 +384,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   return len;
 }
 
+#ifndef NS_DISABLE_FILESYSTEM
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev) {
   const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
@@ -410,6 +413,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
     fclose(fp);
   }
 }
+#endif
 
 /* TODO(mkm) use compiletime check with 4-byte char literal */
 int ns_is_big_endian(void) {

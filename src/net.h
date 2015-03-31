@@ -132,8 +132,7 @@ void ns_broadcast(struct ns_mgr *, ns_event_handler_t, void *, size_t);
 struct ns_connection *ns_next(struct ns_mgr *, struct ns_connection *);
 
 #define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
-  *((struct ns_connection_common_opts *) (dst)) =   \
-      *((struct ns_connection_common_opts *) (src));
+  memcpy(dst, src, sizeof(*dst));
 
 struct ns_connection_common_opts {
   void *user_data;

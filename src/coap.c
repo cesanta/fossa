@@ -531,7 +531,7 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   opt = cm->options;
   prev_opt_number = 0;
   while (opt != NULL) {
-    uint8_t delta_base, length_base;
+    uint8_t delta_base = 0, length_base = 0;
     uint16_t delta_ext, length_ext;
 
     size_t opt_delta_len =

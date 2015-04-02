@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
   nc = ns_bind(&mgr, s_http_port, ev_handler);
   ns_set_protocol_http_websocket(nc);
   s_http_server_opts.document_root = ".";
-  s_http_server_opts.enable_directory_listing = 1;
+  s_http_server_opts.enable_directory_listing = "yes";
 
   /* Process command line options to customize HTTP server */
   for (i = 1; i < argc; i++) {
@@ -66,6 +66,10 @@ int main(int argc, char *argv[]) {
       s_http_server_opts.per_directory_auth_file = argv[++i];
     } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
       s_http_server_opts.url_rewrites = argv[++i];
+#ifndef NS_DISABLE_CGI
+    } else if (strcmp(argv[i], "-i") == 0 && i + 1 < argc) {
+      s_http_server_opts.cgi_interpreter = argv[++i];
+#endif
 #ifdef NS_ENABLE_SSL
     } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
       const char *ssl_cert = argv[++i];

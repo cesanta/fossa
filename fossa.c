@@ -1900,11 +1900,32 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 
+enum http_proto_data_type { DATA_FILE, DATA_PUT, DATA_CGI };
+
 struct proto_data_http {
   FILE *fp;     /* Opened file. */
   int64_t cl;   /* Content-Length. How many bytes to send. */
   int64_t sent; /* How many bytes have been already sent. */
-  int is_put_request;
+  struct ns_connection *cgi_nc;
+  enum http_proto_data_type type;
+};
+
+/*
+ * This structure helps to create an environment for the spawned CGI program.
+ * Environment is an array of "VARIABLE=VALUE\0" ASCIIZ strings,
+ * last element must be NULL.
+ * However, on Windows there is a requirement that all these VARIABLE=VALUE\0
+ * strings must reside in a contiguous buffer. The end of the buffer is
+ * marked by two '\0' characters.
+ * We satisfy both worlds: we create an envp array (which is vars), all
+ * entries are actually pointers inside buf.
+ */
+struct cgi_env_block {
+  struct ns_connection *nc;
+  char buf[NS_CGI_ENVIRONMENT_SIZE];       /* Environment buffer */
+  const char *vars[NS_MAX_CGI_ENVIR_VARS]; /* char *envp[] */
+  int len;                                 /* Space taken */
+  int nvars;                               /* Number of variables in envp[] */
 };
 
 #define MIME_ENTRY(_ext, _type) \
@@ -2007,32 +2028,9 @@ static int get_request_len(const char *s, int buf_len) {
   return 0;
 }
 
-/* Parses a HTTP message.
- *
- * Return number of bytes parsed. If HTTP message is
- * incomplete, `0` is returned. On parse error, negative number is returned.
- */
-int ns_parse_http(const char *s, int n, struct http_message *req) {
-  const char *end, *qs;
-  int len, i;
-
-  if ((len = get_request_len(s, n)) <= 0) return len;
-
-  memset(req, 0, sizeof(*req));
-  req->message.p = s;
-  req->body.p = s + len;
-  req->message.len = req->body.len = (size_t) ~0;
-  end = s + len;
-
-  /* Request is fully buffered. Skip leading whitespaces. */
-  while (s < end && isspace(*(unsigned char *) s)) s++;
-
-  /* Parse request line: method, URI, proto */
-  s = ns_skip(s, end, " ", &req->method);
-  s = ns_skip(s, end, " ", &req->uri);
-  s = ns_skip(s, end, "\r\n", &req->proto);
-  if (req->uri.p <= req->method.p || req->proto.p <= req->uri.p) return -1;
-
+static const char *parse_http_headers(const char *s, const char *end, int len,
+                                      struct http_message *req) {
+  int i;
   for (i = 0; i < (int) ARRAY_SIZE(req->header_names); i++) {
     struct ns_str *k = &req->header_names[i], *v = &req->header_values[i];
 
@@ -2054,12 +2052,43 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
     }
   }
 
+  return s;
+}
+
+/* Parses a HTTP message.
+ *
+ * Return number of bytes parsed. If HTTP message is
+ * incomplete, `0` is returned. On parse error, negative number is returned.
+ */
+int ns_parse_http(const char *s, int n, struct http_message *req) {
+  const char *end, *qs;
+  int len = get_request_len(s, n);
+
+  if (len <= 0) return len;
+
+  memset(req, 0, sizeof(*req));
+  req->message.p = s;
+  req->body.p = s + len;
+  req->message.len = req->body.len = (size_t) ~0;
+  end = s + len;
+
+  /* Request is fully buffered. Skip leading whitespaces. */
+  while (s < end && isspace(*(unsigned char *) s)) s++;
+
+  /* Parse request line: method, URI, proto */
+  s = ns_skip(s, end, " ", &req->method);
+  s = ns_skip(s, end, " ", &req->uri);
+  s = ns_skip(s, end, "\r\n", &req->proto);
+  if (req->uri.p <= req->method.p || req->proto.p <= req->uri.p) return -1;
+
   /* If URI contains '?' character, initialize query_string */
   if ((qs = (char *) memchr(req->uri.p, '?', req->uri.len)) != NULL) {
     req->query_string.p = qs + 1;
     req->query_string.len = &req->uri.p[req->uri.len] - (qs + 1);
     req->uri.len = qs - req->uri.p;
   }
+
+  s = parse_http_headers(s, end, len, req);
 
   /*
    * ns_parse_http() is used to parse both HTTP requests and HTTP
@@ -2342,19 +2371,28 @@ static void free_http_proto_data(struct ns_connection *nc) {
     if (dp->fp != NULL) {
       fclose(dp->fp);
     }
+    if (dp->cgi_nc != NULL) {
+      dp->cgi_nc->flags |= NSF_CLOSE_IMMEDIATELY;
+    }
     NS_FREE(dp);
     nc->proto_data = NULL;
   }
 }
 
+/* Move data from one connection to another */
+static void ns_forward(struct ns_connection *from, struct ns_connection *to) {
+  ns_send(to, from->recv_iobuf.buf, from->recv_iobuf.len);
+  iobuf_remove(&from->recv_iobuf, from->recv_iobuf.len);
+}
+
 static void transfer_file_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
-  struct iobuf *io = dp->is_put_request ? &nc->recv_iobuf : &nc->send_iobuf;
   char buf[NS_MAX_HTTP_SEND_IOBUF];
   int64_t left = dp->cl - dp->sent;
   size_t n = 0, to_read = 0;
 
-  if (dp->is_put_request == 0) {
+  if (dp->type == DATA_FILE) {
+    struct iobuf *io = &nc->send_iobuf;
     if (io->len < sizeof(buf)) {
       to_read = sizeof(buf) - io->len;
     }
@@ -2365,13 +2403,14 @@ static void transfer_file_data(struct ns_connection *nc) {
 
     if (to_read == 0) {
       /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-    } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
+    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
     } else {
       free_http_proto_data(nc);
     }
-  } else {
+  } else if (dp->type == DATA_PUT) {
+    struct iobuf *io = &nc->recv_iobuf;
     size_t to_write =
         left <= 0 ? 0 : left < (int64_t) io->len ? (size_t) left : io->len;
     size_t n = fwrite(io->buf, 1, to_write, dp->fp);
@@ -2381,6 +2420,13 @@ static void transfer_file_data(struct ns_connection *nc) {
     }
     if (n == 0 || dp->sent >= dp->cl) {
       free_http_proto_data(nc);
+    }
+  } else if (dp->type == DATA_CGI) {
+    /* This is POST data that needs to be forwarded to the CGI process */
+    if (dp->cgi_nc != NULL) {
+      ns_forward(nc, dp->cgi_nc);
+    } else {
+      nc->flags |= NSF_SEND_AND_CLOSE;
     }
   }
 }
@@ -2682,9 +2728,9 @@ static int parse_range_header(const char *header, int64_t *a, int64_t *b) {
   return sscanf(header, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
 }
 
-void ns_send_http_file(struct ns_connection *nc, const char *path,
-                       ns_stat_t *st, struct http_message *hm,
-                       struct ns_serve_http_opts *opts) {
+static void ns_send_http_file2(struct ns_connection *nc, const char *path,
+                               ns_stat_t *st, struct http_message *hm,
+                               struct ns_serve_http_opts *opts) {
   struct proto_data_http *dp;
 
   free_http_proto_data(nc);
@@ -3382,7 +3428,8 @@ static void handle_propfind(struct ns_connection *nc, const char *path,
   const struct ns_str *depth = ns_get_http_header(hm, "Depth");
 
   /* Print properties for the requested resource itself */
-  if (S_ISDIR(stp->st_mode) && opts->enable_directory_listing == 0) {
+  if (S_ISDIR(stp->st_mode) &&
+      strcmp(opts->enable_directory_listing, "yes") != 0) {
     ns_printf(nc, "%s", "HTTP/1.1 403 Directory Listing Denied\r\n\r\n");
   } else {
     char uri[MAX_PATH_SIZE];
@@ -3480,10 +3527,7 @@ static void handle_put(struct ns_connection *nc, const char *path,
   int rc, status_code = ns_stat(path, &st) == 0 ? 200 : 201;
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
 
-  if (nc->proto_data != NULL) {
-    free_http_proto_data(nc);
-  }
-
+  free_http_proto_data(nc);
   if ((rc = create_itermediate_directories(path)) == 0) {
     ns_printf(nc, "HTTP/1.1 %d OK\r\nContent-Length: 0\r\n\r\n", status_code);
   } else if (rc == -1) {
@@ -3499,7 +3543,7 @@ static void handle_put(struct ns_connection *nc, const char *path,
   } else {
     const struct ns_str *range_hdr = ns_get_http_header(hm, "Content-Range");
     int64_t r1 = 0, r2 = 0;
-    dp->is_put_request = 1;
+    dp->type = DATA_PUT;
     ns_set_close_on_exec(fileno(dp->fp));
     dp->cl = to64(cl_hdr->p);
     if (range_hdr != NULL && parse_range_header(range_hdr->p, &r1, &r2) > 0) {
@@ -3521,12 +3565,12 @@ static int is_dav_request(const struct ns_str *s) {
          !ns_vcmp(s, "PROPFIND");
 }
 
-static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
-  static const char *index_file_extensions[] = {"html", "htm", "shtml", "shtm",
-                                                "cgi",  "php", NULL};
+static int find_index_file(char *path, size_t path_len, const char *list,
+                           ns_stat_t *stp) {
   ns_stat_t st;
   size_t n = strlen(path);
-  int i, found = 0;
+  struct ns_str vec;
+  int found = 0;
 
   /* The 'path' given to us points to the directory. Remove all trailing */
   /* directory separator characters from the end of the path, and */
@@ -3534,18 +3578,13 @@ static int find_index_file(char *path, size_t path_len, ns_stat_t *stp) {
   while (n > 0 && (path[n - 1] == '/' || path[n - 1] == '\\')) {
     n--;
   }
-  path[n] = '/';
 
   /* Traverse index files list. For each entry, append it to the given */
   /* path and see if the file exists. If it exists, break the loop */
-  for (i = 0; index_file_extensions[i] != NULL; i++) {
-    if (path_len <= n + 2) {
-      continue;
-    }
-
+  while ((list = ns_next_comma_list_entry(list, &vec, NULL)) != NULL) {
     /* Prepare full path to the index file */
-    snprintf(path + n + 1, path_len - (n + 1), "index.%s",
-             index_file_extensions[i]);
+    snprintf(path + n, path_len - n, "/%.*s", (int) vec.len, vec.p);
+    path[path_len - 1] = '\0';
 
     /* Does it exist? */
     if (!ns_stat(path, &st)) {
@@ -3599,6 +3638,514 @@ static void uri_to_path(struct http_message *hm, char *buf, size_t buf_len,
   }
 }
 
+#ifndef NS_DISABLE_CGI
+#ifdef _WIN32
+struct threadparam {
+  sock_t s;
+  HANDLE hPipe;
+};
+
+static int wait_until_ready(sock_t sock, int for_read) {
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(sock, &set);
+  return select(sock + 1, for_read ? &set : 0, for_read ? 0 : &set, 0, 0) == 1;
+}
+
+static void *push_to_stdin(void *arg) {
+  struct threadparam *tp = (struct threadparam *) arg;
+  int n, sent, stop = 0;
+  DWORD k;
+  char buf[BUFSIZ];
+
+  while (!stop && wait_until_ready(tp->s, 1) &&
+         (n = recv(tp->s, buf, sizeof(buf), 0)) > 0) {
+    if (n == -1 && GetLastError() == WSAEWOULDBLOCK) continue;
+    for (sent = 0; !stop && sent < n; sent += k) {
+      if (!WriteFile(tp->hPipe, buf + sent, n - sent, &k, 0)) stop = 1;
+    }
+  }
+  DBG(("%s", "FORWARED EVERYTHING TO CGI"));
+  CloseHandle(tp->hPipe);
+  NS_FREE(tp);
+  _endthread();
+  return NULL;
+}
+
+static void *pull_from_stdout(void *arg) {
+  struct threadparam *tp = (struct threadparam *) arg;
+  int k = 0, stop = 0;
+  DWORD n, sent;
+  char buf[BUFSIZ];
+
+  while (!stop && ReadFile(tp->hPipe, buf, sizeof(buf), &n, NULL)) {
+    for (sent = 0; !stop && sent < n; sent += k) {
+      if (wait_until_ready(tp->s, 0) &&
+          (k = send(tp->s, buf + sent, n - sent, 0)) <= 0)
+        stop = 1;
+    }
+  }
+  DBG(("%s", "EOF FROM CGI"));
+  CloseHandle(tp->hPipe);
+  shutdown(tp->s, 2);  // Without this, IO thread may get truncated data
+  closesocket(tp->s);
+  NS_FREE(tp);
+  _endthread();
+  return NULL;
+}
+
+static void spawn_stdio_thread(sock_t sock, HANDLE hPipe,
+                               void *(*func)(void *)) {
+  struct threadparam *tp = (struct threadparam *) NS_MALLOC(sizeof(*tp));
+  if (tp != NULL) {
+    tp->s = sock;
+    tp->hPipe = hPipe;
+    ns_start_thread(func, tp);
+  }
+}
+
+static void abs_path(const char *utf8_path, char *abs_path, size_t len) {
+  wchar_t buf[MAX_PATH_SIZE], buf2[MAX_PATH_SIZE];
+  to_wchar(utf8_path, buf, ARRAY_SIZE(buf));
+  GetFullPathNameW(buf, ARRAY_SIZE(buf2), buf2, NULL);
+  WideCharToMultiByte(CP_UTF8, 0, buf2, wcslen(buf2) + 1, abs_path, len, 0, 0);
+}
+
+static pid_t start_process(const char *interp, const char *cmd, const char *env,
+                           const char *envp[], const char *dir, sock_t sock) {
+  STARTUPINFOW si;
+  PROCESS_INFORMATION pi;
+  HANDLE a[2], b[2], me = GetCurrentProcess();
+  wchar_t wcmd[MAX_PATH_SIZE], full_dir[MAX_PATH_SIZE];
+  char buf[MAX_PATH_SIZE], buf2[MAX_PATH_SIZE], buf5[MAX_PATH_SIZE],
+      buf4[MAX_PATH_SIZE], cmdline[MAX_PATH_SIZE];
+  DWORD flags = DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS;
+  FILE *fp;
+
+  memset(&si, 0, sizeof(si));
+  memset(&pi, 0, sizeof(pi));
+
+  si.cb = sizeof(si);
+  si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+  si.wShowWindow = SW_HIDE;
+  si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
+  CreatePipe(&a[0], &a[1], NULL, 0);
+  CreatePipe(&b[0], &b[1], NULL, 0);
+  DuplicateHandle(me, a[0], me, &si.hStdInput, 0, TRUE, flags);
+  DuplicateHandle(me, b[1], me, &si.hStdOutput, 0, TRUE, flags);
+
+  if (interp == NULL && (fp = fopen(cmd, "r")) != NULL) {
+    buf[0] = buf[1] = '\0';
+    fgets(buf, sizeof(buf), fp);
+    buf[sizeof(buf) - 1] = '\0';
+    if (buf[0] == '#' && buf[1] == '!') {
+      interp = buf + 2;
+    }
+    fclose(fp);
+  }
+
+  snprintf(buf, sizeof(buf), "%s/%s", dir, cmd);
+  abs_path(buf, buf2, ARRAY_SIZE(buf2));
+
+  abs_path(dir, buf5, ARRAY_SIZE(buf5));
+  to_wchar(dir, full_dir, ARRAY_SIZE(full_dir));
+
+  if (interp != NULL) {
+    abs_path(interp, buf4, ARRAY_SIZE(buf4));
+    snprintf(cmdline, sizeof(cmdline), "%s \"%s\"", buf4, buf2);
+  } else {
+    snprintf(cmdline, sizeof(cmdline), "\"%s\"", buf2);
+  }
+  to_wchar(cmdline, wcmd, ARRAY_SIZE(wcmd));
+
+#if 0
+  printf("[%ls] [%ls]\n", full_dir, wcmd);
+#endif
+
+  if (CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP,
+                     (void *) env, full_dir, &si, &pi) != 0) {
+    spawn_stdio_thread(sock, a[1], push_to_stdin);
+    spawn_stdio_thread(sock, b[0], pull_from_stdout);
+  } else {
+    CloseHandle(a[1]);
+    CloseHandle(b[0]);
+    closesocket(sock);
+  }
+  DBG(("CGI command: [%ls] -> %p", wcmd, pi.hProcess));
+
+  /* Not closing a[0] and b[1] because we've used DUPLICATE_CLOSE_SOURCE */
+  CloseHandle(si.hStdOutput);
+  CloseHandle(si.hStdInput);
+  /* TODO(lsm): check if we need close process and thread handles too */
+  /* CloseHandle(pi.hThread); */
+  /* CloseHandle(pi.hProcess); */
+
+  return pi.hProcess;
+}
+#else
+static pid_t start_process(const char *interp, const char *cmd, const char *env,
+                           const char *envp[], const char *dir, sock_t sock) {
+  char buf[500];
+  pid_t pid = fork();
+  (void) env;
+
+  if (pid == 0) {
+    (void) chdir(dir);
+    (void) dup2(sock, 0);
+    (void) dup2(sock, 1);
+    closesocket(sock);
+
+    /*
+     * After exec, all signal handlers are restored to their default values,
+     * with one exception of SIGCHLD. According to POSIX.1-2001 and Linux's
+     * implementation, SIGCHLD's handler will leave unchanged after exec
+     * if it was set to be ignored. Restore it to default action.
+     */
+    signal(SIGCHLD, SIG_DFL);
+
+    if (interp == NULL) {
+      execle(cmd, cmd, (char *) 0, envp); /* (char *) 0 to squash warning */
+    } else {
+      execle(interp, interp, cmd, (char *) 0, envp);
+    }
+    snprintf(buf, sizeof(buf),
+             "Status: 500\r\n\r\n"
+             "500 Server Error: %s%s%s: %s",
+             interp == NULL ? "" : interp, interp == NULL ? "" : " ", cmd,
+             strerror(errno));
+    send(1, buf, strlen(buf), 0);
+    exit(EXIT_FAILURE); /* exec call failed */
+  }
+
+  return pid;
+}
+#endif /* _WIN32 */
+
+/*
+ * Append VARIABLE=VALUE\0 string to the buffer, and add a respective
+ * pointer into the vars array.
+ */
+static char *addenv(struct cgi_env_block *block, const char *fmt, ...) {
+  int n, space;
+  char *added = block->buf + block->len;
+  va_list ap;
+
+  /* Calculate how much space is left in the buffer */
+  space = sizeof(block->buf) - (block->len + 2);
+  if (space > 0) {
+    /* Copy VARIABLE=VALUE\0 string into the free space */
+    va_start(ap, fmt);
+    n = vsnprintf(added, (size_t) space, fmt, ap);
+    va_end(ap);
+
+    /* Make sure we do not overflow buffer and the envp array */
+    if (n > 0 && n + 1 < space &&
+        block->nvars < (int) ARRAY_SIZE(block->vars) - 2) {
+      /* Append a pointer to the added string into the envp array */
+      block->vars[block->nvars++] = added;
+      /* Bump up used length counter. Include \0 terminator */
+      block->len += n + 1;
+    }
+  }
+
+  return added;
+}
+
+static void addenv2(struct cgi_env_block *blk, const char *name) {
+  const char *s;
+  if ((s = getenv(name)) != NULL) addenv(blk, "%s=%s", name, s);
+}
+
+static void prepare_cgi_environment(struct ns_connection *nc, const char *prog,
+                                    const struct http_message *hm,
+                                    const struct ns_serve_http_opts *opts,
+                                    struct cgi_env_block *blk) {
+  const char *s, *slash;
+  struct ns_str *h;
+  char *p;
+  size_t i;
+
+  blk->len = blk->nvars = 0;
+  blk->nc = nc;
+
+  if ((s = getenv("SERVER_NAME")) != NULL) {
+    addenv(blk, "SERVER_NAME=%s", s);
+  } else {
+    char buf[100];
+    ns_sock_to_str(nc->sock, buf, sizeof(buf), 3);
+    addenv(blk, "SERVER_NAME=%s", buf);
+  }
+  addenv(blk, "SERVER_ROOT=%s", opts->document_root);
+  addenv(blk, "DOCUMENT_ROOT=%s", opts->document_root);
+  addenv(blk, "SERVER_SOFTWARE=%s/%s", "Fossa", NS_FOSSA_VERSION);
+
+  /* Prepare the environment block */
+  addenv(blk, "%s", "GATEWAY_INTERFACE=CGI/1.1");
+  addenv(blk, "%s", "SERVER_PROTOCOL=HTTP/1.1");
+  addenv(blk, "%s", "REDIRECT_STATUS=200"); /* For PHP */
+
+  /* TODO(lsm): fix this for IPv6 case */
+  /*addenv(blk, "SERVER_PORT=%d", ri->remote_port); */
+
+  addenv(blk, "REQUEST_METHOD=%.*s", (int) hm->method.len, hm->method.p);
+#if 0
+  addenv(blk, "REMOTE_ADDR=%s", ri->remote_ip);
+  addenv(blk, "REMOTE_PORT=%d", ri->remote_port);
+#endif
+  addenv(blk, "REQUEST_URI=%.*s%s%.*s", (int) hm->uri.len, hm->uri.p,
+         hm->query_string.len == 0 ? "" : "?", (int) hm->query_string.len,
+         hm->query_string.p);
+
+/* SCRIPT_NAME */
+#if 0
+  if (nc->path_info != NULL) {
+    addenv(blk, "SCRIPT_NAME=%.*s",
+           (int) (strlen(ri->uri) - strlen(nc->path_info)), ri->uri);
+    addenv(blk, "PATH_INFO=%s", nc->path_info);
+  } else {
+#endif
+  s = strrchr(prog, '/');
+  slash = hm->uri.p + hm->uri.len;
+  while (slash > hm->uri.p && *slash != '/') {
+    slash--;
+  }
+  addenv(blk, "SCRIPT_NAME=%.*s%s", (int) (slash - hm->uri.p), hm->uri.p,
+         s == NULL ? prog : s);
+#if 0
+  }
+#endif
+
+  addenv(blk, "SCRIPT_FILENAME=%s", prog);
+  addenv(blk, "PATH_TRANSLATED=%s", prog);
+  addenv(blk, "HTTPS=%s", nc->ssl != NULL ? "on" : "off");
+
+  if ((h = ns_get_http_header((struct http_message *) hm, "Content-Type")) !=
+      NULL) {
+    addenv(blk, "CONTENT_TYPE=%.*s", (int) h->len, h->p);
+  }
+
+  if (hm->query_string.len > 0) {
+    addenv(blk, "QUERY_STRING=%.*s", (int) hm->query_string.len,
+           hm->query_string.p);
+  }
+
+  if ((h = ns_get_http_header((struct http_message *) hm, "Content-Length")) !=
+      NULL) {
+    addenv(blk, "CONTENT_LENGTH=%.*s", (int) h->len, h->p);
+  }
+
+  addenv2(blk, "PATH");
+  addenv2(blk, "TMP");
+  addenv2(blk, "TEMP");
+  addenv2(blk, "TMPDIR");
+  addenv2(blk, "PERLLIB");
+  addenv2(blk, NS_ENV_EXPORT_TO_CGI);
+
+#if defined(_WIN32)
+  addenv2(blk, "COMSPEC");
+  addenv2(blk, "SYSTEMROOT");
+  addenv2(blk, "SystemDrive");
+  addenv2(blk, "ProgramFiles");
+  addenv2(blk, "ProgramFiles(x86)");
+  addenv2(blk, "CommonProgramFiles(x86)");
+#else
+  addenv2(blk, "LD_LIBRARY_PATH");
+#endif /* _WIN32 */
+
+  /* Add all headers as HTTP_* variables */
+  for (i = 0; hm->header_names[i].len > 0; i++) {
+    p = addenv(blk, "HTTP_%.*s=%.*s", (int) hm->header_names[i].len,
+               hm->header_names[i].p, (int) hm->header_values[i].len,
+               hm->header_values[i].p);
+
+    /* Convert variable name into uppercase, and change - to _ */
+    for (; *p != '=' && *p != '\0'; p++) {
+      if (*p == '-') *p = '_';
+      *p = (char) toupper(*(unsigned char *) p);
+    }
+  }
+
+  blk->vars[blk->nvars++] = NULL;
+  blk->buf[blk->len++] = '\0';
+}
+
+static void cgi_ev_handler(struct ns_connection *cgi_nc, int ev,
+                           void *ev_data) {
+  struct ns_connection *nc = (struct ns_connection *) cgi_nc->user_data;
+  (void) ev_data;
+
+  if (nc == NULL) return;
+
+  switch (ev) {
+    case NS_RECV:
+      /*
+       * CGI script does not output reply line, like "HTTP/1.1 CODE XXXXX\n"
+       * It outputs headers, then body. Headers might include "Status"
+       * header, which changes CODE, and it might include "Location" header
+       * which changes CODE to 302.
+       *
+       * Therefore we do not send the output from the CGI script to the user
+       * until all CGI headers are parsed (by setting NSF_DONT_SEND flag).
+       *
+       * Here we parse the output from the CGI script, and if all headers has
+       * been received, amend the reply line, and clear NSF_DONT_SEND flag,
+       * which makes data to be sent to the user.
+       */
+      if (nc->flags & NSF_USER_1) {
+        struct iobuf *io = &cgi_nc->recv_iobuf;
+        int len = get_request_len(io->buf, io->len);
+
+        if (len == 0) break;
+        if (len < 0 || io->len > NS_MAX_HTTP_REQUEST_SIZE) {
+          cgi_nc->flags |= NSF_CLOSE_IMMEDIATELY;
+          send_http_error(nc, 500, "Bad headers");
+        } else {
+          struct http_message hm;
+          struct ns_str *h;
+          parse_http_headers(io->buf, io->buf + io->len, io->len, &hm);
+          /*printf("=== %d [%.*s]\n", k, k, io->buf);*/
+          if (ns_get_http_header(&hm, "Location") != NULL) {
+            ns_printf(nc, "%s", "HTTP/1.1 302 Moved\r\n");
+          } else if ((h = ns_get_http_header(&hm, "Status")) != NULL) {
+            ns_printf(nc, "HTTP/1.1 %.*s\r\n", (int) h->len, h->p);
+          } else {
+            ns_printf(nc, "%s", "HTTP/1.1 200 OK\r\n");
+          }
+        }
+        nc->flags &= ~NSF_USER_1;
+      }
+      if (!(nc->flags & NSF_USER_1)) {
+        ns_forward(cgi_nc, nc);
+      }
+      break;
+    case NS_CLOSE:
+      free_http_proto_data(nc);
+      nc->flags |= NSF_SEND_AND_CLOSE;
+      nc->user_data = NULL;
+      break;
+  }
+}
+
+static void handle_cgi(struct ns_connection *nc, const char *prog,
+                       const struct http_message *hm,
+                       const struct ns_serve_http_opts *opts) {
+  struct proto_data_http *dp;
+  struct cgi_env_block blk;
+  char dir[MAX_PATH_SIZE];
+  const char *p;
+  sock_t fds[2];
+
+  prepare_cgi_environment(nc, prog, hm, opts, &blk);
+  /*
+   * CGI must be executed in its own directory. 'dir' must point to the
+   * directory containing executable program, 'p' must point to the
+   * executable program name relative to 'dir'.
+   */
+  if ((p = strrchr(prog, '/')) == NULL) {
+    snprintf(dir, sizeof(dir), "%s", ".");
+  } else {
+    snprintf(dir, sizeof(dir), "%.*s", (int) (p - prog), prog);
+    prog = p + 1;
+  }
+
+  /*
+   * Try to create socketpair in a loop until success. ns_socketpair()
+   * can be interrupted by a signal and fail.
+   * TODO(lsm): use sigaction to restart interrupted syscall
+   */
+  do {
+    ns_socketpair(fds, SOCK_STREAM);
+  } while (fds[0] == INVALID_SOCKET);
+
+  free_http_proto_data(nc);
+  if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
+    send_http_error(nc, 500, "OOM"); /* LCOV_EXCL_LINE */
+  } else if (start_process(opts->cgi_interpreter, prog, blk.buf, blk.vars, dir,
+                           fds[1]) != 0) {
+    size_t n = nc->recv_iobuf.len - (hm->message.len - hm->body.len);
+    dp->type = DATA_CGI;
+    dp->cgi_nc = ns_add_sock(nc->mgr, fds[0], cgi_ev_handler);
+    dp->cgi_nc->user_data = nc;
+    nc->flags |= NSF_USER_1;
+    /* Push POST data to the CGI */
+    if (n > 0 && n < nc->recv_iobuf.len) {
+      ns_send(dp->cgi_nc, hm->body.p, n);
+    }
+    iobuf_remove(&nc->recv_iobuf, nc->recv_iobuf.len);
+  } else {
+    closesocket(fds[0]);
+    send_http_error(nc, 500, "CGI failure");
+  }
+
+#ifndef _WIN32
+  closesocket(fds[1]); /* On Windows, CGI stdio thread closes that socket */
+#endif
+}
+#endif
+
+void ns_send_http_file(struct ns_connection *nc, char *path,
+                       size_t path_buf_len, struct http_message *hm,
+                       struct ns_serve_http_opts *opts) {
+  int stat_result, is_directory, is_dav = is_dav_request(&hm->method);
+  uint32_t remote_ip = ntohl(*(uint32_t *) &nc->sa.sin.sin_addr);
+  ns_stat_t st;
+
+  stat_result = ns_stat(path, &st);
+  is_directory = !stat_result && S_ISDIR(st.st_mode);
+
+  if (ns_check_ip_acl(opts->ip_acl, remote_ip) != 1) {
+    /* Not allowed to connect */
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  } else if (is_dav && opts->dav_document_root == NULL) {
+    send_http_error(nc, 501, NULL);
+  } else if (!is_authorized(hm, path, is_directory, opts)) {
+    ns_printf(nc,
+              "HTTP/1.1 401 Unauthorized\r\n"
+              "WWW-Authenticate: Digest qop=\"auth\", "
+              "realm=\"%s\", nonce=\"%lu\"\r\n"
+              "Content-Length: 0\r\n\r\n",
+              opts->auth_domain, (unsigned long) time(NULL));
+  } else if ((stat_result != 0 || is_file_hidden(path, opts)) && !is_dav) {
+    ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+  } else if (is_directory && path[strlen(path) - 1] != '/' && !is_dav) {
+    ns_printf(nc,
+              "HTTP/1.1 301 Moved\r\nLocation: %.*s/\r\n"
+              "Content-Length: 0\r\n\r\n",
+              (int) hm->uri.len, hm->uri.p);
+#ifndef NS_DISABLE_DAV
+  } else if (!ns_vcmp(&hm->method, "PROPFIND")) {
+    handle_propfind(nc, path, &st, hm, opts);
+  } else if (!ns_vcmp(&hm->method, "MKCOL")) {
+    handle_mkcol(nc, path, hm);
+  } else if (!ns_vcmp(&hm->method, "DELETE")) {
+    handle_delete(nc, path);
+  } else if (!ns_vcmp(&hm->method, "PUT")) {
+    handle_put(nc, path, hm);
+#endif
+  } else if (S_ISDIR(st.st_mode) &&
+             !find_index_file(path, path_buf_len, opts->index_files, &st)) {
+    if (strcmp(opts->enable_directory_listing, "yes") == 0) {
+#ifndef NS_DISABLE_DIRECTORY_LISTING
+      send_directory_listing(nc, path, hm, opts);
+#else
+      send_http_error(nc, 501, NULL);
+#endif
+    } else {
+      send_http_error(nc, 403, NULL);
+    }
+  } else if (ns_match_prefix(opts->cgi_file_pattern,
+                             strlen(opts->cgi_file_pattern), path) > 0) {
+#if !defined(NS_DISABLE_CGI)
+    handle_cgi(nc, path, hm, opts);
+#else
+    send_http_error(nc, 501, NULL);
+#endif /* NS_DISABLE_CGI */
+  } else {
+    ns_send_http_file2(nc, path, &st, hm, opts);
+  }
+}
+
 /*
  * Serve given HTTP request according to the `options`.
  *
@@ -3625,60 +4172,20 @@ static void uri_to_path(struct http_message *hm, char *buf, size_t buf_len,
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
-  ns_stat_t st;
-  int stat_result, is_directory, is_dav = is_dav_request(&hm->method);
-  uint32_t remote_ip = ntohl(*(uint32_t *) &nc->sa.sin.sin_addr);
-
   uri_to_path(hm, path, sizeof(path), &opts);
-  stat_result = ns_stat(path, &st);
-  is_directory = !stat_result && S_ISDIR(st.st_mode);
-
   if (opts.per_directory_auth_file == NULL) {
     opts.per_directory_auth_file = ".htpasswd";
   }
-
-  if (ns_check_ip_acl(opts.ip_acl, remote_ip) != 1) {
-    /* Not allowed to connect */
-    nc->flags |= NSF_CLOSE_IMMEDIATELY;
-  } else if (is_dav && opts.dav_document_root == NULL) {
-    send_http_error(nc, 501, NULL);
-  } else if (!is_authorized(hm, path, is_directory, &opts)) {
-    ns_printf(nc,
-              "HTTP/1.1 401 Unauthorized\r\n"
-              "WWW-Authenticate: Digest qop=\"auth\", "
-              "realm=\"%s\", nonce=\"%lu\"\r\n"
-              "Content-Length: 0\r\n\r\n",
-              opts.auth_domain, (unsigned long) time(NULL));
-  } else if ((stat_result != 0 || is_file_hidden(path, &opts)) && !is_dav) {
-    ns_printf(nc, "%s", "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-  } else if (is_directory && path[strlen(path) - 1] != '/' && !is_dav) {
-    ns_printf(nc,
-              "HTTP/1.1 301 Moved\r\nLocation: %.*s/\r\n"
-              "Content-Length: 0\r\n\r\n",
-              (int) hm->uri.len, hm->uri.p);
-#ifndef NS_DISABLE_DAV
-  } else if (!ns_vcmp(&hm->method, "PROPFIND")) {
-    handle_propfind(nc, path, &st, hm, &opts);
-  } else if (!ns_vcmp(&hm->method, "MKCOL")) {
-    handle_mkcol(nc, path, hm);
-  } else if (!ns_vcmp(&hm->method, "DELETE")) {
-    handle_delete(nc, path);
-  } else if (!ns_vcmp(&hm->method, "PUT")) {
-    handle_put(nc, path, hm);
-#endif
-  } else if (S_ISDIR(st.st_mode) && !find_index_file(path, sizeof(path), &st)) {
-    if (opts.enable_directory_listing) {
-#ifndef NS_DISABLE_DIRECTORY_LISTING
-      send_directory_listing(nc, path, hm, &opts);
-#else
-      send_http_error(nc, 501, NULL);
-#endif
-    } else {
-      send_http_error(nc, 403, NULL);
-    }
-  } else {
-    ns_send_http_file(nc, path, &st, hm, &opts);
+  if (opts.enable_directory_listing == NULL) {
+    opts.enable_directory_listing = "yes";
   }
+  if (opts.cgi_file_pattern == NULL) {
+    opts.cgi_file_pattern = "**.cgi$|**.php$";
+  }
+  if (opts.index_files == NULL) {
+    opts.index_files = "index.html,index.htm,index.shtml,index.cgi,index.php";
+  }
+  ns_send_http_file(nc, path, sizeof(path), hm, &opts);
 }
 
 #endif /* NS_DISABLE_FILESYSTEM */

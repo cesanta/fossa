@@ -1986,21 +1986,36 @@ static const struct {
     {NULL, 0, NULL}};
 
 #ifndef NS_DISABLE_FILESYSTEM
-static const char *get_mime_type(const char *path, const char *dflt) {
-  const char *ext;
+
+static struct ns_str get_mime_type(const char *path, const char *dflt,
+                                   const struct ns_serve_http_opts *opts) {
+  const char *ext, *overrides;
   size_t i, path_len;
+  struct ns_str r, k, v;
 
   path_len = strlen(path);
+
+  overrides = opts->custom_mime_types;
+  while ((overrides = ns_next_comma_list_entry(overrides, &k, &v)) != NULL) {
+    ext = path + (path_len - k.len);
+    if (path_len > k.len && ns_vcasecmp(&k, ext) == 0) {
+      return v;
+    }
+  }
 
   for (i = 0; static_builtin_mime_types[i].extension != NULL; i++) {
     ext = path + (path_len - static_builtin_mime_types[i].ext_len);
     if (path_len > static_builtin_mime_types[i].ext_len && ext[-1] == '.' &&
         ns_casecmp(ext, static_builtin_mime_types[i].extension) == 0) {
-      return static_builtin_mime_types[i].mime_type;
+      r.p = static_builtin_mime_types[i].mime_type;
+      r.len = strlen(r.p);
+      return r;
     }
   }
 
-  return dflt;
+  r.p = dflt;
+  r.len = strlen(r.p);
+  return r;
 }
 #endif
 
@@ -2403,7 +2418,7 @@ static void transfer_file_data(struct ns_connection *nc) {
 
     if (to_read == 0) {
       /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
+    } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
     } else {
@@ -2692,16 +2707,19 @@ static void send_ssi_file(struct ns_connection *nc, const char *path, FILE *fp,
 static void handle_ssi_request(struct ns_connection *nc, const char *path,
                                const struct ns_serve_http_opts *opts) {
   FILE *fp;
+  struct ns_str mime_type;
 
   if ((fp = fopen(path, "rb")) == NULL) {
     send_http_error(nc, 404, "Not Found");
   } else {
     ns_set_close_on_exec(fileno(fp));
+
+    mime_type = get_mime_type(path, "text/plain", opts);
     ns_printf(nc,
               "HTTP/1.1 200 OK\r\n"
-              "Content-Type: %s\r\n"
+              "Content-Type: %.*s\r\n"
               "Connection: close\r\n\r\n",
-              get_mime_type(path, "text/plain"));
+              (int) mime_type.len, mime_type.p);
     send_ssi_file(nc, path, fp, 0, opts);
     fclose(fp);
     nc->flags |= NSF_SEND_AND_CLOSE;
@@ -2732,6 +2750,7 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
                                ns_stat_t *st, struct http_message *hm,
                                struct ns_serve_http_opts *opts) {
   struct proto_data_http *dp;
+  struct ns_str mime_type;
 
   free_http_proto_data(nc);
   if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
@@ -2780,19 +2799,20 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
     construct_etag(etag, sizeof(etag), st);
     gmt_time_string(current_time, sizeof(current_time), &t);
     gmt_time_string(last_modified, sizeof(last_modified), &st->st_mtime);
+    mime_type = get_mime_type(path, "text/plain", opts);
     ns_printf(nc,
               "HTTP/1.1 %d %s\r\n"
               "Date: %s\r\n"
               "Last-Modified: %s\r\n"
               "Accept-Ranges: bytes\r\n"
-              "Content-Type: %s\r\n"
+              "Content-Type: %.*s\r\n"
               "Content-Length: %" INT64_FMT
               "\r\n"
               "%s"
               "Etag: %s\r\n"
               "\r\n",
               status_code, status_message, current_time, last_modified,
-              get_mime_type(path, "text/plain"), cl, range, etag);
+              (int) mime_type.len, mime_type.p, cl, range, etag);
     nc->proto_data = (void *) dp;
     dp->cl = cl;
     transfer_file_data(nc);

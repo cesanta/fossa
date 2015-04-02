@@ -745,6 +745,12 @@ struct ns_serve_http_opts {
 
   /* If not NULL, ignore CGI script hashbang and use this interpreter */
   const char *cgi_interpreter;
+
+  /*
+   * Comma-separated list of Content-Type overrides for path suffixes, e.g.
+   * ".txt=text/plain; charset=utf-8,.c=text/plain"
+   */
+  const char *custom_mime_types;
 };
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);

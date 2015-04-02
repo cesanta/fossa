@@ -605,6 +605,9 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.url_rewrites =
           "/~joe=./data/rewrites,"
           "@foo.com=./data/rewrites/foo.com";
+      s_http_server_opts.custom_mime_types =
+          ".txt=text/plain; charset=windows-1251,"
+          ".c=text/plain; charset=utf-8";
       ns_serve_http(nc, hm, s_http_server_opts);
     }
   }
@@ -707,7 +710,8 @@ static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *this_binary, *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[100] = "", mime[20] = "", auth_fail[20] = "";
+  char buf[20] = "", status[100] = "", mime1[20] = "", mime2[100] = "",
+       auth_fail[20] = "";
   char auth_ok[20] = "", auth_hdr[200] = "", url[1000];
 
   ns_mgr_init(&mgr, NULL);
@@ -740,7 +744,12 @@ static const char *test_http(void) {
   /* Test mime type for static file */
   snprintf(url, sizeof(url), "http://%s/data/dummy.xml", local_addr);
   ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
-  nc->user_data = mime;
+  nc->user_data = mime1;
+
+  /* Test custom mime type for static file */
+  snprintf(url, sizeof(url), "http://%s/data/range.txt", local_addr);
+  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
+  nc->user_data = mime2;
 
   /* Test digest authorization popup */
   snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
@@ -764,7 +773,8 @@ static const char *test_http(void) {
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
   ASSERT(strcmp(status, "success") == 0);
-  ASSERT(strcmp(mime, "text/xml") == 0);
+  ASSERT(strcmp(mime1, "text/xml") == 0);
+  ASSERT(strcmp(mime2, "text/plain; charset=windows-1251") == 0);
   ASSERT(strcmp(auth_fail, "401") == 0); /* Must be 401 Unauthorized */
   ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
 

@@ -2637,6 +2637,22 @@ static const char *test_coap(void) {
 }
 #endif
 
+static const char *test_strcmp(void) {
+  struct ns_str s1;
+
+  s1.p = "aa";
+  s1.len = strlen(s1.p);
+  ASSERT(ns_vcasecmp(&s1, "aa") == 0);
+  ASSERT(ns_vcmp(&s1, "aa") == 0);
+  ASSERT(ns_vcasecmp(&s1, "ab") < 0);
+  ASSERT(ns_vcmp(&s1, "ab") < 0);
+  ASSERT(ns_vcasecmp(&s1, "abb") < 0);
+  ASSERT(ns_vcmp(&s1, "abb") < 0);
+  ASSERT(ns_vcasecmp(&s1, "b") < 0);
+  ASSERT(ns_vcmp(&s1, "b") < 0);
+  return NULL;
+}
+
 static const char *run_tests(const char *filter) {
   RUN_TEST(test_iobuf);
   RUN_TEST(test_parse_address);
@@ -2697,6 +2713,7 @@ static const char *run_tests(const char *filter) {
 #ifdef NS_ENABLE_COAP
   RUN_TEST(test_coap);
 #endif
+  RUN_TEST(test_strcmp);
   return NULL;
 }
 

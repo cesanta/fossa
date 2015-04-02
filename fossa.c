@@ -4469,18 +4469,26 @@ int ns_casecmp(const char *s1, const char *s2) {
  * Cross-platform version of `strncasecmp()` where first string is
  * specified by `struct ns_str`.
  */
-int ns_vcasecmp(const struct ns_str *str2, const char *str1) {
-  size_t n1 = strlen(str1), n2 = str2->len;
-  return n1 == n2 ? ns_ncasecmp(str1, str2->p, n1) : n1 > n2 ? 1 : -1;
+int ns_vcasecmp(const struct ns_str *str1, const char *str2) {
+  size_t n2 = strlen(str2), n1 = str1->len;
+  int r = ns_ncasecmp(str1->p, str2, (n1 < n2) ? n1 : n2);
+  if (r == 0) {
+    return n1 - n2;
+  }
+  return r;
 }
 
 /*
  * Cross-platform version of `strcmp()` where where first string is
  * specified by `struct ns_str`.
  */
-int ns_vcmp(const struct ns_str *str2, const char *str1) {
-  size_t n1 = strlen(str1), n2 = str2->len;
-  return n1 == n2 ? memcmp(str1, str2->p, n2) : n1 > n2 ? 1 : -1;
+int ns_vcmp(const struct ns_str *str1, const char *str2) {
+  size_t n2 = strlen(str2), n1 = str1->len;
+  int r = memcmp(str1->p, str2, (n1 < n2) ? n1 : n2);
+  if (r == 0) {
+    return n1 - n2;
+  }
+  return r;
 }
 
 #ifdef _WIN32

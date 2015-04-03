@@ -2423,7 +2423,7 @@ static void transfer_file_data(struct ns_connection *nc) {
 
     if (to_read == 0) {
       /* Rate limiting. send_iobuf is too full, wait until it's drained. */
-    } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
+    } else if (dp->sent<dp->cl &&(n = fread(buf, 1, to_read, dp->fp))> 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
     } else {
@@ -3766,6 +3766,10 @@ static pid_t start_process(const char *interp, const char *cmd, const char *env,
     buf[sizeof(buf) - 1] = '\0';
     if (buf[0] == '#' && buf[1] == '!') {
       interp = buf + 2;
+      /* Trim leading spaces: https://github.com/cesanta/mongoose/issues/489 */
+      while (*interp != '\0' && isspace(*(unsigned char *) interp)) {
+        interp++;
+      }
     }
     fclose(fp);
   }

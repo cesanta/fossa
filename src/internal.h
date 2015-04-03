@@ -6,11 +6,6 @@
 #ifndef NS_INTERNAL_HEADER_INCLUDED
 #define NS_INTERNAL_HEADER_INCLUDED
 
-#ifdef __AVR__
-/* -I<path_to_avrsupport> should be specified */
-#include <avrsupport.h>
-#endif
-
 #ifndef NS_MALLOC
 #define NS_MALLOC malloc
 #endif

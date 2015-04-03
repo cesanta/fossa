@@ -2237,6 +2237,11 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       handle_incoming_websocket_frame(nc, &wsm);
       iobuf_remove(&nc->recv_iobuf, (size_t) frame_len); /* Cleanup frame */
     }
+
+    /* If client closes, close too */
+    if ((buf[0] & 0x0f) == WEBSOCKET_OP_CLOSE) {
+      nc->flags |= NSF_SEND_AND_CLOSE;
+    }
   }
 
   return ok;

@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
 #endif
 
   if (s_num_http_backends == 0) {
-    fprintf(stderr, "Usage: %s [-D] [-p http_port] "
+    fprintf(stderr, "Usage: %s [-D debug_dump_file] [-p http_port] "
 #if NS_ENABLE_SSL
             "[-s ssl_cert] "
 #endif

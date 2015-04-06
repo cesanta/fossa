@@ -1,3 +1,6 @@
+#ifdef __AVR__
+#include "avrsupport.h"
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -19,11 +22,6 @@
 #define NS_COMMON_HEADER_INCLUDED
 
 #define NS_FOSSA_VERSION "2.0.0"
-
-#ifdef __AVR__
-/* -I<path_to_avrsupport> should be specified */
-#include <avrsupport.h>
-#endif
 
 #if !defined(NS_DISABLE_FILESYSTEM) && defined(AVR_NOFS)
 #define NS_DISABLE_FILESYSTEM

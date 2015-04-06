@@ -11,11 +11,6 @@
 #ifndef NS_INTERNAL_HEADER_INCLUDED
 #define NS_INTERNAL_HEADER_INCLUDED
 
-#ifdef __AVR__
-/* -I<path_to_avrsupport> should be specified */
-#include <avrsupport.h>
-#endif
-
 #ifndef NS_MALLOC
 #define NS_MALLOC malloc
 #endif
@@ -952,6 +947,13 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
      *  now to prevent last_io_time being set to the past. */
     current_time = time(NULL);
 
+#ifndef __AVR__
+    /*
+     * Note: it seems, avr-gcc breaks on long functions
+     * As workaround unused (on AVR) part just excluded
+     * TODO(alashkin): investigate this
+     */
+
     /* Read wakeup messages */
     if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
@@ -964,6 +966,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
         }
       }
     }
+#endif
 
     for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
       tmp = nc->next;

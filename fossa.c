@@ -1075,23 +1075,36 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 static void resolve_cb(struct ns_dns_message *msg, void *data) {
   struct ns_connection *nc = (struct ns_connection *) data;
 
-  if (msg == NULL || msg->answers[0].rtype != NS_DNS_A_RECORD) {
-    int failure = -1;
-    ns_call(nc, NS_CONNECT, &failure);
-    ns_call(nc, NS_CLOSE, NULL);
-    ns_destroy_conn(nc);
-  } else {
-    static struct ns_add_sock_opts opts;
-    /*
-     * Async resolver guarantees that there is at least one answer.
-     * TODO(lsm): handle IPv6 answers too
-     */
+  if (msg != NULL) { 
+		/*
+		 * Take the first DNS A answer and run...
+		 */
+		int i=0;
+		for(i=0; i<msg->num_answers; i++ )
+		{
+			if(msg->answers[i].rtype==NS_DNS_A_RECORD) {
+				static struct ns_add_sock_opts opts;
+				/*
+				 * Async resolver guarantees that there is at least one answer.
+				 * TODO(lsm): handle IPv6 answers too
+				 */
+				ns_dns_parse_record_data(msg, &msg->answers[i], &nc->sa.sin.sin_addr, 4);
+				/* ns_finish_connect() triggers NS_CONNECT on failure */
+				ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
+						&nc->sa, opts);
+				return;
+			}
+		}
+	}	
 
-    ns_dns_parse_record_data(msg, &msg->answers[0], &nc->sa.sin.sin_addr, 4);
-    /* ns_finish_connect() triggers NS_CONNECT on failure */
-    ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
-                      &nc->sa, opts);
-  }
+	/*
+	 * If we get there was no NS_DNS_A_RECORD in the answer
+	 */
+	int failure = -1;
+	ns_call(nc, NS_CONNECT, &failure);
+	ns_call(nc, NS_CLOSE, NULL);
+	ns_destroy_conn(nc);
+
 }
 
 /*
@@ -1171,6 +1184,7 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   nc->flags |= opts.flags;
   nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : 0;
   nc->user_data = opts.user_data;
+
 
   if (rc == 0) {
     /*

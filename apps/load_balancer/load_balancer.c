@@ -8,6 +8,7 @@
 struct http_backend {
   const char *vhost;        /* NULL if any host */
   const char *uri_prefix;   /* URI prefix, e.g. "/api/v1/", "/static/" */
+  const char *uri_prefix_replacement; /* if not NULL, will replace uri_prefix in requests to backends */
   const char *host_port;    /* Backend address */
   int redirect;              /* if true redirect instead of proxy */
   int usage_counter;        /* Number of times this backend was chosen */
@@ -17,7 +18,8 @@ static const char *s_error_500 = "HTTP/1.1 500 Failed\r\n";
 static const char *s_error_404 = "HTTP/1.1 404 Failed\r\n";
 static const char *s_content_len_0 = "Content-Length: 0\r\n";
 static const char *s_http_port = "8000";
-static struct http_backend s_http_backends[100];
+#define MAX_BACKENDS 100
+static struct http_backend s_http_backends[MAX_BACKENDS];
 static int s_num_http_backends = 0;
 static int s_sig_num = 0;
 #ifdef NS_ENABLE_SSL
@@ -98,9 +100,90 @@ static void choose_backend(struct ns_connection *nc) {
       ((struct ns_connection *) nc->proto_data)->user_data =
         (void *) (long) chosen;
       s_http_backends[chosen].usage_counter++;
-      ns_send(nc->proto_data, io->buf, io->len);
+      if (s_http_backends[chosen].uri_prefix_replacement != NULL) {
+        /* Mark client connection so we can rewrite future requests. */
+        nc->user_data = (void *) (long) MAX_BACKENDS;
+        /*
+         * Figure out how many characters to remove. URI length was checked by
+         * has_prefix() during backend selection.
+         */
+        size_t trim_len = strlen(s_http_backends[chosen].uri_prefix);
+        /* Write rewritten request line. */
+        ns_printf(nc->proto_data, "%.*s %s%.*s",
+            (int) hm.method.len, hm.method.p,
+            s_http_backends[chosen].uri_prefix_replacement,
+            (int) (hm.uri.len - trim_len), hm.uri.p + trim_len);
+        if (hm.query_string.len > 0) {
+          ns_printf(nc->proto_data, "?%.*s", (int) hm.query_string.len,
+                    hm.query_string.p);
+        }
+        ns_printf(nc->proto_data, " %.*s\r\n", (int) hm.proto.len, hm.proto.p);
+        /*
+         * Forward the rest of the headers as is. This code assumes that fields
+         * of hm point to the io iobuf.
+         */
+        const char *headers = hm.proto.p + hm.proto.len;
+        while (headers < io->buf + io->len &&
+               (*headers == '\r' || *headers == '\n')) {
+          headers++;
+        }
+        ns_send(nc->proto_data, headers, io->len - (headers - io->buf));
+      } else {
+        /* Forward request as is. */
+        ns_send(nc->proto_data, io->buf, io->len);
+      }
       iobuf_remove(io, io->len);
     }
+  }
+}
+
+static void rewrite_request(struct ns_connection *nc, struct http_backend *be) {
+  struct http_message hm;
+  struct iobuf *io = &nc->recv_iobuf;
+  int req_len = ns_parse_http(io->buf, io->len, &hm);
+
+  if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
+    /* Invalid, or too large request */
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  } else if (req_len == 0) {
+    /* Do nothing, request is not yet fully buffered */
+  } else {
+    /*
+     * Got HTTP request, we already have a connection to the backend, so
+     * just forward the request.
+     */
+    be->usage_counter++;
+    if (be->uri_prefix_replacement != NULL) {
+      /*
+       * Figure out how many characters to remove. URI length was checked by
+       * has_prefix() during backend selection.
+       */
+      size_t trim_len = strlen(be->uri_prefix);
+      /* Write rewritten request line. */
+      ns_printf(nc->proto_data, "%.*s %s%.*s",
+          (int) hm.method.len, hm.method.p,
+          be->uri_prefix_replacement,
+          (int) (hm.uri.len - trim_len), hm.uri.p + trim_len);
+      if (hm.query_string.len > 0) {
+        ns_printf(nc->proto_data, "?%.*s", (int) hm.query_string.len,
+                  hm.query_string.p);
+      }
+      ns_printf(nc->proto_data, " %.*s\r\n", (int) hm.proto.len, hm.proto.p);
+      /*
+       * Forward the rest of the headers as is. This code assumes that fields
+       * of hm point to the io iobuf.
+       */
+      const char *headers = hm.proto.p + hm.proto.len;
+      while (headers < io->buf + io->len &&
+             (*headers == '\r' || *headers == '\n')) {
+        headers++;
+      }
+      ns_send(nc->proto_data, headers, io->len - (headers - io->buf));
+    } else {
+      /* Forward request as is. */
+      ns_send(nc->proto_data, io->buf, io->len);
+    }
+    iobuf_remove(io, io->len);
   }
 }
 
@@ -126,9 +209,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       if (peer == NULL) {
         choose_backend(nc);
       } else {
-        /* Forward data to peer */
-        ns_send(peer, io->buf, io->len);
-        iobuf_remove(io, io->len);
+        /* Check for special marker on connection that need URI rewrite. */
+        if ((int) nc->user_data == MAX_BACKENDS) {
+          rewrite_request(nc, &s_http_backends[(int) peer->user_data]);
+        } else {
+          /* Forward data to peer */
+          ns_send(peer, io->buf, io->len);
+          iobuf_remove(io, io->len);
+        }
       }
       break;
     case NS_CLOSE:
@@ -145,7 +233,7 @@ int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   int i;
-  int redirect;
+  int redirect = 0;
   const char *vhost = NULL;
 
   ns_mgr_init(&mgr, NULL);
@@ -160,16 +248,28 @@ int main(int argc, char *argv[]) {
       i++;
     } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
       redirect = 1;
-      i++;
     } else if (strcmp(argv[i], "-v") == 0 && i + 1 < argc) {
       vhost = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "-b") == 0 && i + 2 < argc) {
-      s_http_backends[s_num_http_backends].vhost = vhost;
-      s_http_backends[s_num_http_backends].uri_prefix = argv[i + 1];
-      s_http_backends[s_num_http_backends].host_port = argv[i + 2];
-      s_http_backends[s_num_http_backends].redirect = redirect;
+      struct http_backend *backend = &s_http_backends[s_num_http_backends];
+      char *r = NULL;
       s_num_http_backends++;
+      backend->vhost = vhost;
+      backend->uri_prefix = argv[i + 1];
+      backend->host_port = argv[i + 2];
+      backend->redirect = redirect;
+      if ((r = strchr(backend->uri_prefix, '=')) != NULL) {
+        *r = '\0';
+        backend->uri_prefix_replacement = r+1;
+      }
+      printf("Adding a new backend for %s%s : %s "
+             "[redirect=%d,prefix_replacement=%s]\n",
+             backend->vhost == NULL ? "" : backend->vhost, backend->uri_prefix,
+             backend->host_port, backend->redirect,
+             backend->uri_prefix_replacement == NULL ?
+               backend->uri_prefix :
+               backend->uri_prefix_replacement);
       vhost = NULL;
       redirect = 0;
       i += 2;
@@ -201,7 +301,7 @@ int main(int argc, char *argv[]) {
 #if NS_ENABLE_SSL
             "[-s ssl_cert] "
 #endif
-            "<[-r] [-v vhost] -b uri_prefix host_port> ... \n", argv[0]);
+            "<[-r] [-v vhost] -b uri_prefix[=replacement] host_port> ... \n", argv[0]);
     exit(EXIT_FAILURE);
   }
 

@@ -44,6 +44,6 @@ clean:
 	@for i in $(SUBDIRS); do $(MAKE) -C $$i clean ; done
 
 format:
-	@/usr/bin/find src -name "*.[ch]" | grep -v sha1.c | grep -v md5.c | xargs $(CLANG_FORMAT) -i
+	@/usr/bin/find src apps -name "*.[ch]" | grep -v -E 'sha1.c|md5.c|sqlite' | xargs $(CLANG_FORMAT) -i
 	@/usr/bin/find platforms \( -name "*.cpp" -o -name "*.h" \) | xargs $(CLANG_FORMAT) -i
 	@$(CLANG_FORMAT) -i test/unit_test.c

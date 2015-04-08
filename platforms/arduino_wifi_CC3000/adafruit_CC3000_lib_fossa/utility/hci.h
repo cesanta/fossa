@@ -251,7 +251,7 @@ extern UINT16 hci_command_send(UINT16 usOpcode, UINT8 *ucArgs,
 //!
 //!  @param  usOpcode        command operation code
 //!	 @param  ucArgs					 pointer to the
-//command's
+// command's
 // arguments buffer
 //!  @param  usArgsLength    length of the arguments
 //!  @param  ucTail          pointer to the data buffer

@@ -283,7 +283,7 @@ extern void netapp_ping_report();
 //!
 //! @note     The function is useful for figuring out the IP Configuration of
 //!       		the device when DHCP is used and for figuring out the
-//SSID
+// SSID
 // of
 //!       		the Wireless network the device is associated with.
 //!

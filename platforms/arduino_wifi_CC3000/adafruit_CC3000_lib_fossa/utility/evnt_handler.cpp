@@ -759,7 +759,7 @@ void set_socket_active_status(INT32 Sd, INT32 Status) {
 //!  @brief  Called in case unsolicited event from type
 //!          HCI_EVNT_DATA_UNSOL_FREE_BUFF has received.
 //!				   Keep track on the number of packets
-//transmitted
+// transmitted
 // and update the
 //!					 number of free buffer in the SL device.
 //
@@ -860,7 +860,7 @@ void SimpleLinkWaitEvent(UINT16 usOpcode, void *pRetParams) {
 //!
 //!  @brief                Wait for data, pass it to the hci_event_handler
 //! 					   and update in a global variable that
-//there
+// there
 // is
 //!						   data to read.
 //

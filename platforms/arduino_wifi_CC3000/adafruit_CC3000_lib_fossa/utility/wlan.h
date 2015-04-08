@@ -381,7 +381,7 @@ extern INT32 wlan_ioctl_set_connection_policy(UINT32 should_connect_to_open_ap,
 //!                           0 - Open, 1 - WEP, 2 WPA, 3 WPA2
 //!         				- 6 bits: SSID name length
 //!         				- 2 bytes: the time at which the entry
-//has
+// has
 // entered into
 //!                            scans result table
 //!         				- 32 bytes: SSID name

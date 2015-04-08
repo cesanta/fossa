@@ -784,28 +784,40 @@ bool sntp::UpdateNTPTime() {
         }        // while ((!m_timeIsSet) && (pServerList))
 
         if (m_timeIsSet) {
-          //						//If necessary, make change to/from
-          //Daylight
+          //						//If necessary, make
+          //change
+          // to/from
+          // Daylight
           // Savings Time
-          //						// NOTE: m_change_DST will have been set
-          //on
+          //						// NOTE: m_change_DST will have
+          //been
+          // set
+          // on
           // the previous iteration of the loop, so that
-          //						// we update the time AFTER we wake up.
-          //This
+          //						// we update the time AFTER we
+          //wake
+          // up.
+          // This
           // is because the timer will have been adjusted
           //						// to wake up when the
-          //time-change
+          // time-change
           // happens
-          //						// 'm_change_DST' is tri-state: 0 or
-          //no
+          //						// 'm_change_DST' is tri-state:
+          //0
+          // or
+          // no
           // change, +1 for spring change, -1 for fall change.
           //						UpdateDST(m_change_DST);
           //
-          //						//Now, see if the time change will
-          //happen
+          //						//Now, see if the time
+          //change
+          // will
+          // happen
           // before the next scheduled wake-up.
-          //						// If so, shorten  sleep-time so we wake
-          //up
+          //						// If so, shorten  sleep-time so
+          //we
+          // wake
+          // up
           // at the time-change
           //						TaskLock(&Clock.lock);
           //						m_change_DST =

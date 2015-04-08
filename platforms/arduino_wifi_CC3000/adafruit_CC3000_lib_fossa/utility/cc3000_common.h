@@ -269,7 +269,7 @@ extern void SimpleLinkWaitEvent(UINT16 usOpcode, void *pRetParams);
 //!
 //!  @brief                Wait for data, pass it to the hci_event_handler
 //! 					   and update in a global variable that
-//there
+// there
 // is
 //!						   data to read.
 //
@@ -288,7 +288,7 @@ extern void SimpleLinkWaitData(UINT8 *pBuf, UINT8 *from, UINT8 *fromlen);
 //!
 //!  \brief                This function is used for copying 32 bit to stream
 //!						   while converting to little
-//endian
+// endian
 // format.
 //
 //*****************************************************************************

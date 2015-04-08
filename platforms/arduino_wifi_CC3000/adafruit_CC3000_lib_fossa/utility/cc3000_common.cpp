@@ -88,7 +88,7 @@ void __error__(CHAR *pcFilename, UINT32 ulLine) {
 //!
 //!  @brief                This function is used for copying 32 bit to stream
 //!						   while converting to little
-//endian
+// endian
 // format.
 //
 //*****************************************************************************

@@ -555,7 +555,7 @@ INT32 wlan_ioctl_set_connection_policy(UINT32 should_connect_to_open_ap,
 //!			   stores the profile internally with priority 1, so
 // changing
 //!			   priorities when adding new profiles should be done
-//with
+// with
 // extra care
 //!  @param    ulPairwiseCipher_Or_TxKeyLen  key length for WEP security
 //!  @param    ulGroupCipher_TxKeyIndex  key index
@@ -747,7 +747,7 @@ INT32 wlan_ioctl_del_profile(UINT32 ulIndex) {
 //!                           0 - Open, 1 - WEP, 2 WPA, 3 WPA2
 //!         				- 6 bits: SSID name length
 //!         				- 2 bytes: the time at which the entry
-//has
+// has
 // entered into
 //!                            scans result table
 //!         				- 32 bytes: SSID name
@@ -1099,10 +1099,10 @@ INT32 wlan_smart_config_process() {
   // 5) KEY - encrypted together with true key length as the first byte in KEY
   //	 to elaborate, there are two corner cases:
   //		1) the KEY is 32 bytes long. In this case, the first byte does
-  //not
+  // not
   // represent KEY length
   //		2) the KEY is 31 bytes long. In this case, the first byte
-  //represent
+  // represent
   // KEY length and equals 31
   returnValue = nvmem_read(NVMEM_SHARED_MEM_FILEID, SMART_CONFIG_PROFILE_SIZE,
                            0, profileArray);

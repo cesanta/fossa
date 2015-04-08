@@ -9,17 +9,15 @@ void blink(int times, int ms) {
   int i;
 
   if (!inited) {
-    DDRB = 0b11111111;
+    DDRB |= 0b10000000;
     inited = 1;
   }
 
   for (i = 0; i < times; i++) {
-    PORTB = 0xFF;
+    PORTB |= 0b10000000;
     delay(ms);
-    PORTB = 0x00;
-    if (i != times - 1) {
-      delay(ms);
-    }
+    PORTB &= 0b01111111;
+    delay(ms);
   }
 }
 

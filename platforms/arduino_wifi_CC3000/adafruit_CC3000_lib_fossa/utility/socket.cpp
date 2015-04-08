@@ -7,6 +7,9 @@
 *
 * Adapted for use with the Arduino/AVR by KTOWN (Kevin Townsend)
 * & Limor Fried for Adafruit Industries
+*
+* Adapted for use with Fossa by Cesanta (http://www.cesanta.com/)
+*
 * This library works with the Adafruit CC3000 breakout
 *	----> https://www.adafruit.com/products/1469
 * Adafruit invests time and resources providing this open source code,
@@ -58,6 +61,22 @@
 #include "evnt_handler.h"
 #include "netapp.h"
 #include "debug.h"
+
+struct socket_info {
+  INT32 sockid;
+  INT32 accepted_sockid;
+  struct sockaddr_in accepted_addr;
+};
+
+#define SOCK_BUF_SIZE 32
+socket_info socket_buffer[SOCK_BUF_SIZE];
+
+void init_sockets_buffer() {
+  memset(socket_buffer, 0, sizeof(socket_buffer));
+  for (unsigned i = 0; i < SOCK_BUF_SIZE; i++) {
+    socket_buffer[i].accepted_sockid = INVALID_SOCKET;
+  }
+}
 
 // Enable this flag if and only if you must comply with BSD socket
 // close() function
@@ -175,7 +194,7 @@ INT16 HostFlowControlConsumeBuff(INT16 sd) {
       FD_SET(sd, &fd_read);
       timeout.tv_sec = 0;
       timeout.tv_usec = 5000;
-      int16_t s = select(sd + 1, &fd_read, NULL, NULL, &timeout);
+      int16_t s = cc3k_select(sd + 1, &fd_read, NULL, NULL, &timeout);
       // Note the results of the select are ignored for now.  Attempts to
       // have smart behavior like returning an error when there is data
       // to read and no free buffers for sending just seem to cause more
@@ -273,6 +292,16 @@ INT32 socket(INT32 domain, INT32 type, INT32 protocol) {
 //*****************************************************************************
 
 INT32 closesocket(INT32 sd) {
+  /* 
+   * Have to wait until all packets sent
+   * TODO(alashkin): backport to adafruit
+   */
+  while (tSLInformation.NumberOfSentPackets !=
+         tSLInformation.NumberOfReleasedPackets) {
+    cc3k_int_poll();
+    yield();
+  }
+
   INT32 ret;
   UINT8 *ptr, *args;
 
@@ -293,6 +322,8 @@ INT32 closesocket(INT32 sd) {
   // since 'close' call may result in either OK (and then it closed) or error
   // mark this socket as invalid
   set_socket_active_status(sd, SOCKET_STATUS_INACTIVE);
+
+  socket_buffer[sd].accepted_sockid = INVALID_SOCKET;
 
   return (ret);
 }
@@ -345,7 +376,7 @@ INT32 closesocket(INT32 sd) {
 //
 //*****************************************************************************
 
-INT32 accept(INT32 sd, sockaddr *addr, socklen_t *addrlen) {
+INT32 cc3k_accept(INT32 sd, sockaddr *addr, socklen_t *addrlen) {
   INT32 ret;
   UINT8 *ptr, *args;
   tBsdReturnParams tAcceptReturnArguments;
@@ -375,11 +406,43 @@ INT32 accept(INT32 sd, sockaddr *addr, socklen_t *addrlen) {
   // if succeeded, iStatus = new socket descriptor. otherwise - error number
   if (M_IS_VALID_SD(ret)) {
     set_socket_active_status(ret, SOCKET_STATUS_ACTIVE);
-  } else {
+  } else if (ret != EWOULDBLOCK) {
+    /* 
+     * Socket should NOT be marked as closed if non-block operation
+     * in process
+     * TODO(alashkin): backport this to adafruit
+     */
     set_socket_active_status(sd, SOCKET_STATUS_INACTIVE);
   }
 
   return (ret);
+}
+
+INT32 accept(INT32 sd, sockaddr *addr, socklen_t *addrlen) {
+  cc3k_int_poll();
+  if (socket_buffer[sd].accepted_sockid != INVALID_SOCKET ) {
+    /* 
+     * if previous select accepted connection - return accepted socket
+     * TODO(alashkin): this way is ok for fossa, but it is possible 
+     * to loose 2nd, 3rd etc connections 
+     */
+      INT32 retval = socket_buffer[sd].accepted_sockid;
+
+      if (addr != NULL) {
+        memcpy(addr, &socket_buffer[sd].accepted_addr,
+               sizeof(socket_buffer[sd].accepted_addr));
+      }
+
+      if (addrlen != NULL) {
+        *addrlen = sizeof(socket_buffer[sd].accepted_addr);
+      }
+
+      socket_buffer[sd].accepted_sockid = INVALID_SOCKET;
+
+      return retval;
+  } else {
+    return cc3k_accept(sd, addr, addrlen);
+  }
 }
 
 //*****************************************************************************
@@ -502,7 +565,7 @@ INT32 listen(INT32 sd, INT32 backlog) {
 // Make hostname a const char pointer because it isn't modified and the Adafruit
 // driver code needs it to be const to interface with Arduino's client library.
 // Noted 12-12-2014 by tdicola
-INT16 gethostbyname(const CHAR *hostname, UINT16 usNameLen,
+INT16 cc3k_gethostbyname(const CHAR *hostname, UINT16 usNameLen,
                     UINT32 *out_ip_addr) {
   tBsdGethostbynameParams ret;
   UINT8 *ptr, *args;
@@ -629,8 +692,8 @@ INT32 connect(INT32 sd, const sockaddr *addr, INT32 addrlen) {
 //
 //*****************************************************************************
 
-INT16 select(INT32 nfds, fd_set *readsds, fd_set *writesds, fd_set *exceptsds,
-             struct timeval *timeout) {
+INT16 cc3k_select(INT32 nfds, fd_set *readsds, fd_set *writesds,
+                  fd_set *exceptsds, struct timeval *timeout) {
   UINT8 *ptr, *args;
   tBsdSelectRecvParams tParams;
   UINT32 is_blocking;
@@ -693,6 +756,80 @@ INT16 select(INT32 nfds, fd_set *readsds, fd_set *writesds, fd_set *exceptsds,
   }
 }
 
+extern INT16 select(INT32 nfds, fd_set *readsds, fd_set *writesds,
+                    fd_set *exceptsds, struct timeval *timeout) {
+  uint32_t time_to_finish = 0;
+  if (timeout != NULL) {
+    time_to_finish = millis() + timeout->tv_sec * 1000 + timeout->tv_usec;
+  }
+
+  INT16 retval = -1;
+  fd_set readset, writeset, exceptset;
+
+  for(;;) {
+    cc3k_int_poll();
+    struct timeval tv = {0,0};
+    if (readsds != NULL) {
+      memcpy(&readset, readsds, sizeof(readset));
+    }
+    if (writesds != NULL) {
+      memcpy(&writeset, writesds, sizeof(writeset));
+    }
+    if (exceptsds != NULL) {
+      memcpy(&exceptset, exceptsds, sizeof(exceptset));
+    }
+
+    retval = cc3k_select(nfds,
+                         readsds != NULL? &readset : NULL,
+                         writesds != NULL? &writeset : NULL,
+                         exceptsds != NULL? &exceptset : NULL,
+                         &tv);
+    if (retval < 0) {
+      return retval;
+    }
+
+    /* 
+     * TI's implemenation of select() doesn't support
+     * listening sockets. 
+     * Checking them manually.
+     */
+    if (readsds != NULL) {
+      int s;
+      for (s = 0; s < nfds; s++ ) {
+        cc3k_int_poll();
+        if (FD_ISSET(s, readsds) && !FD_ISSET(s, &readset)) {
+          socklen_t len = sizeof(&socket_buffer[s].accepted_addr);
+          INT32 new_s = cc3k_accept(s, (struct sockaddr*)
+                                    &socket_buffer[s].accepted_addr, &len);
+          if (new_s >= 0) {
+            socket_buffer[s].accepted_sockid = new_s;
+            retval++;
+            FD_SET(s, &readset);
+          }
+        }
+      }
+    }
+
+    if ((timeout != 0 && millis() > time_to_finish) || retval > 0) {
+      break;
+    }
+
+    yield();
+  }
+
+  if (readsds != NULL) {
+    memcpy(readsds, &readset, sizeof(readset));
+  }
+  if (writesds != NULL) {
+    memcpy(writesds, &writeset, sizeof(writeset));
+  }
+  if (exceptsds != NULL) {
+    memcpy(exceptsds, &exceptset, sizeof(exceptset));
+  }
+  
+  return retval;
+}
+
 //*****************************************************************************
 //
 //! setsockopt
@@ -747,8 +884,9 @@ INT16 select(INT32 nfds, fd_set *readsds, fd_set *writesds, fd_set *exceptsds,
 //*****************************************************************************
 
 #ifndef CC3000_TINY_DRIVER
-INT16 setsockopt(INT32 sd, INT32 level, INT32 optname, const void *optval,
-                 socklen_t optlen) {
+
+INT16 cc3k_setsockopt(INT32 sd, INT32 level, INT32 optname,
+                      const void *optval, socklen_t optlen) {
   INT32 ret;
   UINT8 *ptr, *args;
 
@@ -832,8 +970,8 @@ INT16 setsockopt(INT32 sd, INT32 level, INT32 optname, const void *optval,
 //
 //*****************************************************************************
 
-INT16 getsockopt(INT32 sd, INT32 level, INT32 optname, void *optval,
-                 socklen_t *optlen) {
+INT16 cc3k_getsockopt(INT32 sd, INT32 level, INT32 optname, void *optval,
+                      socklen_t *optlen) {
   UINT8 *ptr, *args;
   tBsdGetSockOptReturnParams tRetParams;
 
@@ -959,7 +1097,29 @@ INT16 simple_link_recv(INT32 sd, void *buf, INT32 len, INT32 flags,
 //*****************************************************************************
 
 INT16 recv(INT32 sd, void *buf, INT32 len, INT32 flags) {
-  return (simple_link_recv(sd, buf, len, flags, NULL, NULL, HCI_CMND_RECV));
+  /*
+   * In order to have non-blocking recv
+   * checking for data available with select()
+   */
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(sd, &set);
+  timeval tv = {0,0};
+
+  cc3k_int_poll();
+  INT16 sel_res = cc3k_select(sd + 1, &set, 0, 0, &tv);
+  cc3k_int_poll();
+
+  if (sel_res > 0 && FD_ISSET(sd, &set)) {
+    cc3k_int_poll();
+    INT16 retval = simple_link_recv(sd, buf, len, flags,
+                                    NULL, NULL, HCI_CMND_RECV);
+    cc3k_int_poll();
+    return retval;
+  } else {
+    errno = EWOULDBLOCK;
+    return SOCKET_ERROR;
+  }
 }
 
 //*****************************************************************************
@@ -1110,7 +1270,20 @@ INT16 simple_link_send(INT32 sd, const void *buf, INT32 len, INT32 flags,
 //*****************************************************************************
 
 INT16 send(INT32 sd, const void *buf, INT32 len, INT32 flags) {
-  return (simple_link_send(sd, buf, len, flags, NULL, 0, HCI_CMND_SEND));
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(sd, &set);
+  timeval tv = {0,0};
+
+  /*
+   * Forcing CC3000 to free send buffer 
+   * TODO(alashkin): backport to adafruit
+   */
+  cc3k_int_poll();
+  cc3k_select(sd + 1, 0, &set, 0, &tv);
+  cc3k_int_poll();
+
+  return simple_link_send(sd, buf, len, flags, NULL, 0, HCI_CMND_SEND);
 }
 
 //*****************************************************************************
@@ -1478,3 +1651,66 @@ UINT16 getmssvalue(INT32 sd) {
 
   return ret;
 }
+
+int fcntl(INT32 s, int cmd, uint32_t arg) {
+  if ((cmd == F_GETFL) || (cmd == F_SETFL && arg == O_NONBLOCK) ||
+      (cmd == F_SETFD && arg == FD_CLOEXEC)) {
+    /*
+     * fossa sets O_NONBLOCK & FD_CLOEXEC flags
+     * since this implementation is non-blocking by design
+     * and doesn't need FD_CLOEXEC
+     * just return 0
+     */
+    return 0;
+  }
+
+  errno = EINVAL;
+  return SOCKET_ERROR;
+}
+
+INT16 setsockopt(INT32 s, INT32 level, INT32 optname,
+                 const void* optval, socklen_t optlen) {
+  if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
+    /*
+     * fossa sets this flag, but it is not nessasary on W5100
+     * so return 0
+     */
+    return 0;
+  }
+
+  errno = EINVAL;
+  return SOCKET_ERROR;
+}
+
+INT16 getsockopt(INT32 sd, INT32 level, INT32 optname,
+                 void *optval,
+                 socklen_t *optlen) {
+  if (optname != SO_ERROR || *optlen != sizeof(int)) {
+    errno = EINVAL;
+    return SOCKET_ERROR;
+  }
+
+  int res;
+  struct timeval tv = {0, 0};
+
+  fd_set errset;
+  FD_ZERO(&errset);
+  if (select(sd+1, 0, 0, &errset, &tv) == SOCKET_ERROR) {
+    return SOCKET_ERROR;
+  }
+  res = FD_ISSET(sd, &errset);
+  memcpy(optval, &res, sizeof(res));
+
+  return 0;
+}
+
+int getsockname(INT32 s, struct sockaddr* name, socklen_t* namelen) {
+  /* 
+   * Fossa doesn't require implementation for restful_server
+   * TODO(alashkin): check other samples
+   */
+
+  return 0;
+}
+
+

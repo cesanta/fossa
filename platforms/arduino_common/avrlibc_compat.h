@@ -41,10 +41,13 @@ char* strerror(int errnum);
 /* Time declaration & functions */
 typedef unsigned long time_t;
 
+#ifndef TIMEVAL
 struct timeval {
-  long tv_sec;
-  long tv_usec;
+  uint32_t tv_sec;
+  uint32_t tv_usec;
 };
+#define TIMEVAL
+#endif
 
 time_t time(time_t* timer);
 

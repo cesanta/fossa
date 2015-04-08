@@ -10,12 +10,13 @@
 #endif
 
 struct http_backend {
-  const char *vhost;        /* NULL if any host */
-  const char *uri_prefix;   /* URI prefix, e.g. "/api/v1/", "/static/" */
-  const char *uri_prefix_replacement; /* if not NULL, will replace uri_prefix in requests to backends */
-  const char *host_port;    /* Backend address */
-  int redirect;              /* if true redirect instead of proxy */
-  int usage_counter;        /* Number of times this backend was chosen */
+  const char *vhost;      /* NULL if any host */
+  const char *uri_prefix; /* URI prefix, e.g. "/api/v1/", "/static/" */
+  const char *uri_prefix_replacement; /* if not NULL, will replace uri_prefix in
+                                         requests to backends */
+  const char *host_port;              /* Backend address */
+  int redirect;                       /* if true redirect instead of proxy */
+  int usage_counter; /* Number of times this backend was chosen */
 };
 
 static const char *s_error_500 = "HTTP/1.1 500 Failed\r\n";
@@ -26,7 +27,7 @@ static const char *s_http_port = "8000";
 static struct http_backend s_http_backends[100];
 static int s_num_http_backends = 0;
 static int s_sig_num = 0;
-static FILE* s_log_file = NULL;
+static FILE *s_log_file = NULL;
 #ifdef NS_ENABLE_SSL
 const char *s_ssl_cert = NULL;
 #endif
@@ -75,8 +76,7 @@ static void choose_backend(struct ns_connection *nc) {
     int i, chosen = -1;
     struct ns_str vhost = *ns_get_http_header(&hm, "host");
     const char *vhost_end = vhost.p;
-    while(vhost_end < vhost.p + vhost.len &&
-          *vhost_end != ':') {
+    while (vhost_end < vhost.p + vhost.len && *vhost_end != ':') {
       vhost_end++;
     }
     vhost.len = vhost_end - vhost.p;
@@ -84,17 +84,16 @@ static void choose_backend(struct ns_connection *nc) {
     for (i = 0; i < s_num_http_backends; i++) {
       if (has_prefix(&hm.uri, s_http_backends[i].uri_prefix) &&
           matches_vhost(&vhost, s_http_backends[i].vhost) &&
-          (chosen == -1 || s_http_backends[i].usage_counter <
-           s_http_backends[chosen].usage_counter)) {
+          (chosen == -1 ||
+           s_http_backends[i].usage_counter <
+               s_http_backends[chosen].usage_counter)) {
         chosen = i;
       }
     }
 
     if (s_log_file != NULL) {
-      fprintf(s_log_file, "%.*s %.*s backend=%d\n",
-              (int) hm.method.len, hm.method.p,
-              (int) hm.uri.len, hm.uri.p,
-              chosen);
+      fprintf(s_log_file, "%.*s %.*s backend=%d\n", (int) hm.method.len,
+              hm.method.p, (int) hm.uri.len, hm.uri.p, chosen);
       fflush(s_log_file);
     }
 
@@ -106,8 +105,9 @@ static void choose_backend(struct ns_connection *nc) {
       ns_printf(nc, "HTTP/1.1 302 Found\r\nLocation: %s\r\n\r\n",
                 s_http_backends[chosen].host_port);
       nc->flags |= NSF_SEND_AND_CLOSE;
-    } else if ((nc->proto_data = ns_connect(nc->mgr,
-               s_http_backends[chosen].host_port, ev_handler)) == NULL) {
+    } else if ((nc->proto_data = ns_connect(
+                    nc->mgr, s_http_backends[chosen].host_port, ev_handler)) ==
+               NULL) {
       /* Connection to backend failed */
       ns_printf(nc, "%s%s%s\r\n", s_error_500, s_content_len_0,
                 s_connection_close);
@@ -119,7 +119,7 @@ static void choose_backend(struct ns_connection *nc) {
        */
       ((struct ns_connection *) nc->proto_data)->proto_data = nc;
       ((struct ns_connection *) nc->proto_data)->user_data =
-        (void *) (long) chosen;
+          (void *) (long) chosen;
       nc->user_data = NEED_TO_PATCH_RESPONSE;
       s_http_backends[chosen].usage_counter++;
       /* Write the request line. */
@@ -131,11 +131,10 @@ static void choose_backend(struct ns_connection *nc) {
          */
         trim_len = strlen(s_http_backends[chosen].uri_prefix);
         /* Write rewritten request line. */
-        ns_printf(nc->proto_data, "%.*s%s%.*s\r\n",
-            (int) (hm.uri.p - io->buf), io->buf,
-            s_http_backends[chosen].uri_prefix_replacement,
-            (int) (hm.proto.p + hm.proto.len - (hm.uri.p + trim_len)),
-            hm.uri.p + trim_len);
+        ns_printf(nc->proto_data, "%.*s%s%.*s\r\n", (int) (hm.uri.p - io->buf),
+                  io->buf, s_http_backends[chosen].uri_prefix_replacement,
+                  (int) (hm.proto.p + hm.proto.len - (hm.uri.p + trim_len)),
+                  hm.uri.p + trim_len);
       } else {
         ns_printf(nc->proto_data, "%.*s\r\n",
                   (int) (hm.proto.p - io->buf + hm.proto.len), io->buf);
@@ -158,7 +157,8 @@ static void choose_backend(struct ns_connection *nc) {
   }
 }
 
-static void patch_response(struct ns_connection *nc, struct ns_connection *peer) {
+static void patch_response(struct ns_connection *nc,
+                           struct ns_connection *peer) {
   struct http_message hm;
   struct iobuf *io = &nc->recv_iobuf;
   int req_len = ns_parse_http(io->buf, io->len, &hm);
@@ -170,17 +170,17 @@ static void patch_response(struct ns_connection *nc, struct ns_connection *peer)
   } else if (req_len == 0) {
     /* Do nothing, request is not yet fully buffered */
   } else {
-    ns_printf(peer, "%.*s\r\n",
-              (int) (hm.proto.p - io->buf + hm.proto.len), io->buf);
+    ns_printf(peer, "%.*s\r\n", (int) (hm.proto.p - io->buf + hm.proto.len),
+              io->buf);
     /* Write Connection header and filter it out from initial request. */
     ns_printf(peer, s_connection_close);
     for (i = 0; i < NS_MAX_HTTP_HEADERS && hm.header_names[i].len > 0; i++) {
       if (ns_vcasecmp(&hm.header_names[i], "connection") == 0) {
         continue;
       }
-      ns_printf(peer, "%.*s: %.*s\r\n",
-                (int) hm.header_names[i].len, hm.header_names[i].p,
-                (int) hm.header_values[i].len, hm.header_values[i].p);
+      ns_printf(peer, "%.*s: %.*s\r\n", (int) hm.header_names[i].len,
+                hm.header_names[i].p, (int) hm.header_values[i].len,
+                hm.header_values[i].p);
     }
     ns_printf(peer, "\r\n");
     /* Write the rest of the data. */
@@ -200,7 +200,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case NS_CONNECT:
-      if (* (int *) ev_data != 0) {
+      if (*(int *) ev_data != 0) {
         /* TODO(lsm): mark backend as defunct, try it later on */
         fprintf(stderr, "connect(%s) failed\n",
                 s_http_backends[(int) nc->user_data].host_port);
@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
       mgr.hexdump_file = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
-      s_log_file = fopen(argv[i+1], "a");
+      s_log_file = fopen(argv[i + 1], "a");
       if (s_log_file == NULL) {
         perror("fopen");
         exit(EXIT_FAILURE);
@@ -273,15 +273,16 @@ int main(int argc, char *argv[]) {
       backend->redirect = redirect;
       if ((r = strchr(backend->uri_prefix, '=')) != NULL) {
         *r = '\0';
-        backend->uri_prefix_replacement = r+1;
+        backend->uri_prefix_replacement = r + 1;
       }
-      printf("Adding backend %d for %s%s : %s "
-             "[redirect=%d,prefix_replacement=%s]\n", s_num_http_backends,
-             backend->vhost == NULL ? "" : backend->vhost, backend->uri_prefix,
-             backend->host_port, backend->redirect,
-             backend->uri_prefix_replacement == NULL ?
-               backend->uri_prefix :
-               backend->uri_prefix_replacement);
+      printf(
+          "Adding backend %d for %s%s : %s "
+          "[redirect=%d,prefix_replacement=%s]\n",
+          s_num_http_backends, backend->vhost == NULL ? "" : backend->vhost,
+          backend->uri_prefix, backend->host_port, backend->redirect,
+          backend->uri_prefix_replacement == NULL
+              ? backend->uri_prefix
+              : backend->uri_prefix_replacement);
       vhost = NULL;
       redirect = 0;
       s_num_http_backends++;
@@ -310,11 +311,13 @@ int main(int argc, char *argv[]) {
 #endif
 
   if (s_num_http_backends == 0) {
-    fprintf(stderr, "Usage: %s [-D debug_dump_file] [-p http_port] [-l log] "
+    fprintf(stderr,
+            "Usage: %s [-D debug_dump_file] [-p http_port] [-l log] "
 #if NS_ENABLE_SSL
             "[-s ssl_cert] "
 #endif
-            "<[-r] [-v vhost] -b uri_prefix[=replacement] host_port> ... \n", argv[0]);
+            "<[-r] [-v vhost] -b uri_prefix[=replacement] host_port> ... \n",
+            argv[0]);
     exit(EXIT_FAILURE);
   }
 

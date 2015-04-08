@@ -44,11 +44,12 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
         } else if (is_equal(&hm->method, &s_delele_method)) {
           db_op(nc, hm, &key, s_db_handle, API_OP_DEL);
         } else {
-          ns_printf(nc, "%s", "HTTP/1.0 501 Not Implemented\r\n"
+          ns_printf(nc, "%s",
+                    "HTTP/1.0 501 Not Implemented\r\n"
                     "Content-Length: 0\r\n\r\n");
         }
       } else {
-        ns_serve_http(nc, hm, s_http_server_opts);  /* Serve static content */
+        ns_serve_http(nc, hm, s_http_server_opts); /* Serve static content */
       }
       break;
     default:

@@ -25,17 +25,17 @@ void blink(int times, int ms) {
 }
 
 extern unsigned int __heap_start;
-extern void *__brkval;
+extern void* __brkval;
 
 struct __freelist {
   size_t sz;
-  struct __freelist *nx;
+  struct __freelist* nx;
 };
 
-extern struct __freelist *__flp;
+extern struct __freelist* __flp;
 
 int get_freelistsize() {
-  struct __freelist *current;
+  struct __freelist* current;
   int total = 0;
   for (current = __flp; current; current = current->nx) {
     total += 2;

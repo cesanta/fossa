@@ -44,10 +44,10 @@ int get_freememsize();
 #endif
 
 #endif /* NS_AVRDEBUG_HEADER_INCLUDED */
-       /*
-        * Copyright (c) 2015 Cesanta Software Limited
-        * All rights reserved
-        */
+/*
+ * Copyright (c) 2015 Cesanta Software Limited
+ * All rights reserved
+ */
 
 #ifndef AVRLIBC_COMPAT_HEADER_INCLUDED
 #define AVRLIBC_COMPAT_HEADER_INCLUDED
@@ -87,10 +87,13 @@ char* strerror(int errnum);
 /* Time declaration & functions */
 typedef unsigned long time_t;
 
+#ifndef TIMEVAL
 struct timeval {
-  long tv_sec;
-  long tv_usec;
+  uint32_t tv_sec;
+  uint32_t tv_usec;
 };
+#define TIMEVAL
+#endif
 
 time_t time(time_t* timer);
 
@@ -117,6 +120,8 @@ time_t time(time_t* timer);
 
 #ifndef W5100_SOCKETS_HEADER_INCLUDED
 #define W5100_SOCKETS_HEADER_INCLUDED
+
+#define W5100
 
 #ifdef __cplusplus
 extern "C" {

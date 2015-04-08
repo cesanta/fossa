@@ -10,6 +10,7 @@
   See http://arduino.cc/en/Reference/Ethernet for documentation on the
   Arduino Ethernet library and its server interface.
 
+  Adapted for use with fossa network library be Cesanta (www.cesanta.com)
 */
 /**************************************************************************/
 #include "Adafruit_CC3000_Server.h"
@@ -228,7 +229,7 @@ void Adafruit_CC3000_Server::begin() {
                        // 'short' in one example, and 'char' in two others.
                        // 'char' seems as likely work, and has no endianess
                        // issue
-  if (setsockopt(soc, SOL_SOCKET, SOCKOPT_ACCEPT_NONBLOCK, &arg, sizeof(arg)) <
+  if (cc3k_setsockopt(soc, SOL_SOCKET, SOCKOPT_ACCEPT_NONBLOCK, &arg, sizeof(arg)) <
       0) {
     CC3K_PRINTLN_F("Couldn't set socket as non-blocking!");
     return;

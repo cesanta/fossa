@@ -12,6 +12,8 @@
 #ifndef W5100_SOCKETS_HEADER_INCLUDED
 #define W5100_SOCKETS_HEADER_INCLUDED
 
+#define W5100
+
 #ifdef __cplusplus
 extern "C" {
 #endif

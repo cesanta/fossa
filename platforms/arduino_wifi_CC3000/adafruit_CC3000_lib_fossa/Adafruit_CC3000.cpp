@@ -7,6 +7,8 @@
   This is a library for the Adafruit CC3000 WiFi breakout board
   This library works with the Adafruit CC3000 breakout
   ----> https://www.adafruit.com/products/1469
+ 
+  Adapted for use with fossa network library be Cesanta (www.cesanta.com)
 
   Check out the links above for our tutorials and wiring diagrams
   These chips use SPI to communicate.
@@ -1142,7 +1144,7 @@ uint16_t Adafruit_CC3000::getHostByName(char *hostname, uint32_t *ip) {
   if (!cc3000Bitset.test(CC3000BitSet::IsConnected)) return 0;
   if (!cc3000Bitset.test(CC3000BitSet::HasDHCP)) return 0;
 
-  int16_t r = gethostbyname(hostname, strlen(hostname), ip);
+  int16_t r = cc3k_gethostbyname(hostname, strlen(hostname), ip);
   // if (CC3KPrinter != 0) { CC3KPrinter->print("Errno: ");
   // CC3KPrinter->println(r); }
   return r;
@@ -1178,7 +1180,7 @@ bool Adafruit_CC3000::checkDHCP(void) {
   // for people without any need to add to their sketch.
   if (cc3000Bitset.test(CC3000BitSet::HasDHCP)) {
     uint32_t output;
-    gethostbyname("localhost", 9, &output);
+    cc3k_gethostbyname("localhost", 9, &output);
   }
   return cc3000Bitset.test(CC3000BitSet::HasDHCP);
 }
@@ -1353,7 +1355,7 @@ int Adafruit_CC3000_Client::connect(const char *host, uint16_t port) {
 
   uint32_t ip = 0;
 
-  int16_t r = gethostbyname(host, strlen(host), &ip);
+  int16_t r = cc3k_gethostbyname(host, strlen(host), &ip);
 
   if (ip != 0 && r != 0)
     return connect(ip, port);
@@ -1578,7 +1580,7 @@ int Adafruit_CC3000_Client::available(void) {
   timeout.tv_sec = 0;
   timeout.tv_usec = 5000;  // 5 millisec
 
-  int16_t s = select(_socket + 1, &fd_read, NULL, NULL, &timeout);
+  int16_t s = cc3k_select(_socket + 1, &fd_read, NULL, NULL, &timeout);
   // if (CC3KPrinter != 0) } CC3KPrinter->print(F("Select: "));
   // CC3KPrinter->println(s); }
   if (s == 1)

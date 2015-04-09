@@ -1075,23 +1075,36 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 static void resolve_cb(struct ns_dns_message *msg, void *data) {
   struct ns_connection *nc = (struct ns_connection *) data;
 
-  if (msg == NULL || msg->answers[0].rtype != NS_DNS_A_RECORD) {
-    int failure = -1;
-    ns_call(nc, NS_CONNECT, &failure);
-    ns_call(nc, NS_CLOSE, NULL);
-    ns_destroy_conn(nc);
-  } else {
-    static struct ns_add_sock_opts opts;
-    /*
-     * Async resolver guarantees that there is at least one answer.
-     * TODO(lsm): handle IPv6 answers too
-     */
+  if (msg != NULL) { 
+		/*
+		 * Take the first DNS A answer and run...
+		 */
+		int i=0;
+		for(i=0; i<msg->num_answers; i++ )
+		{
+			if(msg->answers[i].rtype==NS_DNS_A_RECORD) {
+				static struct ns_add_sock_opts opts;
+				/*
+				 * Async resolver guarantees that there is at least one answer.
+				 * TODO(lsm): handle IPv6 answers too
+				 */
+				ns_dns_parse_record_data(msg, &msg->answers[i], &nc->sa.sin.sin_addr, 4);
+				/* ns_finish_connect() triggers NS_CONNECT on failure */
+				ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
+						&nc->sa, opts);
+				return;
+			}
+		}
+	}	
 
-    ns_dns_parse_record_data(msg, &msg->answers[0], &nc->sa.sin.sin_addr, 4);
-    /* ns_finish_connect() triggers NS_CONNECT on failure */
-    ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
-                      &nc->sa, opts);
-  }
+	/*
+	 * If we get there was no NS_DNS_A_RECORD in the answer
+	 */
+	int failure = -1;
+	ns_call(nc, NS_CONNECT, &failure);
+	ns_call(nc, NS_CLOSE, NULL);
+	ns_destroy_conn(nc);
+
 }
 
 /*
@@ -1171,6 +1184,7 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   nc->flags |= opts.flags;
   nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : 0;
   nc->user_data = opts.user_data;
+
 
   if (rc == 0) {
     /*
@@ -1903,7 +1917,7 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 
-enum http_proto_data_type { DATA_FILE, DATA_PUT, DATA_CGI };
+enum http_proto_data_type { DATA_FILE, DATA_PUT, DATA_CGI, DATA_FILE_DOWNLOAD };
 
 struct proto_data_http {
   FILE *fp;     /* Opened file. */
@@ -2444,6 +2458,19 @@ static void transfer_file_data(struct ns_connection *nc) {
     if (n == 0 || dp->sent >= dp->cl) {
       free_http_proto_data(nc);
     }
+  } else if (dp->type == DATA_FILE_DOWNLOAD) {
+    struct iobuf *io = &nc->recv_iobuf;
+    size_t to_write =
+        left <= 0 ? 0 : left < (int64_t) io->len ? (size_t) left : io->len;
+
+    size_t n = fwrite(io->buf, 1, to_write, dp->fp);
+    if (n > 0) {
+      iobuf_remove(io, n);
+      dp->sent += n;
+    }
+    if (dp->sent >= dp->cl) {
+      free_http_proto_data(nc);
+    }
   } else if (dp->type == DATA_CGI) {
     /* This is POST data that needs to be forwarded to the CGI process */
     if (dp->cgi_nc != NULL) {
@@ -2454,11 +2481,32 @@ static void transfer_file_data(struct ns_connection *nc) {
   }
 }
 
+static void http_download_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  struct iobuf *io = &nc->recv_iobuf;
+  struct ns_str *vec;
+  int res_len;
+	struct proto_data_http *dp;
+
+ 	if (nc->proto_data != NULL )
+	{
+		dp = (struct proto_data_http *)nc->proto_data;
+		transfer_file_data(nc);
+
+		if(nc->proto_data==NULL) {
+			nc->handler(nc, NS_CLOSE, NULL);
+		}
+	}
+
+  nc->handler(nc, ev, ev_data);
+	
+}
+
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct iobuf *io = &nc->recv_iobuf;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
+  struct proto_data_http *dp=NULL;
 
   /*
    * For HTTP messages without Content-Length, always send HTTP message
@@ -2473,7 +2521,10 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 
   if (nc->proto_data != NULL) {
-    transfer_file_data(nc);
+    dp = (struct proto_data_http *)nc->proto_data;
+    if(dp->cl>0) {
+			transfer_file_data(nc);
+		}
   }
 
   nc->handler(nc, ev, ev_data);
@@ -2484,6 +2535,11 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
       /* Do nothing, request is not yet fully buffered */
+    } else if (nc->listener == NULL && dp!=NULL && dp->type==DATA_FILE_DOWNLOAD ) {
+      iobuf_remove(io, req_len);
+      dp->cl = hm.message.len - req_len;
+      nc->proto_handler = http_download_handler;
+      http_download_handler(nc, NS_RECV, ev_data);
     } else if (nc->listener == NULL &&
                ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
       /* We're websocket client, got handshake response from server. */
@@ -2514,6 +2570,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       iobuf_remove(io, hm.message.len);
     }
+
   }
 }
 
@@ -4241,7 +4298,8 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       ns_event_handler_t ev_handler,
                                       const char *url,
                                       const char *extra_headers,
-                                      const char *post_data) {
+                                      const char *post_data,
+                                      const char *save_to_file) {
   struct ns_connection *nc;
   char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
@@ -4265,7 +4323,25 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
-    ns_set_protocol_http_websocket(nc);
+		if( save_to_file ) {
+			struct proto_data_http *dp;
+
+			if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
+				fprintf(stderr,"TODO: HANDLE THIS horrible error!\n");
+			} else if ((dp->fp = fopen(save_to_file, "wp")) == NULL) {
+				fprintf(stderr,"TODO: HANDLE THIS horrible error!\n");
+				NS_FREE(dp);
+				nc->proto_data = NULL;
+			} else {
+				dp->type = DATA_FILE_DOWNLOAD;
+				dp->cl = -1;
+				dp->sent = 0;
+				dp->cgi_nc = NULL;
+				nc->proto_data = dp;
+			}
+		}
+
+		ns_set_protocol_http_websocket(nc);
 
     if (use_ssl) {
 #ifdef NS_ENABLE_SSL

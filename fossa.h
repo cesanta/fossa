@@ -669,7 +669,8 @@ int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *auth_domain, const char *user,
                                       const char *passwd);
 struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
-                                      const char *, const char *, const char *);
+                                      const char *, const char *, const char *,
+                                      const char *);
 
 /*
  * This structure defines how `ns_serve_http()` works.

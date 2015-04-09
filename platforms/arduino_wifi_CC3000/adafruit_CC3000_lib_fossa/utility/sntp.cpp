@@ -1,6 +1,6 @@
-//
-//
-//
+/*
+ * Adapted for use with fossa network library be Cesanta (www.cesanta.com)
+ */
 
 #include "sntp.h"
 
@@ -447,7 +447,7 @@ char sntp::GetNTPServerList(const char** ntp_pool_list, uint32_t* addrBuffer,
       }
 #endif
 
-      gethostbyname(*ntpPoolName, strlen(*ntpPoolName), &ntpServer);
+      cc3k_gethostbyname(*ntpPoolName, strlen(*ntpPoolName), &ntpServer);
 
 #ifdef CLOCK_DEBUG
       if (CC3KPrinter != 0) {
@@ -523,7 +523,7 @@ bool sntp::SNTP_GetTime(int sntpSocket, uint32_t* ntpServerAddr) {
     }
 #endif
 
-    setsockopt(sntpSocket, SOL_SOCKET, SOCKOPT_RECV_TIMEOUT, &recvTimeout,
+    cc3k_setsockopt(sntpSocket, SOL_SOCKET, SOCKOPT_RECV_TIMEOUT, &recvTimeout,
                (socklen_t) sizeof(recvTimeout));
     sockLen = sizeof(sockaddr_in);
     byteCount = recvfrom(sntpSocket, &sntp_message, sizeof(SNTP_Message_t), 0,

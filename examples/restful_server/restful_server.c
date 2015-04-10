@@ -32,6 +32,11 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_HTTP_REQUEST:
       if (ns_vcmp(&hm->uri, "/api/v1/sum") == 0) {
         handle_sum_call(nc, hm);                    /* Handle RESTful call */
+      } else if (ns_vcmp(&hm->uri, "/printcontent") == 0) {
+        char buf[100] = {0};
+        memcpy(buf, hm->body.p, 
+               sizeof(buf) - 1 < hm->body.len? sizeof(buf) - 1 : hm->body.len);
+        printf("%s\n", buf);
       } else {
         ns_serve_http(nc, hm, s_http_server_opts);  /* Serve static content */
       }

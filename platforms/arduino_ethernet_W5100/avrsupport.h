@@ -121,7 +121,7 @@ time_t time(time_t* timer);
 #ifndef W5100_SOCKETS_HEADER_INCLUDED
 #define W5100_SOCKETS_HEADER_INCLUDED
 
-#define W5100
+#define ETHERNET_W5100
 
 #ifdef __cplusplus
 extern "C" {

@@ -10,13 +10,14 @@
  *     - /fossa/fossa.c
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.h
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
- *  2. Make board_ip variable suitable for your network
+ *  2. Make board_ip and board_mac variables suitable for your network and board
  *  3. Uncomment line #include <Ethernet.h>
  *  4. Compile & flash sketch
  *  5. Run curl http://<board_ip/blink
  *     LED attached to PIN 13 will blink and board free memory size and uptime will responsed
  *
  * To run with Adafruit WiFi (CC3000) shield:
+ * -----------------------------------------------------------
  *  1. Add (Sketch->Add files...) the following files to sketch:
  *     - /fossa/fossa.h
  *     - /fossa/fossa.c
@@ -38,28 +39,38 @@
  *     LED attached to PIN 13 will blink and board free memory size and uptime will responsed
  *
  */
- 
+
 //#include <Ethernet.h>
 //#include <Adafruit_CC3000.h>
 #include <SPI.h>
 #include "fossa.h"
 
-uint8_t board_mac[] = {
+// CHANGE THESE VARIABLES
+// NB: Devices with the same address must not end up on the same network.
+// Use MAC address provided by device manufacturer (e.g. on a sticker).
+// If there isn't one, use a random one from the locally administered range.
+// See http://en.wikipedia.org/wiki/MAC_address for details.
+static uint8_t board_mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 
-uint8_t board_ip[] = {192, 168, 10, 8};
-uint8_t subnet_mask[] = {255, 255, 255, 0};
-uint8_t gateway[] = {192, 168, 10, 254};
-uint8_t dns[] = {192, 168, 10, 254};
+static uint8_t board_ip[] = {192, 168, 10, 8};
 
-const char *wlan_ssid = "mynetwork";     
-const char *wlan_pwd = "mypassword";
-int wlan_security = WLAN_SEC_WPA2;
+#ifdef WIFI_CC3000
+static uint8_t subnet_mask[] = {255, 255, 255, 0};
+static uint8_t gateway[] = {192, 168, 10, 254};
+static uint8_t dns_ip[] = {192, 168, 10, 254};
+
+static const char *wlan_ssid = "mynetwork";     
+static const char *wlan_pwd = "mypassword";
+static int wlan_security = WLAN_SEC_WPA2;
+#endif
+
+///////////////////////////////////////////////
 
 static const char *s_http_port = "60000";
 
-uint32_t IP2U32(uint8_t* iparr) {
+static uint32_t IP2U32(uint8_t* iparr) {
   return ((uint32_t)iparr[0] << 24) | ((uint32_t)iparr[1] << 16) | (iparr[2] << 8) | (iparr[3]);
 }
 
@@ -95,17 +106,17 @@ static void rfs_ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-struct ns_connection *nc;
-struct ns_mgr mgr;
+static struct ns_connection *nc;
+static struct ns_mgr mgr;
 
 void setup() {
   Serial.begin(9600);
   Serial.println("Initialization...");
-#if defined(W5100)
+#if defined(ETHERNET_W5100)
   avr_netinit(board_mac, board_ip);
-#elif defined(CC3000)
+#elif defined(WIFI_CC3000)
   if (avr_netinit(wlan_ssid, wlan_pwd, wlan_security, IP2U32(board_ip), 
-              IP2U32(subnet_mask), IP2U32(gateway), IP2U32(dns)) != 0) {
+              IP2U32(subnet_mask), IP2U32(gateway), IP2U32(dns_ip)) != 0) {
     Serial.println("Initialization error, check network settings");
     return;
   };

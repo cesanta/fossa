@@ -25,7 +25,7 @@ Adafruit_CC3000 cc3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ,
 
 int check_dhcp() {
   time_t finish_time = millis() + DHCP_TIMEOUT * 1000;
-  while(!cc3000.checkDHCP() && millis() < finish_time) {
+  while (!cc3000.checkDHCP() && millis() < finish_time) {
     delay(100);
     yield();
   }
@@ -46,10 +46,9 @@ int avr_netinit(const char* wlan_ssid, const char* wlan_pwd, int wlan_security,
     return -1;
   }
 
-  if(!check_dhcp()) {
+  if (!check_dhcp()) {
     return -1;
   }
-
 
   uint32_t current_ip = 0, current_subnet_mask = 0, current_gw = 0,
            currend_dhcp = 0, current_dns = 0;
@@ -66,13 +65,13 @@ int avr_netinit(const char* wlan_ssid, const char* wlan_pwd, int wlan_security,
     }
 
     /* Waiting while new address is really assigned */
-    if(!check_dhcp()) {
+    if (!check_dhcp()) {
       return -1;
     }
   }
 
-  if (netapp_timeout_values(&aucDHCP, &aucARP, &aucKeepalive, 
-                            &aucInactivity) != 0) {
+  if (netapp_timeout_values(&aucDHCP, &aucARP, &aucKeepalive, &aucInactivity) !=
+      0) {
     return -1;
   }
 

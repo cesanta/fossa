@@ -2268,6 +2268,41 @@ static const char *test_dns_resolve_hosts(void) {
   return NULL;
 }
 
+static void ehb_srv(struct ns_connection *nc, int ev, void *p) {
+  struct iobuf *io = &nc->recv_iobuf;
+  (void) io;
+  (void) p;
+
+  if (ev == NS_RECV) {
+    if (*(int *) p == 1) (*(int *) nc->mgr->user_data)++;
+    iobuf_remove(io, *(int *) p);
+  }
+}
+
+static const char *test_buffer_limit(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *clnt, *srv;
+  const char *address = "tcp://127.0.0.1:7878";
+  int res = 0;
+
+  ns_mgr_init(&mgr, &res);
+  ASSERT((srv = ns_bind(&mgr, address, ehb_srv)) != NULL);
+  srv->recv_iobuf_limit = 1;
+  ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
+  ns_printf(clnt, "abcd");
+
+  {
+    int i;
+    for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
+  }
+
+  /* expect four single byte read events */
+  ASSERT(res == 4);
+
+  ns_mgr_free(&mgr);
+  return NULL;
+}
+
 static const char *test_http_parse_header(void) {
   static struct ns_str h = NS_STR(
       "xx=1 kl yy, ert=234 kl=123, "
@@ -2698,6 +2733,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_dns_resolve);
   RUN_TEST(test_dns_resolve_timeout);
   RUN_TEST(test_dns_resolve_hosts);
+  RUN_TEST(test_buffer_limit);
   RUN_TEST(test_connection_errors);
   RUN_TEST(test_connect_fail);
 #ifndef NO_DNS_TEST

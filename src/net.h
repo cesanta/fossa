@@ -89,6 +89,7 @@ struct ns_connection {
 
   sock_t sock;             /* Socket to the remote peer */
   union socket_address sa; /* Remote peer address */
+  size_t recv_iobuf_limit; /* Max size of recv buffer */
   struct iobuf recv_iobuf; /* Received data */
   struct iobuf send_iobuf; /* Data scheduled for sending */
   SSL *ssl;

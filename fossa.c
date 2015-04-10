@@ -490,6 +490,12 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
     conn->last_io_time = time(NULL);
     conn->flags = opts.flags;
     conn->user_data = opts.user_data;
+    /*
+     * SIZE_MAX is defined as a long long constant in
+     * system headers on some platforms and so it
+     * doesn't compile with pedantic ansi flags.
+     */
+    conn->recv_iobuf_limit = ~0;
   }
 
   return conn;
@@ -710,6 +716,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
     c->proto_data = ls->proto_data;
     c->proto_handler = ls->proto_handler;
     c->user_data = ls->user_data;
+    c->recv_iobuf_limit = ls->recv_iobuf_limit;
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
   }
@@ -725,6 +732,13 @@ static int ns_is_error(int n) {
                     WSAGetLastError() != WSAEWOULDBLOCK
 #endif
                     );
+}
+
+static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
+  size_t avail;
+  if (conn->recv_iobuf_limit < conn->recv_iobuf.len) return 0;
+  avail = conn->recv_iobuf_limit - conn->recv_iobuf.len;
+  return avail > max ? max : avail;
 }
 
 static void ns_read_from_socket(struct ns_connection *conn) {
@@ -790,7 +804,8 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = (int) recv(conn->sock, buf, sizeof(buf), 0)) > 0) {
+    while ((n = (int) recv(conn->sock, buf, recv_avail_size(conn, sizeof(buf)),
+                           0)) > 0) {
       DBG(("%p %lu <- %d bytes (PLAIN)", conn, conn->flags, n));
       iobuf_append(&conn->recv_iobuf, buf, n);
       ns_call(conn, NS_RECV, &n);
@@ -925,8 +940,16 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
       continue;
     }
 
-    if (!(nc->flags & NSF_WANT_WRITE)) {
-      /*DBG(("%p read_set", nc)); */
+    if (!(nc->flags & NSF_WANT_WRITE) &&
+        nc->recv_iobuf.len < nc->recv_iobuf_limit) {
+/*DBG(("%p read_set", nc)); */
+#if 0
+      if (nc->sock == 6) {
+        fprintf(stderr, "ADDING SOCK %d TO READ SET\n", nc->sock);
+        fprintf(stderr, "iobuf len = %lu, limit = %lu\n", nc->recv_iobuf.len,
+                nc->recv_iobuf_limit);
+      }
+#endif
       ns_add_to_set(nc->sock, &read_set, &max_fd);
     }
 

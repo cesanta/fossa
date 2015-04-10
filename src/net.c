@@ -898,6 +898,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
   return nc;
 }
 
+#ifndef NS_DISABLE_RESOLVER
 /*
  * Callback for the async resolver on ns_connect_opt() call.
  * Main task of this function is to trigger NS_CONNECT event with
@@ -925,7 +926,7 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
                       &nc->sa, opts);
   }
 }
-
+#endif
 /*
  * Connect to a remote host.
  *
@@ -1005,6 +1006,7 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   nc->user_data = opts.user_data;
 
   if (rc == 0) {
+#ifndef NS_DISABLE_RESOLVER
     /*
      * DNS resolution is required for host.
      * ns_parse_address() fills port in nc->sa, which we pass to resolve_cb()
@@ -1015,7 +1017,13 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
       ns_destroy_conn(nc);
       return NULL;
     }
+
     return nc;
+#else
+    NS_SET_PTRPTR(opts.error_string, "Resolver is disabled");
+    ns_destroy_conn(nc);
+    return NULL;
+#endif
   } else {
     /* Address is parsed and resolved to IP. proceed with connect() */
     return ns_finish_connect(nc, proto, &nc->sa, add_sock_opts);

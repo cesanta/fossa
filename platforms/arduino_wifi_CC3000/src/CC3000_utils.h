@@ -5,7 +5,7 @@
 #ifndef CC3000UTILS_HEADER_INCLUDED
 #define CC3000UTILS_HEADER_INCLUDED
 
-#define CC3000
+#define WIFI_CC3000
 
 #ifdef __cplusplus
 extern "C" {

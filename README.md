@@ -30,6 +30,7 @@ an open source platform for connecting devices and bringing them online.
    - Websocket client, Websocket server
    - JSON-RPC client, JSON-RPC server
    - MQTT client, MQTT broker
+   - CoAP client, CoAP server
    - DNS client, DNS server, async DNS resolver
 * Tiny static and run-time footprint
 * Source code is both ISO C and ISO C++ compliant

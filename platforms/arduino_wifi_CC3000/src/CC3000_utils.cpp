@@ -75,5 +75,8 @@ int avr_netinit(const char* wlan_ssid, const char* wlan_pwd, int wlan_security,
     return -1;
   }
 
+  /* TODO(alashkin): power fix */
+  delay(5000);
+
   return 0;
 }

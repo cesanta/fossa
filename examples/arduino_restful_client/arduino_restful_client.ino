@@ -13,12 +13,38 @@
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
  *  2. Buils and run in console /Users/alex/Projects/fossa/examples/restful_server example
  *  3. Make board_ip and board_mac variables suitable for your network and board
- *  4. Change IP address in s_target_address variable to IP address of host running restful_server
- *  5. Compile & flash sketch
- *  6. restful_server server will start to show current uptime and free memory size (with 1 second interval) 
+ *  4. Uncomment line #include <Ethernet.h>
+ *  5. Change IP address in s_target_address variable to IP address of host running restful_server
+ *  6. Compile & flash sketch
+ *  7. restful_server server will start to show current uptime and free memory size (with 5 second interval) 
+ *
+ * To run with Adafruit WiFi (CC3000) shield:
+ * -----------------------------------------------------------
+ *  1. Add (Sketch->Add files...) the following files to sketch:
+ *     - /fossa/fossa.h
+ *     - /fossa/fossa.c
+ *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.h
+ *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
+ *  2. Import Adafruit CC3000 library for fossa (select Sketch->Import Library...->Add library... and point 
+ *     /fossa/platforms/arduino_wifi_CC3000/adafruit_CC3000_lib_fossa folder
+ *  3. Buils and run in console /Users/alex/Projects/fossa/examples/restful_server example
+ *  4. Make the following variables suitable for your network
+ *     - board_ip
+ *     - subnet_mask
+ *     - gateway
+ *     - dns 
+ *     - wlan_ssid
+ *     - wlan_pwd
+ *     - wlan_security
+ *  5. Uncomment line #include <Adafruit_CC3000.h>
+ *  6. Compile & flash sketch
+ *  7. restful_server server will start to show current uptime and free memory size (with 5 second interval) *
+ *
  */
+
  
-#include <Ethernet.h>
+//#include <Ethernet.h>
+//#include <Adafruit_CC3000.h>
 #include <SPI.h>
 #include "fossa.h"
 
@@ -31,11 +57,26 @@ static uint8_t board_mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 static uint8_t board_ip[] = {192, 168, 10, 177};
+
+#ifdef WIFI_CC3000
+static uint8_t subnet_mask[] = {255, 255, 255, 0};
+static uint8_t gateway[] = {192, 168, 10, 254};
+static uint8_t dns_ip[] = {192, 168, 10, 254};
+
+static const char *wlan_ssid = "mynetwork";     
+static const char *wlan_pwd = "mypassword";
+static int wlan_security = WLAN_SEC_WPA2;
+#endif
+
 static const char *s_target_address = "192.168.10.3:8000";
 
 /////////////////////////////////////////////
 
 static const char *s_request = "/printcontent";
+
+static uint32_t IP2U32(uint8_t* iparr) {
+  return ((uint32_t)iparr[0] << 24) | ((uint32_t)iparr[1] << 16) | (iparr[2] << 8) | (iparr[3]);
+}
 
 static int get_data_to_send(char* buf, int buf_size) {
   // Adding data to send
@@ -70,9 +111,20 @@ static struct ns_connection *nc;
 
 void setup()
 {
+  Serial.begin(9600);
+  Serial.println("Initialization...");
+#if defined(ETHERNET_W5100)
   avr_netinit(board_mac, board_ip);
+#elif defined(WIFI_CC3000)
+  if (avr_netinit(wlan_ssid, wlan_pwd, wlan_security, IP2U32(board_ip), 
+              IP2U32(subnet_mask), IP2U32(gateway), IP2U32(dns_ip)) != 0) {
+    Serial.println("Initialization error, check network settings");
+    return;
+  };
+#endif
 
   ns_mgr_init(&mgr, NULL);
+  Serial.println("Initialization done");  
 }
 
 void loop() {
@@ -81,7 +133,9 @@ void loop() {
     ns_set_protocol_http_websocket(nc);
   }
 
-  ns_mgr_poll(&mgr, 1000);  
-  delay(1000);
+  uint32_t time_to_finish = millis() + 5000;
+  while (millis() < time_to_finish) {
+    ns_mgr_poll(&mgr, 1000);  
+  }
 }
 

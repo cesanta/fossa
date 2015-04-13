@@ -85,6 +85,10 @@ static void choose_backend(struct ns_connection *nc) {
       if (has_prefix(&hm.uri, s_http_backends[i].uri_prefix) &&
           matches_vhost(&vhost, s_http_backends[i].vhost) &&
           (chosen == -1 ||
+           /* Prefer most specific URI prefixes */
+           strlen(s_http_backends[i].uri_prefix) >
+               strlen(s_http_backends[chosen].uri_prefix) ||
+           /* Prefer least used backends  */
            s_http_backends[i].usage_counter <
                s_http_backends[chosen].usage_counter)) {
         chosen = i;

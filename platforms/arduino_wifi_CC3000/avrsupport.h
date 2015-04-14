@@ -44,10 +44,10 @@ int get_freememsize();
 #endif
 
 #endif /* NS_AVRDEBUG_HEADER_INCLUDED */
-/*
- * Copyright (c) 2015 Cesanta Software Limited
- * All rights reserved
- */
+       /*
+        * Copyright (c) 2015 Cesanta Software Limited
+        * All rights reserved
+        */
 
 #ifndef AVRLIBC_COMPAT_HEADER_INCLUDED
 #define AVRLIBC_COMPAT_HEADER_INCLUDED

@@ -52,6 +52,16 @@ static int matches_vhost(const struct ns_str *host, const char *vhost) {
   return host->len == vhost_len && memcmp(host->p, vhost, vhost_len) == 0;
 }
 
+static void write_log(const char *fmt, ...) {
+  va_list ap;
+  if (s_log_file != NULL) {
+    va_start(ap, fmt);
+    vfprintf(s_log_file, fmt, ap);
+    fflush(s_log_file);
+    va_end(ap);
+  }
+}
+
 /*
  * choose_backend parses incoming HTTP request and routes it to the appropriate
  * backend. It assumes that clients don't do HTTP pipelining, handling only
@@ -87,7 +97,8 @@ static void choose_backend(struct ns_connection *nc) {
           (chosen == -1 ||
            /* Prefer most specific URI prefixes */
            strlen(s_http_backends[i].uri_prefix) >
-               strlen(s_http_backends[chosen].uri_prefix) ||
+               strlen(s_http_backends[chosen].uri_prefix)) &&
+          (chosen == -1 ||
            /* Prefer least used backends  */
            s_http_backends[i].usage_counter <
                s_http_backends[chosen].usage_counter)) {
@@ -95,11 +106,8 @@ static void choose_backend(struct ns_connection *nc) {
       }
     }
 
-    if (s_log_file != NULL) {
-      fprintf(s_log_file, "%.*s %.*s backend=%d\n", (int) hm.method.len,
+    write_log("%.*s %.*s backend=%d\n", (int) hm.method.len,
               hm.method.p, (int) hm.uri.len, hm.uri.p, chosen);
-      fflush(s_log_file);
-    }
 
     if (chosen == -1) {
       /* No backend with given uri_prefix found, bail out */
@@ -113,6 +121,8 @@ static void choose_backend(struct ns_connection *nc) {
                     nc->mgr, s_http_backends[chosen].host_port, ev_handler)) ==
                NULL) {
       /* Connection to backend failed */
+      write_log("Connection to [%s] failed\n",
+                s_http_backends[chosen].host_port);
       ns_printf(nc, "%s%s%s\r\n", s_error_500, s_content_len_0,
                 s_connection_close);
     } else {
@@ -206,8 +216,8 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_CONNECT:
       if (*(int *) ev_data != 0) {
         /* TODO(lsm): mark backend as defunct, try it later on */
-        fprintf(stderr, "connect(%s) failed\n",
-                s_http_backends[(int) nc->user_data].host_port);
+        write_log("connect(%s) failed\n",
+                  s_http_backends[(int) nc->user_data].host_port);
         ns_printf(nc->proto_data, "%s%s%s\r\n", s_error_500, s_content_len_0,
                   s_connection_close);
       }

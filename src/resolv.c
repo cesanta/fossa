@@ -44,9 +44,9 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
 
   if ((err = RegOpenKey(HKEY_LOCAL_MACHINE, key, &hKey)) != ERROR_SUCCESS) {
     fprintf(stderr, "cannot open reg key %s: %d\n", key, err);
-    ret--;
+    ret = -1;
   } else {
-    for (ret--, i = 0;
+    for (ret = -1, i = 0;
          RegEnumKey(hKey, i, subkey, sizeof(subkey)) == ERROR_SUCCESS; i++) {
       DWORD type, len = sizeof(value);
       if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
@@ -58,14 +58,18 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
          * See https://github.com/cesanta/fossa/issues/176
          * The value taken from the registry can be empty, a single
          * IP address, or multiple IP addresses separated by comma.
+         * If it's empty, check the next interface.
          * If it's multiple IP addresses, take the first one.
          */
         char *comma = strchr(value, ',');
+        if (value[0] == '\0') {
+          continue;
+        }
         if (comma != NULL) {
           *comma = '\0';
         }
-        strncpy(name, value, name_len);
-        ret++;
+        snprintf(name, name_len, "udp://%s:53", value);
+        ret = 0;
         RegCloseKey(hSub);
         break;
       }
@@ -77,14 +81,14 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   char line[512];
 
   if ((fp = fopen("/etc/resolv.conf", "r")) == NULL) {
-    ret--;
+    ret = -1;
   } else {
     /* Try to figure out what nameserver to use */
-    for (ret--; fgets(line, sizeof(line), fp) != NULL;) {
+    for (ret = -1; fgets(line, sizeof(line), fp) != NULL;) {
       char buf[256];
       if (sscanf(line, "nameserver %255[^\n]s", buf) == 1) {
         snprintf(name, name_len, "udp://%s:53", buf);
-        ret++;
+        ret = 0;
         break;
       }
     }

@@ -292,6 +292,10 @@ INT32 socket(INT32 domain, INT32 type, INT32 protocol) {
 //*****************************************************************************
 
 INT32 closesocket(INT32 sd) {
+  /* TODO(alashkin): power fix */
+  delay(1000);
+  
+#if 0
   /* 
    * Have to wait until all packets sent
    * TODO(alashkin): backport to adafruit
@@ -301,6 +305,7 @@ INT32 closesocket(INT32 sd) {
     cc3k_int_poll();
     yield();
   }
+#endif
 
   INT32 ret;
   UINT8 *ptr, *args;

@@ -75,7 +75,7 @@ def parse_tag(src, pos):
         return parse_struct(src, pos)
 
 def parse_function(src, pos):
-    m = re.match(r"(NS_INTERNAL|static)?.*?(\w*)\(", src)
+    m = re.match(r"(_INTERNAL|static)?.*?(\w*)\(", src)
     if not m:
         print >>sys.stderr, "cannot parse function decl", src
         return None

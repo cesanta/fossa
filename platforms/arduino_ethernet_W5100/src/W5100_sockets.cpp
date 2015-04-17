@@ -279,7 +279,6 @@ static int W5100_is_socket_in_error(sock_t s) {
     }
     case ssConnecting: {
       if (time(NULL) - sock->connect_start > W5100_CONNECT_TIMEOUT) {
-        sock->status = ssReady;
         return 1;
       }
     }
@@ -488,16 +487,20 @@ int connect(sock_t s, const struct sockaddr* name, int namelen) {
   sock->status = ssConnecting;
   sock->connect_start = time(NULL);
 
-  errno = 0;
+  if (W5100_is_connect_complete(s)) {
+    return 0;
+  }
 
-  return 0;
+  errno = EWOULDBLOCK;
+  return SOCKET_ERROR;
 }
 
 int closesocket(sock_t s) {
   W5100_sock_t* sock = (W5100_sock_t*) s;
 
   if (sock->status == ssSending) {
-    while (W5100_is_send_complete(sock) == 0) {
+    while (W5100_is_send_complete(sock) == 0 &&
+           W5100_is_socket_in_error(s) == 0) {
       yield();
     }
   }

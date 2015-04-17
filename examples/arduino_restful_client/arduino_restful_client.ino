@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2015 Cesanta Software Limited
  * All rights reserved
@@ -10,11 +11,12 @@
  *     - /fossa/fossa.c
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.h
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
- *  2. Make board_ip and board_mac variables suitable for your network and board
- *  3. Uncomment line #include <Ethernet.h>
- *  4. Compile & flash sketch
- *  5. Run curl http://<board_ip/blink
- *     LED attached to PIN 13 will blink and board free memory size and uptime will responsed
+ *  2. Buils and run in console /Users/alex/Projects/fossa/examples/restful_server example
+ *  3. Make board_ip and board_mac variables suitable for your network and board
+ *  4. Uncomment line #include <Ethernet.h>
+ *  5. Change IP address in s_target_address variable to IP address of host running restful_server
+ *  6. Compile & flash sketch
+ *  7. restful_server server will start to show current uptime and free memory size (with 5 second interval) 
  *
  * To run with Adafruit WiFi (CC3000) shield:
  * -----------------------------------------------------------
@@ -25,7 +27,8 @@
  *     - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
  *  2. Import Adafruit CC3000 library for fossa (select Sketch->Import Library...->Add library... and point 
  *     /fossa/platforms/arduino_wifi_CC3000/adafruit_CC3000_lib_fossa folder
- *  3. Make the following variables suitable for your network
+ *  3. Buils and run in console /Users/alex/Projects/fossa/examples/restful_server example
+ *  4. Make the following variables suitable for your network
  *     - board_ip
  *     - subnet_mask
  *     - gateway
@@ -34,12 +37,12 @@
  *     - wlan_pwd
  *     - wlan_security
  *  5. Uncomment line #include <Adafruit_CC3000.h>
- *  4. Compile & flash sketch
- *  5. Run curl http://<board_ip/blink
- *     LED attached to PIN 13 will blink and board free memory size and uptime will responsed
+ *  6. Compile & flash sketch
+ *  7. restful_server server will start to show current uptime and free memory size (with 5 second interval) *
  *
  */
 
+ 
 //#include <Ethernet.h>
 //#include <Adafruit_CC3000.h>
 #include <SPI.h>
@@ -53,8 +56,7 @@
 static uint8_t board_mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
-
-static uint8_t board_ip[] = {192, 168, 10, 8};
+static uint8_t board_ip[] = {192, 168, 10, 177};
 
 #ifdef WIFI_CC3000
 static uint8_t subnet_mask[] = {255, 255, 255, 0};
@@ -66,50 +68,49 @@ static const char *wlan_pwd = "mypassword";
 static int wlan_security = WLAN_SEC_WPA2;
 #endif
 
-///////////////////////////////////////////////
+static const char *s_target_address = "192.168.10.3:8000";
 
-static const char *s_http_port = "60000";
+/////////////////////////////////////////////
+
+static const char *s_request = "/printcontent";
 
 static uint32_t IP2U32(uint8_t* iparr) {
   return ((uint32_t)iparr[0] << 24) | ((uint32_t)iparr[1] << 16) | (iparr[2] << 8) | (iparr[3]);
 }
 
-static void rfs_ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct http_message *hm = (struct http_message *) ev_data;
-  char buf[100];
-  int clen;
+static int get_data_to_send(char* buf, int buf_size) {
+  // Adding data to send
+  // It could be any sensor data, now just put uptime & free memory size here
+  return snprintf(buf, buf_size, "Uptime: %lus Free memory: %db",
+                  millis()/1000, get_freememsize());
+}
+static void rfc_ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  int connect_status;
 
   switch (ev) {
-    case NS_HTTP_REQUEST:      
-      if (ns_vcmp(&hm->uri, "/blink") == 0) {
-        blink(1, 500);
+    case NS_CONNECT:
+      connect_status = * (int *) ev_data;
+
+      if (connect_status == 0) {
+        char buf[100];
+        int len = get_data_to_send(buf, sizeof(buf));
+        ns_printf(nc, "POST %s HTTP/1.0\r\nHost: %s\r\nContent-Lenght: %d"
+                  "\r\n\r\n%s", s_request, s_target_address, len, buf);
+        nc->flags |= NSF_SEND_AND_CLOSE;
+      } else {
+        nc->flags |= NSF_CLOSE_IMMEDIATELY;
       }
-
-      clen = snprintf(buf, sizeof(buf),
-                      "Free memory size: %d Uptime: %d",
-                      (int)get_freememsize(), (int)time(NULL));
-
-      ns_printf_http_chunk(nc, "HTTP/1.1 200 OK\r\n"
-                               "Content-Length: %d\r\n"
-                               "Transfer-Encoding: chunked\r\n\r\n"
-                               "%s",
-                               clen, buf);
-
-      ns_send_http_chunk(nc, "", 0);
       break;
-    case NS_SEND:
-      nc->flags |= NSF_CLOSE_IMMEDIATELY;
-      break;
-      
     default:
       break;
   }
 }
 
-static struct ns_connection *nc;
 static struct ns_mgr mgr;
+static struct ns_connection *nc;
 
-void setup() {
+void setup()
+{
   Serial.begin(9600);
   Serial.println("Initialization...");
 #if defined(ETHERNET_W5100)
@@ -123,11 +124,18 @@ void setup() {
 #endif
 
   ns_mgr_init(&mgr, NULL);
-  nc = ns_bind(&mgr, s_http_port, rfs_ev_handler);
-  ns_set_protocol_http_websocket(nc);
-  Serial.println("Initialization done");
+  Serial.println("Initialization done");  
 }
 
 void loop() {
-  ns_mgr_poll(&mgr, 1000);
+  nc = ns_connect(&mgr, s_target_address, rfc_ev_handler);
+  if (nc != NULL) {
+    ns_set_protocol_http_websocket(nc);
+  }
+
+  uint32_t time_to_finish = millis() + 5000;
+  while (millis() < time_to_finish) {
+    ns_mgr_poll(&mgr, 1000);  
+  }
 }
+

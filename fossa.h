@@ -670,7 +670,7 @@ int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *auth_domain, const char *user,
                                       const char *passwd);
 struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
-                                      const char *, const char *, const char *);
+                                      const char *, const char *, const char *, const char *);
 
 /*
  * This structure defines how `ns_serve_http()` works.
@@ -1175,6 +1175,10 @@ int ns_resolve_from_hosts_file(const char *host, union socket_address *usa);
 #ifndef MD5_HEADER_DEFINED
 #define MD5_HEADER_DEFINED
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 typedef struct MD5Context {
   uint32_t buf[4];
   uint32_t bits[2];
@@ -1184,6 +1188,9 @@ typedef struct MD5Context {
 void MD5_Init(MD5_CTX *c);
 void MD5_Update(MD5_CTX *c, const unsigned char *data, size_t len);
 void MD5_Final(unsigned char *md, MD5_CTX *c);
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif
 /*

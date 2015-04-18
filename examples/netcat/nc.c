@@ -30,12 +30,12 @@ static void signal_handler(int sig_num) {
 static void show_usage_and_exit(const char *prog_name) {
   fprintf(stderr, "%s\n", "Copyright (c) 2014 CESANTA SOFTWARE");
   fprintf(stderr, "%s\n", "Usage:");
-  fprintf(stderr, "  %s\n [-d debug_file] [-l] [tcp|ssl]://[ip:]port[:cert][:ca_cert]",
+  fprintf(stderr, "  %s [-d debug_file] [-l] [tcp|ssl]://[ip:]port[:cert][:ca_cert]\n",
           prog_name);
   fprintf(stderr, "%s\n", "Examples:");
-  fprintf(stderr, "  %s\n -d hexdump.txt ssl://google.com:443", prog_name);
-  fprintf(stderr, "  %s\n -l ssl://443:ssl_cert.pem", prog_name);
-  fprintf(stderr, "  %s\n -l tcp://8080", prog_name);
+  fprintf(stderr, "  %s -d hexdump.txt ssl://google.com:443\n", prog_name);
+  fprintf(stderr, "  %s -l ssl://443:ssl_cert.pem\n", prog_name);
+  fprintf(stderr, "  %s -l tcp://8080\n\n", prog_name);
   exit(EXIT_FAILURE);
 }
 

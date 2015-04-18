@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  ns_connect_http(&mgr, ev_handler, argv[i], NULL, NULL);
+  ns_connect_http(&mgr, ev_handler, argv[i], NULL, NULL, NULL);
 
   while (s_exit_flag == 0) {
     ns_mgr_poll(&mgr, 1000);

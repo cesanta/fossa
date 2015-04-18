@@ -2502,17 +2502,17 @@ static void transfer_file_data(struct ns_connection *nc) {
 }
 
 static void http_download_handler(struct ns_connection *nc, int ev, void *ev_data) {
- 	if (nc->proto_data != NULL )
-	{
-		transfer_file_data(nc);
+  if (nc->proto_data != NULL )
+  {
+    transfer_file_data(nc);
 
-		if(nc->proto_data==NULL) {
-			nc->handler(nc, NS_CLOSE, NULL);
-		}
-	}
+    if(nc->proto_data==NULL) {
+      nc->handler(nc, NS_CLOSE, NULL);
+    }
+  }
 
   nc->handler(nc, ev, ev_data);
-	
+  
 }
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
@@ -2536,8 +2536,8 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   if (nc->proto_data != NULL) {
     dp = (struct proto_data_http *)nc->proto_data;
     if(dp->cl>0) {
-			transfer_file_data(nc);
-		}
+      transfer_file_data(nc);
+    }
   }
 
   nc->handler(nc, ev, ev_data);
@@ -2548,16 +2548,16 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
       /* Do nothing, request is not yet fully buffered */
-		} else if (nc->listener == NULL && dp!=NULL && dp->type==DATA_FILE_DOWNLOAD ) {
-			/* OK we got the header and switch to a special file download handler */
-			dp->cl = hm.message.len - req_len;
-			nc->proto_handler = http_download_handler;
-			nc->handler(nc, NS_HTTP_REPLY, &hm);
-			iobuf_remove(io, req_len);
-			http_download_handler(nc, NS_RECV, ev_data);
-		} else if (nc->listener == NULL &&
-				       ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
-			/* We're websocket client, got handshake response from server. */
+    } else if (nc->listener == NULL && dp!=NULL && dp->type==DATA_FILE_DOWNLOAD ) {
+      /* OK we got the header and switch to a special file download handler */
+      dp->cl = hm.message.len - req_len;
+      nc->proto_handler = http_download_handler;
+      nc->handler(nc, NS_HTTP_REPLY, &hm);
+      iobuf_remove(io, req_len);
+      http_download_handler(nc, NS_RECV, ev_data);
+    } else if (nc->listener == NULL &&
+               ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
+      /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
       iobuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
@@ -4317,7 +4317,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       const char *url,
                                       const char *extra_headers,
                                       const char *post_data,
-																			const char *save_to_file ) {
+                                      const char *save_to_file ) {
   struct ns_connection *nc;
   char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
@@ -4341,25 +4341,25 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
-		if( save_to_file ) {
-			struct proto_data_http *dp;
+    if( save_to_file ) {
+      struct proto_data_http *dp;
 
-			if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
-				fprintf(stderr,"TODO: HANDLE THIS horrible error!\n");
-				return NULL;
-			} else if ((dp->fp = fopen(save_to_file, "wp")) == NULL) {
-				fprintf(stderr,"ERROR: cannot open %s for writing\n",save_to_file);
-				NS_FREE(dp);
-				nc->proto_data = NULL;
-				return NULL;
-			} else {
-				dp->type = DATA_FILE_DOWNLOAD;
-				dp->cl = -1;
-				dp->sent = 0;
-				dp->cgi_nc = NULL;
-				nc->proto_data = dp;
-			}
-		}
+      if ((dp = (struct proto_data_http *) NS_CALLOC(1, sizeof(*dp))) == NULL) {
+        fprintf(stderr,"TODO: HANDLE THIS horrible error!\n");
+        return NULL;
+      } else if ((dp->fp = fopen(save_to_file, "wp")) == NULL) {
+        fprintf(stderr,"ERROR: cannot open %s for writing\n",save_to_file);
+        NS_FREE(dp);
+        nc->proto_data = NULL;
+        return NULL;
+      } else {
+        dp->type = DATA_FILE_DOWNLOAD;
+        dp->cl = -1;
+        dp->sent = 0;
+        dp->cgi_nc = NULL;
+        nc->proto_data = dp;
+      }
+    }
 
     ns_set_protocol_http_websocket(nc);
 

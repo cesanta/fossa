@@ -6,6 +6,10 @@
 #ifndef MD5_HEADER_DEFINED
 #define MD5_HEADER_DEFINED
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 typedef struct MD5Context {
   uint32_t buf[4];
   uint32_t bits[2];
@@ -15,5 +19,8 @@ typedef struct MD5Context {
 void MD5_Init(MD5_CTX *c);
 void MD5_Update(MD5_CTX *c, const unsigned char *data, size_t len);
 void MD5_Final(unsigned char *md, MD5_CTX *c);
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

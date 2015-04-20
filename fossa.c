@@ -6372,7 +6372,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     /* Try to figure out what nameserver to use */
     for (ret = -1; fgets(line, sizeof(line), fp) != NULL;) {
       char buf[256];
-      if (sscanf(line, "nameserver %255[^\n\t #]s", buf) == 1) {
+      if (sscanf(line, "nameserver %255[^\n]s", buf) == 1) {
         snprintf(name, name_len, "udp://%s:53", buf);
         ret = 0;
         break;

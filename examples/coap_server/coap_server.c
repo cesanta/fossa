@@ -69,5 +69,4 @@ int main() {
   printf("Exiting on signal %d\n", s_sig_received);
 
   ns_mgr_free(&mgr);
-  return 0;
 }

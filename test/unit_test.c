@@ -58,6 +58,7 @@
 static int static_num_tests = 0;
 static const char *s_argv_0 = NULL;
 static struct ns_serve_http_opts s_http_server_opts;
+static int s_exit = 0;
 
 #define TEST_NS_MALLOC malloc
 #define TEST_NS_CALLOC calloc
@@ -679,6 +680,40 @@ static void cb_auth_ok(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void cb_file_download(struct ns_connection *nc, int ev, void *ev_data) {
+  static int last_recv=0;
+  const int TIMEOUT=10;
+
+  switch (ev) {
+    case NS_POLL:
+      if(time(0)-last_recv > TIMEOUT) {
+        fprintf(stderr,"\nTIMEOUT!\n");
+        nc->flags |= NSF_CLOSE_IMMEDIATELY;
+        s_exit=1;
+      }
+      break;
+
+    case NS_CONNECT:
+      if (* (int *) ev_data != 0) {
+        s_exit=1;
+      }
+      last_recv = time(0);
+      break;
+
+    case NS_RECV:
+      last_recv = time(0);
+      break;
+
+    case NS_CLOSE:
+      s_exit=1;
+      nc->flags |= NSF_CLOSE_IMMEDIATELY;
+      break;
+
+    default:
+      break;
+  }
+}
+
 static void fetch_http(char *buf, const char *request_fmt, ...) {
   static int listening_port = 23456;
   struct ns_mgr mgr;
@@ -702,7 +737,7 @@ static void fetch_http(char *buf, const char *request_fmt, ...) {
 
   /* Run event loop, destroy server */
   buf[0] = '\0';
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 100);
   ns_mgr_free(&mgr);
 }
 
@@ -712,7 +747,7 @@ static const char *test_http(void) {
   const char *this_binary, *local_addr = "127.0.0.1:7777";
   char buf[20] = "", status[100] = "", mime1[20] = "", mime2[100] = "",
        auth_fail[20] = "";
-  char auth_ok[20] = "", auth_hdr[200] = "", url[1000];
+  char auth_ok[20] = "", auth_hdr[200] = "", url[1000], output_file[1000];
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
@@ -720,7 +755,7 @@ static const char *test_http(void) {
 
   /* Valid HTTP request. Pass test buffer to the callback. */
   ASSERT((nc = ns_connect_http(&mgr, cb2, "http://127.0.0.1:7777/foo", NULL,
-                               "0123456789")) != NULL);
+                               "0123456789",NULL)) != NULL);
   nc->user_data = buf;
 
   /* Invalid HTTP request */
@@ -743,17 +778,17 @@ static const char *test_http(void) {
 
   /* Test mime type for static file */
   snprintf(url, sizeof(url), "http://%s/data/dummy.xml", local_addr);
-  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
+  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL, NULL)) != NULL);
   nc->user_data = mime1;
 
   /* Test custom mime type for static file */
   snprintf(url, sizeof(url), "http://%s/data/range.txt", local_addr);
-  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
+  ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL, NULL)) != NULL);
   nc->user_data = mime2;
 
   /* Test digest authorization popup */
   snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
-  ASSERT((nc = ns_connect_http(&mgr, cb_auth_fail, url, NULL, NULL)) != NULL);
+  ASSERT((nc = ns_connect_http(&mgr, cb_auth_fail, url, NULL, NULL, NULL)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_fail;
 
@@ -762,13 +797,29 @@ static const char *test_http(void) {
   ns_http_create_digest_auth_header(auth_hdr, sizeof(auth_hdr), "GET",
                                     "/data/auth/a.txt", "foo.com", "joe",
                                     "doe");
-  ASSERT((nc = ns_connect_http(&mgr, cb_auth_ok, url, auth_hdr, NULL)) != NULL);
+  ASSERT((nc = ns_connect_http(&mgr, cb_auth_ok, url, auth_hdr, NULL, NULL)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_ok;
+  
 
-  /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 250);
+  /* Test static file download by downloading this executable and writing it to file, argv[0] */
+  snprintf(url, sizeof(url), "http://%s/%s", local_addr, this_binary);
+  snprintf(output_file,sizeof(output_file),"somefile");
+  s_exit=0;
+  ASSERT((nc = ns_connect_http(&mgr, cb_file_download, url, NULL, NULL, output_file)) != NULL);
+  
+  poll_mgr(&mgr,250);
+
+  /* Run event loop until file download complete. */
+  while(!s_exit) {
+    poll_mgr(&mgr, 100);
+  }
+
   ns_mgr_free(&mgr);
+
+  size_t size_1 = 0, size_2 = 0; 
+  char *data_1 = read_file(s_argv_0,    &size_1);
+  char *data_2 = read_file(output_file, &size_2);
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
@@ -777,6 +828,11 @@ static const char *test_http(void) {
   ASSERT(strcmp(mime2, "text/plain; charset=windows-1251") == 0);
   ASSERT(strcmp(auth_fail, "401") == 0); /* Must be 401 Unauthorized */
   ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
+  ASSERT(size_1 == size_2);
+  ASSERT(memcmp(data_1,data_2,size_1)==0);
+
+  free(data_1);
+  free(data_2);
 
   return NULL;
 }

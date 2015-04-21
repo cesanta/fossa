@@ -67,4 +67,5 @@ int main(int argc, char* argv[]) {
   }
 
   ns_mgr_free(&mgr);
+	return 0;
 }

@@ -196,6 +196,10 @@ int64_t strtoll(const char* str, char** endptr, int base);
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * === IO Buffers
+ */
+
 #ifndef NS_IOBUF_HEADER_INCLUDED
 #define NS_IOBUF_HEADER_INCLUDED
 
@@ -238,6 +242,16 @@ void iobuf_resize(struct iobuf *, size_t new_size);
  *
  * Alternatively, you can license this software under a commercial
  * license, as set out in <http://cesanta.com/>.
+ */
+
+/*
+ * === Core: TCP/UDP/SSL
+ *
+ * CAUTION: Fossa manager is single threaded. It does not protect
+ * it's data structures by mutexes, therefore all functions that are dealing
+ * with particular event manager should be called from the same thread,
+ * with exception of `mg_broadcast()` function. It is fine to have different
+ * event managers handled by different threads.
  */
 
 #ifndef NS_NET_HEADER_INCLUDED
@@ -513,6 +527,10 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
  * All rights reserved
  */
 
+/*
+ * === Utilities
+ */
+
 #ifndef NS_UTIL_HEADER_DEFINED
 #define NS_UTIL_HEADER_DEFINED
 
@@ -558,6 +576,10 @@ int ns_match_prefix(const char *pattern, int pattern_len, const char *str);
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
+ */
+
+/*
+ * === HTTP/Websocket
  */
 
 #ifndef NS_HTTP_HEADER_DEFINED
@@ -763,6 +785,10 @@ void ns_serve_http(struct ns_connection *, struct http_message *,
  * All rights reserved
  */
 
+/*
+ * === JSON-RPC
+ */
+
 #ifndef NS_JSON_RPC_HEADER_DEFINED
 #define NS_JSON_RPC_HEADER_DEFINED
 
@@ -802,24 +828,67 @@ struct ns_rpc_error {
   struct json_token *error_data;    /* error.data, can be NULL */
 };
 
-int ns_rpc_parse_request(const char *buf, int len, struct ns_rpc_request *req);
-
+/*
+ * Parse JSON-RPC reply contained in `buf`, `len` into JSON tokens array
+ * `toks`, `max_toks`. If buffer contains valid reply, `reply` structure is
+ * populated. The result of RPC call is located in `reply.result`. On error,
+ * `error` structure is populated. Returns: the result of calling
+ * `parse_json(buf, len, toks, max_toks)`.
+ */
 int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
                        int max_toks, struct ns_rpc_reply *,
                        struct ns_rpc_error *);
 
-int ns_rpc_create_request(char *, int, const char *method, const char *id,
+/*
+ * Create JSON-RPC request in a given buffer.
+ *
+ * Return length of the request, which
+ * can be larger then `len` that indicates an overflow.
+ */
+ int ns_rpc_create_request(char *, int, const char *method, const char *id,
                           const char *params_fmt, ...);
 
+/*
+ * Create JSON-RPC reply in a given buffer.
+ *
+ * Return length of the reply, which
+ * can be larger then `len` that indicates an overflow.
+ */
 int ns_rpc_create_reply(char *, int, const struct ns_rpc_request *req,
                         const char *result_fmt, ...);
 
+/*
+ * Create JSON-RPC error reply in a given buffer.
+ *
+ * Return length of the error, which
+ * can be larger then `len` that indicates an overflow.
+ */
 int ns_rpc_create_error(char *, int, struct ns_rpc_request *req, int,
                         const char *, const char *, ...);
 
+/*
+ * Create JSON-RPC error in a given buffer.
+ *
+ * Return length of the error, which
+ * can be larger then `len` that indicates an overflow. `code` could be one of:
+ * `JSON_RPC_PARSE_ERROR`, `JSON_RPC_INVALID_REQUEST_ERROR`,
+ * `JSON_RPC_METHOD_NOT_FOUND_ERROR`, `JSON_RPC_INVALID_PARAMS_ERROR`,
+ * `JSON_RPC_INTERNAL_ERROR`, `JSON_RPC_SERVER_ERROR`.
+ */
 int ns_rpc_create_std_error(char *, int, struct ns_rpc_request *, int code);
 
 typedef int (*ns_rpc_handler_t)(char *buf, int len, struct ns_rpc_request *);
+
+/*
+ * Dispatches a JSON-RPC request.
+ *
+ * Parses JSON-RPC request contained in `buf`, `len`. Then, dispatches the
+ *request
+ * to the correct handler method. Valid method names should be specified in NULL
+ * terminated array `methods`, and corresponding handlers in `handlers`.
+ * Result is put in `dst`, `dst_len`. Return: length of the result, which
+ * can be larger then `dst_len` that indicates an overflow.
+ */
 int ns_rpc_dispatch(const char *buf, int, char *dst, int dst_len,
                     const char **methods, ns_rpc_handler_t *handlers);
 
@@ -842,6 +911,10 @@ int ns_rpc_dispatch(const char *buf, int, char *dst, int dst_len,
  *
  * Alternatively, you can license this software under a commercial
  * license, as set out in <http://cesanta.com/>.
+ */
+
+/*
+ * === MQTT
  */
 
 #ifndef NS_MQTT_HEADER_INCLUDED
@@ -984,6 +1057,10 @@ int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *, struct ns_str *,
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * === MQTT Broker
+ */
+
 #ifndef NS_MQTT_BROKER_HEADER_INCLUDED
 #define NS_MQTT_BROKER_HEADER_INCLUDED
 
@@ -1028,6 +1105,10 @@ struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *,
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
+ */
+
+/*
+ * === DNS
  */
 
 #ifndef NS_DNS_HEADER_DEFINED
@@ -1101,6 +1182,12 @@ void ns_set_protocol_dns(struct ns_connection *);
  * All rights reserved
  */
 
+/*
+ * === DNS server
+ *
+ * Disabled by default; enable with `-DNS_ENABLE_DNS_SERVER`.
+ */
+
 #ifndef NS_DNS_SERVER_HEADER_DEFINED
 #define NS_DNS_SERVER_HEADER_DEFINED
 
@@ -1134,6 +1221,10 @@ int ns_dns_reply_record(struct ns_dns_reply *, struct ns_dns_resource_record *,
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
+ */
+
+/*
+ * === Asynchronouns DNS resolver
  */
 
 #ifndef NS_RESOLV_HEADER_DEFINED
@@ -1208,6 +1299,10 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
  *
  * Alternatively, you can license this software under a commercial
  * license, as set out in <http://cesanta.com/>.
+ */
+
+/*
+ * === CoAP
  */
 
 #ifndef NS_COAP_HEADER_INCLUDED

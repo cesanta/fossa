@@ -73,14 +73,12 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
  */
 
 
-/* Initializes an IO buffer. */
 void iobuf_init(struct iobuf *iobuf, size_t initial_size) {
   iobuf->len = iobuf->size = 0;
   iobuf->buf = NULL;
   iobuf_resize(iobuf, initial_size);
 }
 
-/* Frees the space allocated for the iobuffer and resets the iobuf structure. */
 void iobuf_free(struct iobuf *iobuf) {
   if (iobuf != NULL) {
     NS_FREE(iobuf->buf);
@@ -88,22 +86,10 @@ void iobuf_free(struct iobuf *iobuf) {
   }
 }
 
-/*
- * Appends data to the IO buffer.
- *
- * It returns the amount of bytes appended.
- */
 size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
   return iobuf_insert(io, io->len, buf, len);
 }
 
-/*
- * Inserts data at a specified offset in the IO buffer.
- *
- * Existing data will be shifted forwards and the buffer will
- * be grown if necessary.
- * It returns the amount of bytes inserted.
- */
 size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
@@ -137,7 +123,6 @@ size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   return len;
 }
 
-/* Removes `n` bytes from the beginning of the buffer. */
 void iobuf_remove(struct iobuf *io, size_t n) {
   if (n > 0 && n <= io->len) {
     memmove(io->buf, io->buf + n, io->len - n);
@@ -145,12 +130,6 @@ void iobuf_remove(struct iobuf *io, size_t n) {
   }
 }
 
-/*
- * Resize an IO buffer.
- *
- * If `new_size` is smaller than buffer's `len`, the
- * resize is not performed.
- */
 void iobuf_resize(struct iobuf *io, size_t new_size) {
   char *p;
   if ((new_size > io->size || (new_size < io->size && new_size >= io->len)) &&
@@ -187,6 +166,9 @@ void iobuf_resize(struct iobuf *io, size_t new_size) {
 #define NS_UDP_RECEIVE_BUFFER_SIZE 2000
 #define NS_VPRINTF_BUFFER_SIZE 500
 #define NS_MAX_HOST_LEN 200
+
+#define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
+  memcpy(dst, src, sizeof(*dst));
 
 struct ctl_msg {
   ns_event_handler_t callback;
@@ -271,7 +253,6 @@ static void ns_close_conn(struct ns_connection *conn) {
   ns_destroy_conn(conn);
 }
 
-/* Initializes Fossa manager. */
 void ns_mgr_init(struct ns_mgr *s, void *user_data) {
   memset(s, 0, sizeof(*s));
   s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
@@ -305,11 +286,6 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
 #endif
 }
 
-/*
- * De-initializes fossa manager.
- *
- * Closes and deallocates all active connections.
- */
 void ns_mgr_free(struct ns_mgr *s) {
   struct ns_connection *conn, *tmp_conn;
 
@@ -328,11 +304,6 @@ void ns_mgr_free(struct ns_mgr *s) {
   }
 }
 
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
 int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   char mem[NS_VPRINTF_BUFFER_SIZE], *buf = mem;
   int len;
@@ -347,11 +318,6 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   return len;
 }
 
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
 int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   int len;
   va_list ap;
@@ -372,11 +338,6 @@ static void ns_set_non_blocking_mode(sock_t sock) {
 }
 
 #ifndef NS_DISABLE_SOCKETPAIR
-/*
- * Create a socket pair.
- * `proto` can be either `SOCK_STREAM` or `SOCK_DGRAM`.
- * Return 0 on failure, 1 on success.
- */
 int ns_socketpair(sock_t sp[2], int sock_type) {
   union socket_address sa;
   sock_t sock;
@@ -453,11 +414,6 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
 #endif
 }
 
-/*
- * Converts domain name into IP address.
- *
- * This is a blocking call. Returns 1 on success, 0 on failure.
- */
 int ns_resolve(const char *host, char *buf, size_t n) {
   struct in_addr ad;
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
@@ -837,15 +793,6 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   }
 }
 
-/*
- * Send data to the connection.
- *
- * Number of written bytes is returned. Note that these sending
- * functions do not actually push data to the sockets, they just append data
- * to the output buffer. The exception is UDP connections. For UDP, data is
- * sent immediately, and returned value indicates an actual number of bytes
- * sent to the socket.
- */
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return (int) ns_out(conn, buf, len);
 }
@@ -893,10 +840,6 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   }
 }
 
-/*
- * This function performs the actual IO, and must be called in a loop
- * (an event loop). Returns the current timestamp.
- */
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   struct ns_connection *nc, *tmp;
   struct timeval tv;
@@ -1107,60 +1050,13 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
   ns_destroy_conn(nc);
 }
 #endif
-/*
- * Connect to a remote host.
- *
- * See `ns_connect_opt` for full documentation.
- */
+
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
   static struct ns_connect_opts opts;
   return ns_connect_opt(mgr, address, callback, opts);
 }
 
-/*
- * Connect to a remote host.
- *
- * `address` format is `[PROTO://]HOST:PORT`. `PROTO` could be `tcp` or `udp`.
- * `HOST` could be an IP address,
- * IPv6 address (if Fossa is compiled with `-DNS_ENABLE_IPV6`), or a host name.
- * If `HOST` is a name, Fossa will resolve it asynchronously. Examples of
- * valid addresses: `google.com:80`, `udp://1.2.3.4:53`, `10.0.0.1:443`.
- *
- * See the `ns_connect_opts` structure for a description of the optional
- * parameters.
- *
- * Returns a new outbound connection, or `NULL` on error.
- *
- * NOTE: New connection will receive `NS_CONNECT` as it's first event
- * which will report connect success status.
- * If asynchronous resolution fail, or `connect()` syscall fail for whatever
- * reason (e.g. with `ECONNREFUSED` or `ENETUNREACH`), then `NS_CONNECT`
- * event report failure. Code example below:
- *
- * [source,c]
- * ----
- * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
- *   int connect_status;
- *
- *   switch (ev) {
- *     case NS_CONNECT:
- *       connect_status = * (int *) ev_data;
- *       if (connect_status == 0) {
- *         // Success
- *       } else  {
- *         // Error
- *         printf("connect() error: %s\n", strerror(connect_status));
- *       }
- *       break;
- *     ...
- *   }
- * }
- *
- *   ...
- *   ns_connect(mgr, "my_site.com:80", ev_handler);
- * ----
- */
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {
@@ -1210,33 +1106,12 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   }
 }
 
-/*
- * Create listening connection.
- *
- * See `ns_bind_opt` for full documentation.
- */
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
                               ns_event_handler_t event_handler) {
   static struct ns_bind_opts opts;
   return ns_bind_opt(srv, address, event_handler, opts);
 }
 
-/*
- * Create listening connection.
- *
- * `address` parameter tells which address to bind to. It's format is the same
- * as for the `ns_connect()` call, where `HOST` part is optional. `address`
- * can be just a port number, e.g. `:8000`. To bind to a specific interface,
- * an IP address can be specified, e.g. `1.2.3.4:8000`. By default, a TCP
- * connection is created. To create UDP connection, prepend `udp://` prefix,
- * e.g. `udp://:8000`. To summarize, `address` paramer has following format:
- * `[PROTO://][IP_ADDRESS]:PORT`, where `PROTO` could be `tcp` or `udp`.
- *
- * See the `ns_bind_opts` structure for a description of the optional
- * parameters.
- *
- * Returns a new listening connection, or `NULL` on error.
- */
 struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
                                   ns_event_handler_t callback,
                                   struct ns_bind_opts opts) {
@@ -1274,24 +1149,12 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   return nc;
 }
 
-/*
- * Create a connection, associate it with the given socket and event handler,
- * and add it to the manager.
- *
- * For more options see the `ns_add_sock_opt` variant.
- */
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
                                   ns_event_handler_t callback) {
   static struct ns_add_sock_opts opts;
   return ns_add_sock_opt(s, sock, callback, opts);
 }
 
-/*
- * Create a connection, associate it with the given socket and event handler,
- * and add to the manager.
- *
- * See the `ns_add_sock_opts` structure for a description of the options.
- */
 struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
                                       ns_event_handler_t callback,
                                       struct ns_add_sock_opts opts) {
@@ -1302,39 +1165,21 @@ struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
   return nc;
 }
 
-/*
- * Iterates over all active connections.
- *
- * Returns next connection from the list
- * of active connections, or `NULL` if there is no more connections. Below
- * is the iteration idiom:
- *
- * [source,c]
- * ----
- * for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
- *   // Do something with connection `c`
- * }
- * ----
- */
 struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
-/*
- * Passes a message of a given length to all connections.
- *
- * Must be called from a different thread.
- *
- * Fossa manager has a socketpair, `struct ns_mgr::ctl`,
- * where `ns_broadcast()` pushes the message.
- * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
- * specified callback for each connection. Thus the callback function executes
- * in event manager thread. Note that `ns_broadcast()` is the only function
- * that can be, and must be, called from a different thread.
- */
 void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
                   size_t len) {
   struct ctl_msg ctl_msg;
+
+  /*
+   * Fossa manager has a socketpair, `struct ns_mgr::ctl`,
+   * where `ns_broadcast()` pushes the message.
+   * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
+   * specified callback for each connection. Thus the callback function executes
+   * in event manager thread.
+   */
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
     ctl_msg.callback = cb;
@@ -1365,26 +1210,6 @@ static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
   return len;
 }
 
-/*
- * Verify given IP address against the ACL.
- *
- * `remote_ip` - an IPv4 address to check, in host byte order
- * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
- * Each subnet is
- * prepended by either a - or a + sign. A plus sign means allow, where a
- * minus sign means deny. If a subnet mask is omitted, such as `-1.2.3.4`,
- * this means to deny only that single IP address.
- * Subnet masks may vary from 0 to 32, inclusive. The default setting
- * is to allow all accesses. On each request the full list is traversed,
- * and the last match wins. Example:
- *
- * `-0.0.0.0/0,+192.168/16` - deny all acccesses, only allow 192.168/16 subnet
- *
- * To learn more about subnet masks, see the
- * link:https://en.wikipedia.org/wiki/Subnetwork[Wikipedia page on Subnetwork]
- *
- * Return -1 if ACL is malformed, 0 if address is disallowed, 1 if allowed.
- */
 int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
   int allowed, flag;
   uint32_t net, mask;
@@ -2089,11 +1914,6 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
   return s;
 }
 
-/* Parses a HTTP message.
- *
- * Return number of bytes parsed. If HTTP message is
- * incomplete, `0` is returned. On parse error, negative number is returned.
- */
 int ns_parse_http(const char *s, int n, struct http_message *req) {
   const char *end, *qs;
   int len = get_request_len(s, n);
@@ -2150,7 +1970,6 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
   return len;
 }
 
-/* Returns HTTP header if it is present in the HTTP message, or `NULL`. */
 struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   size_t i, len = strlen(name);
 
@@ -2291,19 +2110,6 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
   ns_send(nc, header, header_len);
 }
 
-/*
- * Send websocket frame to the remote end.
- *
- * `op` specifies frame's type , one of:
- *
- * - WEBSOCKET_OP_CONTINUE
- * - WEBSOCKET_OP_TEXT
- * - WEBSOCKET_OP_BINARY
- * - WEBSOCKET_OP_CLOSE
- * - WEBSOCKET_OP_PING
- * - WEBSOCKET_OP_PONG
- * `data` and `data_len` contain frame data.
- */
 void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
                              size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -2314,11 +2120,6 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
   }
 }
 
-/*
- * Send multiple websocket frames.
- *
- * Like `ns_send_websocket_frame()`, but composes a frame from multiple buffers.
- */
 void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
@@ -2338,12 +2139,6 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 }
 
-/*
- * Send websocket frame to the remote end.
- *
- * Like `ns_send_websocket_frame()`, but allows to create formatted message
- * with `printf()`-like semantics.
- */
 void ns_printf_websocket_frame(struct ns_connection *nc, int op,
                                const char *fmt, ...) {
   char mem[4192], *buf = mem;
@@ -2533,33 +2328,10 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-/*
- * Attach built-in HTTP event handler to the given connection.
- * User-defined event handler will receive following extra events:
- *
- * - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
- *   `struct http_message` through the handler's `void *ev_data` pointer.
- * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
- *   `struct http_message` through the handler's `void *ev_data` pointer.
- * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
- *   request. `ev_data` contains parsed HTTP request.
- * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
- *   `ev_data` is `NULL`.
- * - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
- *   `struct websocket_message *`
- */
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
 
-/*
- * Sends websocket handshake to the server.
- *
- * `nc` must be a valid connection, connected to a server `uri` is an URI
- * to fetch, extra_headers` is extra HTTP headers to send or `NULL`.
- *
- * This function is intended to be used by websocket client.
- */
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
   unsigned long random = (unsigned long) uri;
@@ -2893,14 +2665,6 @@ static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
   return i >= src_len ? j : -1;
 }
 
-/*
- * Fetch an HTTP form variable.
- *
- * Fetch a variable `name` from a `buf` into a buffer specified by
- * `dst`, `dst_len`. Destination is always zero-terminated. Return length
- * of a fetched variable. If not found, 0 is returned. `buf` must be
- * valid url-encoded buffer. If destination is too small, `-1` is returned.
- */
 int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
                     size_t dst_len) {
   const char *p, *e, *s;
@@ -2938,24 +2702,6 @@ int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
   return len;
 }
 
-/*
- * Send buffer `buf` of size `len` to the client using chunked HTTP encoding.
- * This function first sends buffer size as hex number + newline, then
- * buffer itself, then newline. For example,
- *   `ns_send_http_chunk(nc, "foo", 3)` whill append `3\r\nfoo\r\n` string to
- * the `nc->send_iobuf` output IO buffer.
- *
- * NOTE: HTTP header "Transfer-Encoding: chunked" should be sent prior to
- * using this function.
- *
- * NOTE: do not forget to send empty chunk at the end of the response,
- * to tell the client that everything was sent. Example:
- *
- * ```
- *   ns_printf_http_chunk(nc, "%s", "my response!");
- *   ns_send_http_chunk(nc, "", 0); // Tell the client we're finished
- * ```
- */
 void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   char chunk_size[50];
   int n;
@@ -2966,10 +2712,6 @@ void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   ns_send(nc, "\r\n", 2);
 }
 
-/*
- * Send printf-formatted HTTP chunk.
- * Functionality is similar to `ns_send_http_chunk()`.
- */
 void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
   char mem[500], *buf = mem;
   int len;
@@ -3112,9 +2854,6 @@ static void mkmd5resp(const char *method, size_t method_len, const char *uri,
          colon, one, ha2, sizeof(ha2) - 1, NULL);
 }
 
-/*
- * Create Digest authentication header for client request.
- */
 int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *method, const char *uri,
                                       const char *auth_domain, const char *user,
@@ -4194,29 +3933,6 @@ void ns_send_http_file(struct ns_connection *nc, char *path,
   }
 }
 
-/*
- * Serve given HTTP request according to the `options`.
- *
- * Example code snippet:
- *
- * [source,c]
- * .web_server.c
- * ----
- * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
- *   struct http_message *hm = (struct http_message *) ev_data;
- *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99
- *syntax
- *
- *   switch (ev) {
- *     case NS_HTTP_REQUEST:
- *       ns_serve_http(nc, hm, opts);
- *       break;
- *     default:
- *       break;
- *   }
- * }
- * ----
- */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
@@ -4238,21 +3954,6 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
 
 #endif /* NS_DISABLE_FILESYSTEM */
 
-/*
- * Helper function that creates outbound HTTP connection.
- *
- * If `post_data` is NULL, then GET request is created. Otherwise, POST request
- * is created with the specified POST data. Examples:
- *
- * [source,c]
- * ----
- *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL,
- *                         NULL);
- *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL, NULL);
- *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
- *                         NULL, "var_1=value_1&var_2=value_2");
- * ----
- */
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       ns_event_handler_t ev_handler,
                                       const char *url,
@@ -4448,14 +4149,6 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
  */
 
 
-/*
- * Fetches substring from input string `s`, `end` into `v`.
- * Skips initial delimiter characters. Records first non-delimiter character
- * as the beginning of substring `v`. Then scans the rest of the string
- * until a delimiter character or end-of-string is found.
- *
- * do_not_export_to_docs
- */
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {
   v->p = s;
@@ -4469,9 +4162,6 @@ static int lowercase(const char *s) {
   return tolower(*(const unsigned char *) s);
 }
 
-/*
- * Cross-platform version of `strncasecmp()`.
- */
 int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   int diff = 0;
 
@@ -4482,17 +4172,10 @@ int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   return diff;
 }
 
-/*
- * Cross-platform version of `strcasecmp()`.
- */
 int ns_casecmp(const char *s1, const char *s2) {
   return ns_ncasecmp(s1, s2, (size_t) ~0);
 }
 
-/*
- * Cross-platform version of `strncasecmp()` where first string is
- * specified by `struct ns_str`.
- */
 int ns_vcasecmp(const struct ns_str *str1, const char *str2) {
   size_t n2 = strlen(str2), n1 = str1->len;
   int r = ns_ncasecmp(str1->p, str2, (n1 < n2) ? n1 : n2);
@@ -4502,10 +4185,6 @@ int ns_vcasecmp(const struct ns_str *str1, const char *str2) {
   return r;
 }
 
-/*
- * Cross-platform version of `strcmp()` where where first string is
- * specified by `struct ns_str`.
- */
 int ns_vcmp(const struct ns_str *str1, const char *str2) {
   size_t n2 = strlen(str2), n1 = str1->len;
   int r = memcmp(str1->p, str2, (n1 < n2) ? n1 : n2);
@@ -4541,13 +4220,6 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 #endif /* _WIN32 */
 
 #ifndef NS_DISABLE_FILESYSTEM
-/*
- * Perform a 64-bit `stat()` call against given file.
- *
- * `path` should be UTF8 encoded.
- *
- * Return value is the same as for `stat()` syscall.
- */
 int ns_stat(const char *path, ns_stat_t *st) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -4559,13 +4231,6 @@ int ns_stat(const char *path, ns_stat_t *st) {
 #endif
 }
 
-/*
- * Open the given file and return a file stream.
- *
- * `path` and `mode` should be UTF8 encoded.
- *
- * Return value is the same as for the `fopen()` call.
- */
 FILE *ns_fopen(const char *path, const char *mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE], wmode[10];
@@ -4577,13 +4242,6 @@ FILE *ns_fopen(const char *path, const char *mode) {
 #endif
 }
 
-/*
- * Open the given file and return a file stream.
- *
- * `path` should be UTF8 encoded.
- *
- * Return value is the same as for the `open()` syscall.
- */
 int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -4595,11 +4253,6 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 }
 #endif
 
-/*
- * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
- * Destination has to have enough space to hold encoded buffer.
- * Destination is '\0'-terminated.
- */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -4665,30 +4318,26 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-/*
- * Decodes base64-encoded string `s`, `len` into the destination `dst`.
- * Destination has to have enough space to hold decoded buffer.
- * Destination is '\0'-terminated.
- */
-void ns_base64_decode(const unsigned char *s, int len, char *dst) {
+int ns_base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
+  int orig_len = len;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
          (b = from_b64(s[1])) != 255 && (c = from_b64(s[2])) != 255 &&
          (d = from_b64(s[3])) != 255) {
+    s += 4;
+    len -= 4;
     if (a == 200 || b == 200) break; /* '=' can't be there */
     *dst++ = a << 2 | b >> 4;
     if (c == 200) break;
     *dst++ = b << 4 | c >> 2;
     if (d == 200) break;
     *dst++ = c << 6 | d;
-    s += 4;
-    len -= 4;
   }
   *dst = 0;
+  return orig_len - len;
 }
 
 #ifdef NS_ENABLE_THREADS
-/* Starts a new thread. */
 void *ns_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
   return (void *) _beginthread((void(__cdecl *) (void *) ) f, 0, p);
@@ -4720,15 +4369,6 @@ void ns_set_close_on_exec(sock_t sock) {
 #endif
 }
 
-/*
- * Converts socket's local or remote address into string.
- *
- * The `flags` parameter is a bit mask that controls the behavior.
- * If bit 2 is set (`flags & 4`) then the remote address is stringified,
- * otherwise local address is stringified. If bit 0 is set, then IP
- * address is printed. If bit 1 is set, then port number is printed. If both
- * port number and IP address are printed, they are separated by `:`.
- */
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
@@ -4762,12 +4402,6 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   }
 }
 
-/*
- * Generates hexdump of memory chunk.
- *
- * Takes a memory buffer `buf` of length `len` and creates a hex dump of that
- * buffer in `dst`.
- */
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
   const unsigned char *p = (const unsigned char *) buf;
   char ascii[17] = "";
@@ -4790,11 +4424,6 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
   return n;
 }
 
-/*
- * Print message to buffer. If buffer is large enough to hold the message,
- * return buffer. If buffer is to small, allocate large enough buffer on heap,
- * and return allocated buffer.
- */
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
@@ -4862,20 +4491,12 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 }
 #endif
 
-/* TODO(mkm) use compiletime check with 4-byte char literal */
 int ns_is_big_endian(void) {
   static const int n = 1;
+  /* TODO(mkm) use compiletime check with 4-byte char literal */
   return ((char *) &n)[0] == 0;
 }
 
-/*
- * A helper function for traversing a comma separated list of values.
- * It returns a list pointer shifted to the next value, or NULL if the end
- * of the list found.
- * Value is stored in val vector. If value has form "x=y", then eq_val
- * vector is initialized to point to the "y" part, and val vector length
- * is adjusted to point only to "x".
- */
 const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
                                      struct ns_str *eq_val) {
   if (list == NULL || *list == '\0') {
@@ -4909,10 +4530,6 @@ const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
   return list;
 }
 
-/*
- * Match 0-terminated string against a glob pattern.
- * Match is case-insensitive. Return number of bytes matched, or -1 if no match.
- */
 int ns_match_prefix(const char *pattern, int pattern_len, const char *str) {
   const char *or_str;
   int len, res, i = 0, j = 0;
@@ -5214,24 +4831,10 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-/*
- * Attach built-in MQTT event handler to the given connection.
- *
- * The user-defined event handler will receive following extra events:
- *
- * - NS_MQTT_CONNACK
- * - NS_MQTT_PUBLISH
- * - NS_MQTT_PUBACK
- * - NS_MQTT_PUBREC
- * - NS_MQTT_PUBREL
- * - NS_MQTT_PUBCOMP
- * - NS_MQTT_SUBACK
- */
 void ns_set_protocol_mqtt(struct ns_connection *nc) {
   nc->proto_handler = mqtt_handler;
 }
 
-/* Send MQTT handshake. */
 void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   static struct ns_send_mqtt_handshake_opts opts;
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
@@ -5290,7 +4893,6 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
   iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
 }
 
-/* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags, const void *data,
                      size_t len) {
@@ -5310,7 +4912,6 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                          nc->send_iobuf.len - old_len);
 }
 
-/* Subscribe to a bunch of topics. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
@@ -5331,13 +4932,6 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
                          nc->send_iobuf.len - old_len);
 }
 
-/*
- * Extract the next topic expression from a SUBSCRIBE command payload.
- *
- * Topic expression name will point to a string in the payload buffer.
- * Return the pos of the next topic expression or -1 when the list
- * of topics is exhausted.
- */
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
                                  struct ns_str *topic, uint8_t *qos, int pos) {
   unsigned char *buf = (unsigned char *) msg->payload.p + pos;
@@ -5351,7 +4945,6 @@ int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
   return pos + 2 + topic->len + 1;
 }
 
-/* Unsubscribe from a bunch of topics. */
 void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          size_t topics_len, uint16_t message_id) {
   size_t old_len = nc->send_iobuf.len;
@@ -5370,7 +4963,6 @@ void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          nc->send_iobuf.len - old_len);
 }
 
-/* Send a CONNACK command with a given `return_code`. */
 void ns_mqtt_connack(struct ns_connection *nc, uint8_t return_code) {
   uint8_t unused = 0;
   ns_send(nc, &unused, 1);
@@ -5390,30 +4982,22 @@ static void ns_send_mqtt_short_command(struct ns_connection *nc, uint8_t cmd,
   ns_mqtt_prepend_header(nc, cmd, NS_MQTT_QOS(1), 2);
 }
 
-/* Send a PUBACK command with a given `message_id`. */
 void ns_mqtt_puback(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBACK, message_id);
 }
 
-/* Send a PUBREC command with a given `message_id`. */
 void ns_mqtt_pubrec(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREC, message_id);
 }
 
-/* Send a PUBREL command with a given `message_id`. */
 void ns_mqtt_pubrel(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREL, message_id);
 }
 
-/* Send a PUBCOMP command with a given `message_id`. */
 void ns_mqtt_pubcomp(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBCOMP, message_id);
 }
 
-/*
- * Send a SUBACK command with a given `message_id`
- * and a sequence of granted QoSs.
- */
 void ns_mqtt_suback(struct ns_connection *nc, uint8_t *qoss, size_t qoss_len,
                     uint16_t message_id) {
   size_t i;
@@ -5425,22 +5009,18 @@ void ns_mqtt_suback(struct ns_connection *nc, uint8_t *qoss, size_t qoss_len,
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBACK, NS_MQTT_QOS(1), 2 + qoss_len);
 }
 
-/* Send a UNSUBACK command with a given `message_id`. */
 void ns_mqtt_unsuback(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_UNSUBACK, message_id);
 }
 
-/* Send a PINGREQ command. */
 void ns_mqtt_ping(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGREQ, 0, 0);
 }
 
-/* Send a PINGRESP command. */
 void ns_mqtt_pong(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGRESP, 0, 0);
 }
 
-/* Send a DISCONNECT command. */
 void ns_mqtt_disconnect(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_DISCONNECT, 0, 0);
 }
@@ -5493,7 +5073,6 @@ static void ns_mqtt_close_session(struct ns_mqtt_session *s) {
   ns_mqtt_destroy_session(s);
 }
 
-/* Initializes a MQTT broker. */
 void ns_mqtt_broker_init(struct ns_mqtt_broker *brk, void *user_data) {
   brk->sessions = NULL;
   brk->user_data = user_data;
@@ -5581,32 +5160,6 @@ static void ns_mqtt_broker_handle_publish(struct ns_mqtt_broker *brk,
   }
 }
 
-/*
- * Process a MQTT broker message.
- *
- * Listening connection expects a pointer to an initialized `ns_mqtt_broker`
- * structure in the `user_data` field.
- *
- * Basic usage:
- *
- * [source,c]
- * -----
- * ns_mqtt_broker_init(&brk, NULL);
- *
- * if ((nc = ns_bind(&mgr, address, ns_mqtt_broker)) == NULL) {
- *   // fail;
- * }
- * nc->user_data = &brk;
- * -----
- *
- * New incoming connections will receive a `ns_mqtt_session` structure
- * in the connection `user_data`. The original `user_data` will be stored
- * in the `user_data` field of the session structure. This allows the user
- * handler to store user data before `ns_mqtt_broker` creates the session.
- *
- * Since only the NS_ACCEPT message is processed by the listening socket,
- * for most events the `user_data` will thus point to a `ns_mqtt_session`.
- */
 void ns_mqtt_broker(struct ns_connection *nc, int ev, void *data) {
   struct ns_mqtt_message *msg = (struct ns_mqtt_message *) data;
   struct ns_mqtt_broker *brk;
@@ -5638,7 +5191,6 @@ void ns_mqtt_broker(struct ns_connection *nc, int ev, void *data) {
   }
 }
 
-/* Iterates over all mqtt sessions connections. */
 struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
                                      struct ns_mqtt_session *s) {
   return s == NULL ? brk->sessions : s->next;
@@ -5684,17 +5236,6 @@ struct ns_dns_resource_record *ns_dns_next_record(
   return NULL;
 }
 
-/*
- * Parses the record data from a DNS resource record.
- *
- *  - A:     struct in_addr *ina
- *  - AAAA:  struct in6_addr *ina
- *  - CNAME: char buffer
- *
- * Returns -1 on error.
- *
- * TODO(mkm): MX
- */
 int ns_dns_parse_record_data(struct ns_dns_message *msg,
                              struct ns_dns_resource_record *rr, void *data,
                              size_t data_len) {
@@ -5724,11 +5265,6 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
   return -1;
 }
 
-/*
- * Insert a DNS header to an IO buffer.
- *
- * Returns number of bytes inserted.
- */
 int ns_dns_insert_header(struct iobuf *io, size_t pos,
                          struct ns_dns_message *msg) {
   struct ns_dns_header header;
@@ -5742,14 +5278,6 @@ int ns_dns_insert_header(struct iobuf *io, size_t pos,
   return iobuf_insert(io, pos, &header, sizeof(header));
 }
 
-/*
- * Append already encoded body from an existing message.
- *
- * This is useful when generating a DNS reply message which includes
- * all question records.
- *
- * Returns number of appened bytes.
- */
 int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
   return iobuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
                       msg->pkt.len - sizeof(struct ns_dns_header));
@@ -5784,22 +5312,6 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
   return io->len - pos;
 }
 
-/*
- * Encode and append a DNS resource record to an IO buffer.
- *
- * The record metadata is taken from the `rr` parameter, while the name and data
- * are taken from the parameters, encoded in the appropriate format depending on
- * record type, and stored in the IO buffer. The encoded values might contain
- * offsets within the IO buffer. It's thus important that the IO buffer doesn't
- * get trimmed while a sequence of records are encoded while preparing a DNS
- *reply.
- *
- * This function doesn't update the `name` and `rdata` pointers in the `rr`
- *struct
- * because they might be invalidated as soon as the IO buffer grows again.
- *
- * Returns the number of bytes appened or -1 in case of error.
- */
 int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
                          const char *name, size_t nlen, const void *rdata,
                          size_t rlen) {
@@ -5845,9 +5357,6 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
   return io->len - pos;
 }
 
-/*
- * Send a DNS query to the remote end.
- */
 void ns_send_dns_query(struct ns_connection *nc, const char *name,
                        int query_type) {
   struct ns_dns_message msg;
@@ -5930,7 +5439,6 @@ static unsigned char *ns_parse_dns_resource_record(
   return data;
 }
 
-/* Low-level: parses a DNS response. */
 int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   struct ns_dns_header *header = (struct ns_dns_header *) buf;
   unsigned char *data = (unsigned char *) buf + sizeof(*header);
@@ -5960,19 +5468,6 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   return 0;
 }
 
-/*
- * Uncompress a DNS compressed name.
- *
- * The containing dns message is required because the compressed encoding
- * and reference suffixes present elsewhere in the packet.
- *
- * If name is less than `dst_len` characters long, the remainder
- * of `dst` is terminated with `\0' characters. Otherwise, `dst` is not
- *terminated.
- *
- * If `dst_len` is 0 `dst` can be NULL.
- * Returns the uncompressed name length.
- */
 size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
                               char *dst, int dst_len) {
   int chunk_len;
@@ -6053,18 +5548,6 @@ static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-/*
- * Attach built-in DNS event handler to the given listening connection.
- *
- * DNS event handler parses incoming UDP packets, treating them as DNS
- * requests. If incoming packet gets successfully parsed by the DNS event
- * handler, a user event handler will receive `NS_DNS_REQUEST` event, with
- * `ev_data` pointing to the parsed `struct ns_dns_message`.
- *
- * See
- *https://github.com/cesanta/fossa/tree/master/examples/captive_dns_server[captive_dns_server]
- * example on how to handle DNS request and send DNS reply.
- */
 void ns_set_protocol_dns(struct ns_connection *nc) {
   nc->proto_handler = dns_handler;
 }
@@ -6082,35 +5565,6 @@ void ns_set_protocol_dns(struct ns_connection *nc) {
 #ifdef NS_ENABLE_DNS_SERVER
 
 
-/*
- * Creates a DNS reply.
- *
- * The reply will be based on an existing query message `msg`.
- * The query body will be appended to the output buffer.
- * "reply + recusions allowed" will be added to the message flags and
- * message's num_answers will be set to 0.
- *
- * Anwer records can be appended with `ns_dns_send_reply` or by lower
- * level function defined in the DNS API.
- *
- * In order to send the reply use `ns_dns_send_reply`.
- * It's possible to use a connection's send buffer as reply buffers,
- * and it will work for both UDP and TCP connections.
- *
- * Example:
- *
- * [source,c]
- * -----
- * reply = ns_dns_create_reply(&nc->send_iobuf, msg);
- * for (i = 0; i < msg->num_questions; i++) {
- *   rr = &msg->questions[i];
- *   if (rr->rtype == NS_DNS_A_RECORD) {
- *     ns_dns_reply_record(&reply, rr, 3600, &dummy_ip_addr, 4);
- *   }
- * }
- * ns_dns_send_reply(nc, &reply);
- * -----
- */
 struct ns_dns_reply ns_dns_create_reply(struct iobuf *io,
                                         struct ns_dns_message *msg) {
   struct ns_dns_reply rep;
@@ -6126,18 +5580,6 @@ struct ns_dns_reply ns_dns_create_reply(struct iobuf *io,
   return rep;
 }
 
-/*
- * Sends a DNS reply through a connection.
- *
- * The DNS data is stored in an IO buffer pointed by reply structure in `r`.
- * This function mutates the content of that buffer in order to ensure that
- * the DNS header reflects size and flags of the mssage, that might have been
- * updated either with `ns_dns_reply_record` or by direct manipulation of
- * `r->message`.
- *
- * Once sent, the IO buffer will be trimmed unless the reply IO buffer
- * is the connection's send buffer and the connection is not in UDP mode.
- */
 int ns_dns_send_reply(struct ns_connection *nc, struct ns_dns_reply *r) {
   size_t sent = r->io->len - r->start;
   ns_dns_insert_header(r->io, r->start, r->msg);
@@ -6153,14 +5595,6 @@ int ns_dns_send_reply(struct ns_connection *nc, struct ns_dns_reply *r) {
   return sent;
 }
 
-/*
- * Append a DNS reply record to the IO buffer and to the DNS message.
- *
- * The message num_answers field will be incremented. It's caller's duty
- * to ensure num_answers is propertly initialized.
- *
- * Returns -1 on error.
- */
 int ns_dns_reply_record(struct ns_dns_reply *reply,
                         struct ns_dns_resource_record *question,
                         const char *name, int rtype, int ttl, const void *rdata,
@@ -6293,11 +5727,6 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   return ret;
 }
 
-/*
- * Resolve a name from `/etc/hosts`.
- *
- * Returns 0 on success, -1 on failure.
- */
 int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
 #ifndef NS_DISABLE_FILESYSTEM
   /* TODO(mkm) cache /etc/hosts */
@@ -6365,34 +5794,12 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   }
 }
 
-/* See `ns_resolve_async_opt` */
 int ns_resolve_async(struct ns_mgr *mgr, const char *name, int query,
                      ns_resolve_callback_t cb, void *data) {
   static struct ns_resolve_async_opts opts;
   return ns_resolve_async_opt(mgr, name, query, cb, data, opts);
 }
 
-/*
- * Resolved a DNS name asynchronously.
- *
- * Upon successful resolution, the user callback will be invoked
- * with the full DNS response message and a pointer to the user's
- * context `data`.
- *
- * In case of timeout while performing the resolution the callback
- * will receive a NULL `msg`.
- *
- * The DNS answers can be extracted with `ns_next_record` and
- * `ns_dns_parse_record_data`:
- *
- * [source,c]
- * ----
- * struct in_addr ina;
- * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD,
- *NULL);
- * ns_dns_parse_record_data(msg, rr, &ina, sizeof(ina));
- * ----
- */
 int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
                          ns_resolve_callback_t cb, void *data,
                          struct ns_resolve_async_opts opts) {
@@ -6668,22 +6075,6 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
 
 #ifdef NS_ENABLE_COAP
 
-/*
- * CoAP implementation.
- *
- * General CoAP message format:
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- * |Ver| T | TKL | Code | Message ID | Token (if any, TKL bytes) ...
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- * | Options (if any) ...            |1 1 1 1 1 1 1 1| Payload (if any) ...
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- */
-
-
-/*
- * Frees the memory allocated for options,
- * if cm paramater doesn't contain any option does nothing.
- */
 void ns_coap_free_options(struct ns_coap_message *cm) {
   while (cm->options != NULL) {
     struct ns_coap_option *next = cm->options->next;
@@ -6692,10 +6083,6 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
   }
 }
 
-/*
- * Adds new option to ns_coap_message structure.
- * Returns pointer to the newly created option.
- */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                           uint32_t number, char *value,
                                           size_t len) {
@@ -6964,21 +6351,6 @@ static char *coap_get_options(char *ptr, struct iobuf *io,
   return ptr;
 }
 
-/*
- * Parses COAP message and fills ns_coap_message and returns cm->flags.
- *
- * Note: usually CoAP work over UDP, so
- * lack of data means format error,
- * but in theory it is possible to use CoAP over TCP
- * (behind its RFC)
- * Caller have to check results and
- * threat COAP_NOT_ENOUGH_DATA according to
- * underlying protocol:
- * in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR,
- * in case of TCP client can try to recieve more data
- *
- * Helper function.
- */
 uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
   char *ptr;
 
@@ -7128,12 +6500,6 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
   return 0;
 }
 
-/*
- * Composes CoAP message from ns_coap_message structure.
- * Returns 0 on success or bit mask with wrong field.
- *
- * Helper function.
- */
 uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   struct ns_coap_option *opt;
   uint32_t res, prev_opt_number;
@@ -7205,10 +6571,6 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   return 0;
 }
 
-/*
- * Composes CoAP message from ns_coap_message
- * and sends it into 'nc' connection.
- */
 uint32_t ns_coap_send_message(struct ns_connection *nc,
                               struct ns_coap_message *cm) {
   struct iobuf packet_out;
@@ -7235,10 +6597,6 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
   return 0;
 }
 
-/*
- * Composes CoAP acknolegement from ns_coap_message
- * and sends it into 'nc' connection.
- */
 uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id) {
   struct ns_coap_message cm;
   memset(&cm, 0, sizeof(cm));

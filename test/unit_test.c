@@ -1667,6 +1667,12 @@ static const char *test_base64(void) {
 
     ASSERT(strcmp(cases[i], dec) == 0);
   }
+
+  ASSERT(ns_base64_decode((unsigned char *) "кю", 4, dec) == 0);
+  ASSERT(ns_base64_decode((unsigned char *) "AAAA----", 8, dec) == 4);
+  ASSERT(ns_base64_decode((unsigned char *) "Q2VzYW50YQ==", 12, dec) == 12);
+  ASSERT(strcmp(dec, "Cesanta") == 0);
+
   return NULL;
 }
 

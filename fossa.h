@@ -1181,6 +1181,10 @@ int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
 /*
  * Helper function that creates outbound HTTP connection.
  *
+ * `url` is a URL to fetch. It must be properly URL-encoded, e.g. have
+ * no spaces, etc. By default, `ns_connect_http()` sends Connection and
+ * Host headers. `extra_headers` is an extra HTTP headers to send, e.g.
+ * `"User-Agent: my-app\r\n"`.
  * If `post_data` is NULL, then GET request is created. Otherwise, POST request
  * is created with the specified POST data. Examples:
  *
@@ -1193,8 +1197,11 @@ int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
  *                         NULL, "var_1=value_1&var_2=value_2");
  * ----
  */
-struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
-                                      const char *, const char *, const char *);
+struct ns_connection *ns_connect_http(struct ns_mgr *,
+                                      ns_event_handler_t event_handler,
+                                      const char *url,
+                                      const char *extra_headers,
+                                      const char *post_data);
 
 /*
  * This structure defines how `ns_serve_http()` works.

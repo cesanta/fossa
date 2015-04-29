@@ -25,7 +25,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_DNS_MESSAGE:
       msg = (struct ns_dns_message *) ev_data;
-      reply = ns_dns_create_reply(&nc->send_iobuf, msg);
+      reply = ns_dns_create_reply(&nc->send_mbuf, msg);
 
       for (i = 0; i < msg->num_questions; i++) {
         rr = &msg->questions[i];

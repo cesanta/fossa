@@ -53,7 +53,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
       {
 #if 0
         char hex[1024] = {0};
-        ns_hexdump(nc->recv_iobuf.buf, msg->payload.len, hex, sizeof(hex));
+        ns_hexdump(nc->recv_mbuf.buf, msg->payload.len, hex, sizeof(hex));
         printf("Got incoming message %s:\n%s", msg->topic, hex);
 #else
         printf("Got incoming message %s: %.*s\n", msg->topic, (int)msg->payload.len, msg->payload.p);

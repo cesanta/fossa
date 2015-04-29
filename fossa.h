@@ -180,82 +180,84 @@ int64_t strtoll(const char* str, char** endptr, int base);
 
 #endif /* NS_COMMON_HEADER_INCLUDED */
 /*
- * Copyright (c) 2014 Cesanta Software Limited
+ * Copyright (c) 2015 Cesanta Software Limited
  * All rights reserved
- * This software is dual-licensed: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation. For the terms of this
- * license, see <http://www.gnu.org/licenses/>.
- *
- * You are free to use this software under the terms of the GNU General
- * Public License, but WITHOUT ANY WARRANTY; without even the implied
- * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
  */
 
 /*
- * === IO Buffers
+ * === Memory Buffers
+ *
+ * Mbufs are mutable/growing memory buffers, like C++ strings.
+ * Mbuf can append data to the end of a buffer, or insert data into arbitrary
+ * position in the middle of a buffer. The buffer grows automatically when
+ * needed.
  */
 
-#ifndef NS_IOBUF_HEADER_INCLUDED
-#define NS_IOBUF_HEADER_INCLUDED
+#ifndef MBUF_H_INCLUDED
+#define MBUF_H_INCLUDED
 
-
-#ifdef __cplusplus
+#if defined(__cplusplus)
 extern "C" {
-#endif /* __cplusplus */
+#endif
 
-/* IO buffer */
-struct iobuf {
+#include <stdlib.h>
+
+#ifndef MBUF_SIZE_MULTIPLIER
+#define MBUF_SIZE_MULTIPLIER 1.5
+#endif
+
+/* Memory buffer descriptor */
+struct mbuf {
   char *buf;   /* Buffer pointer */
   size_t len;  /* Data length. Data is located between offset 0 and len. */
   size_t size; /* Buffer size allocated by realloc(1). Must be >= len */
 };
 
 /*
- * Initialize an IO buffer.
- * `initial_capacity` specifies the initial capacity of the iobuf.
+ * Initialize an Mbuf.
+ * `initial_capacity` specifies the initial capacity of the mbuf.
  */
-void iobuf_init(struct iobuf *, size_t initial_capacity);
+void mbuf_init(struct mbuf *, size_t initial_capacity);
 
-/* Free the space allocated for the iobuffer and resets the iobuf structure. */
-void iobuf_free(struct iobuf *);
+/* Free the space allocated for the mbuffer and resets the mbuf structure. */
+void mbuf_free(struct mbuf *);
 
 /*
- * Appends data to the IO buffer.
+ * Appends data to the Mbuf.
  *
  * Return the number of bytes appended, or 0 if out of memory.
  */
-size_t iobuf_append(struct iobuf *, const void *data, size_t data_size);
+size_t mbuf_append(struct mbuf *, const void *data, size_t data_size);
 
 /*
- * Insert data at a specified offset in the IO buffer.
+ * Insert data at a specified offset in the Mbuf.
  *
  * Existing data will be shifted forwards and the buffer will
  * be grown if necessary.
  * Return the number of bytes inserted.
  */
-size_t iobuf_insert(struct iobuf *, size_t, const void *, size_t);
+size_t mbuf_insert(struct mbuf *, size_t, const void *, size_t);
 
 /* Remove `data_size` bytes from the beginning of the buffer. */
-void iobuf_remove(struct iobuf *, size_t data_size);
+void mbuf_remove(struct mbuf *, size_t data_size);
 
 /*
- * Resize an IO buffer.
+ * Resize an Mbuf.
  *
  * If `new_size` is smaller than buffer's `len`, the
  * resize is not performed.
  */
-void iobuf_resize(struct iobuf *, size_t new_size);
+void mbuf_resize(struct mbuf *, size_t new_size);
 
-#ifdef __cplusplus
+/* Shrink an Mbuf by resizing its `size` to `len`. */
+void mbuf_trim(struct mbuf *);
+
+
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
-#endif /* NS_IOBUF_HEADER_INCLUDED */
+#endif /* MBUF_H_INCLUDED */
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -355,9 +357,9 @@ struct ns_connection {
 
   sock_t sock;             /* Socket to the remote peer */
   union socket_address sa; /* Remote peer address */
-  size_t recv_iobuf_limit; /* Max size of recv buffer */
-  struct iobuf recv_iobuf; /* Received data */
-  struct iobuf send_iobuf; /* Data scheduled for sending */
+  size_t recv_mbuf_limit; /* Max size of recv buffer */
+  struct mbuf recv_mbuf; /* Received data */
+  struct mbuf send_mbuf; /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
   time_t last_io_time;              /* Timestamp of the last socket IO */
@@ -1100,7 +1102,7 @@ void ns_printf_websocket_frame(struct ns_connection *nc, int op,
  * This function first sends buffer size as hex number + newline, then
  * buffer itself, then newline. For example,
  *   `ns_send_http_chunk(nc, "foo", 3)` whill append `3\r\nfoo\r\n` string to
- * the `nc->send_iobuf` output IO buffer.
+ * the `nc->send_mbuf` output IO buffer.
  *
  * NOTE: HTTP header "Transfer-Encoding: chunked" should be sent prior to
  * using this function.
@@ -1823,7 +1825,7 @@ void ns_send_dns_query(struct ns_connection *, const char *, int);
  *
  * Return number of bytes inserted.
  */
-int ns_dns_insert_header(struct iobuf *, size_t, struct ns_dns_message *);
+int ns_dns_insert_header(struct mbuf *, size_t, struct ns_dns_message *);
 
 /*
  * Append already encoded body from an existing message.
@@ -1833,7 +1835,7 @@ int ns_dns_insert_header(struct iobuf *, size_t, struct ns_dns_message *);
  *
  * Return number of appened bytes.
  */
-int ns_dns_copy_body(struct iobuf *, struct ns_dns_message *);
+int ns_dns_copy_body(struct mbuf *, struct ns_dns_message *);
 
 /*
  * Encode and append a DNS resource record to an IO buffer.
@@ -1851,7 +1853,7 @@ int ns_dns_copy_body(struct iobuf *, struct ns_dns_message *);
  *
  * Return the number of bytes appened or -1 in case of error.
  */
-int ns_dns_encode_record(struct iobuf *, struct ns_dns_resource_record *,
+int ns_dns_encode_record(struct mbuf *, struct ns_dns_resource_record *,
                          const char *, size_t, const void *, size_t);
 
 /* Low-level: parses a DNS response. */
@@ -1916,7 +1918,7 @@ extern "C" {
 
 struct ns_dns_reply {
   struct ns_dns_message *msg;
-  struct iobuf *io;
+  struct mbuf *io;
   size_t start;
 };
 
@@ -1939,7 +1941,7 @@ struct ns_dns_reply {
  *
  * [source,c]
  * -----
- * reply = ns_dns_create_reply(&nc->send_iobuf, msg);
+ * reply = ns_dns_create_reply(&nc->send_mbuf, msg);
  * for (i = 0; i < msg->num_questions; i++) {
  *   rr = &msg->questions[i];
  *   if (rr->rtype == NS_DNS_A_RECORD) {
@@ -1949,7 +1951,7 @@ struct ns_dns_reply {
  * ns_dns_send_reply(nc, &reply);
  * -----
  */
-struct ns_dns_reply ns_dns_create_reply(struct iobuf *,
+struct ns_dns_reply ns_dns_create_reply(struct mbuf *,
                                         struct ns_dns_message *);
 
 /*
@@ -2223,14 +2225,14 @@ uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id);
  *
  * Return value: see `ns_coap_send_message()`
  */
-uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm);
+uint32_t ns_coap_parse(struct mbuf *io, struct ns_coap_message *cm);
 
 /*
  * Composes CoAP message from ns_coap_message structure.
  * This is a helper function.
  * Return value: see `ns_coap_send_message()`
  */
-uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io);
+uint32_t ns_coap_compose(struct ns_coap_message *cm, struct mbuf *io);
 
 #ifdef __cplusplus
 }

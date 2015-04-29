@@ -52,70 +52,68 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 
 #endif /* NS_INTERNAL_HEADER_INCLUDED */
 #ifdef NS_MODULE_LINES
-#line 1 "src/iobuf.c"
+#line 1 "src/../../common/mbuf.c"
 /**/
 #endif
-/* Copyright (c) 2014 Cesanta Software Limited
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
- *
- * This software is dual-licensed: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation. For the terms of this
- * license, see <http://www.gnu.org/licenses/>.
- *
- * You are free to use this software under the terms of the GNU General
- * Public License, but WITHOUT ANY WARRANTY; without even the implied
- * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
  */
 
+#include <assert.h>
+#include <string.h>
 
-void iobuf_init(struct iobuf *iobuf, size_t initial_size) {
-  iobuf->len = iobuf->size = 0;
-  iobuf->buf = NULL;
-  iobuf_resize(iobuf, initial_size);
+void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
+  mbuf->len = mbuf->size = 0;
+  mbuf->buf = NULL;
+  mbuf_resize(mbuf, initial_size);
 }
 
-void iobuf_free(struct iobuf *iobuf) {
-  if (iobuf != NULL) {
-    NS_FREE(iobuf->buf);
-    iobuf_init(iobuf, 0);
+void mbuf_free(struct mbuf *mbuf) {
+  if (mbuf->buf != NULL) {
+    free(mbuf->buf);
+    mbuf_init(mbuf, 0);
   }
 }
 
-size_t iobuf_append(struct iobuf *io, const void *buf, size_t len) {
-  return iobuf_insert(io, io->len, buf, len);
+void mbuf_resize(struct mbuf *a, size_t new_size) {
+  char *p;
+  if ((new_size > a->size || (new_size < a->size && new_size >= a->len)) &&
+      (p = (char *) realloc(a->buf, new_size)) != NULL) {
+    a->size = new_size;
+    a->buf = p;
+  }
 }
 
-size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
+void mbuf_trim(struct mbuf *mbuf) {
+  mbuf_resize(mbuf, mbuf->len);
+}
+
+size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
-  assert(io != NULL);
-  assert(io->len <= io->size);
-  assert(off <= io->len);
+  assert(a != NULL);
+  assert(a->len <= a->size);
+  assert(off <= a->len);
 
   /* check overflow */
-  if (len > ~(size_t) 0 - (size_t)(io->buf + io->len)) {
-    return 0;
-  }
+  if (~(size_t) 0 - (size_t) a->buf < len) return 0;
 
-  if (io->len + len <= io->size) {
-    memmove(io->buf + off + len, io->buf + off, io->len - off);
+  if (a->len + len <= a->size) {
+    memmove(a->buf + off + len, a->buf + off, a->len - off);
     if (buf != NULL) {
-      memcpy(io->buf + off, buf, len);
+      memcpy(a->buf + off, buf, len);
     }
-    io->len += len;
-  } else if ((p = (char *) NS_REALLOC(io->buf, io->len + len)) != NULL) {
-    io->buf = p;
-    memmove(io->buf + off + len, io->buf + off, io->len - off);
+    a->len += len;
+  } else if ((p = (char *) realloc(
+                  a->buf, (a->len + len) * MBUF_SIZE_MULTIPLIER)) != NULL) {
+    a->buf = p;
+    memmove(a->buf + off + len, a->buf + off, a->len - off);
     if (buf != NULL) {
-      memcpy(io->buf + off, buf, len);
+      memcpy(a->buf + off, buf, len);
     }
-    io->len += len;
-    io->size = io->len;
+    a->len += len;
+    a->size = a->len * MBUF_SIZE_MULTIPLIER;
   } else {
     len = 0;
   }
@@ -123,19 +121,14 @@ size_t iobuf_insert(struct iobuf *io, size_t off, const void *buf, size_t len) {
   return len;
 }
 
-void iobuf_remove(struct iobuf *io, size_t n) {
-  if (n > 0 && n <= io->len) {
-    memmove(io->buf, io->buf + n, io->len - n);
-    io->len -= n;
-  }
+size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
+  return mbuf_insert(a, a->len, buf, len);
 }
 
-void iobuf_resize(struct iobuf *io, size_t new_size) {
-  char *p;
-  if ((new_size > io->size || (new_size < io->size && new_size >= io->len)) &&
-      (p = (char *) NS_REALLOC(io->buf, new_size)) != NULL) {
-    io->size = new_size;
-    io->buf = p;
+void mbuf_remove(struct mbuf *mb, size_t n) {
+  if (n > 0 && n <= mb->len) {
+    memmove(mb->buf, mb->buf + n, mb->len - n);
+    mb->len -= n;
   }
 }
 #ifdef NS_MODULE_LINES
@@ -217,7 +210,7 @@ static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
          inet_ntoa(nc->sa.sin.sin_addr), ntohs(nc->sa.sin.sin_port)));
     return n < 0 ? 0 : n;
   } else {
-    return iobuf_append(&nc->send_iobuf, buf, len);
+    return mbuf_append(&nc->send_mbuf, buf, len);
   }
 }
 
@@ -233,8 +226,8 @@ static void ns_destroy_conn(struct ns_connection *conn) {
      */
     conn->sock = INVALID_SOCKET;
   }
-  iobuf_free(&conn->recv_iobuf);
-  iobuf_free(&conn->send_iobuf);
+  mbuf_free(&conn->recv_mbuf);
+  mbuf_free(&conn->send_mbuf);
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     SSL_free(conn->ssl);
@@ -437,7 +430,7 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
      * system headers on some platforms and so it
      * doesn't compile with pedantic ansi flags.
      */
-    conn->recv_iobuf_limit = ~0;
+    conn->recv_mbuf_limit = ~0;
   }
 
   return conn;
@@ -658,7 +651,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
     c->proto_data = ls->proto_data;
     c->proto_handler = ls->proto_handler;
     c->user_data = ls->user_data;
-    c->recv_iobuf_limit = ls->recv_iobuf_limit;
+    c->recv_mbuf_limit = ls->recv_mbuf_limit;
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
   }
@@ -678,8 +671,8 @@ static int ns_is_error(int n) {
 
 static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
   size_t avail;
-  if (conn->recv_iobuf_limit < conn->recv_iobuf.len) return 0;
-  avail = conn->recv_iobuf_limit - conn->recv_iobuf.len;
+  if (conn->recv_mbuf_limit < conn->recv_mbuf.len) return 0;
+  avail = conn->recv_mbuf_limit - conn->recv_mbuf.len;
   return avail > max ? max : avail;
 }
 
@@ -725,7 +718,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
        * we skip to the next select() cycle which can just timeout. */
       while ((n = SSL_read(conn->ssl, buf, sizeof(buf))) > 0) {
         DBG(("%p %lu <- %d bytes (SSL)", conn, conn->flags, n));
-        iobuf_append(&conn->recv_iobuf, buf, n);
+        mbuf_append(&conn->recv_mbuf, buf, n);
         ns_call(conn, NS_RECV, &n);
       }
       ns_ssl_err(conn, n);
@@ -749,7 +742,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     while ((n = (int) recv(conn->sock, buf, recv_avail_size(conn, sizeof(buf)),
                            0)) > 0) {
       DBG(("%p %lu <- %d bytes (PLAIN)", conn, conn->flags, n));
-      iobuf_append(&conn->recv_iobuf, buf, n);
+      mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
     }
   }
@@ -760,7 +753,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 }
 
 static void ns_write_to_socket(struct ns_connection *conn) {
-  struct iobuf *io = &conn->send_iobuf;
+  struct mbuf *io = &conn->send_mbuf;
   int n = 0;
 
 #ifdef NS_ENABLE_SSL
@@ -789,7 +782,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   if (ns_is_error(n)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
-    iobuf_remove(io, n);
+    mbuf_remove(io, n);
   }
 }
 
@@ -814,8 +807,8 @@ static void ns_handle_udp(struct ns_connection *ls) {
 
     /* Then override some */
     nc.sa = sa;
-    nc.recv_iobuf.buf = buf;
-    nc.recv_iobuf.len = nc.recv_iobuf.size = n;
+    nc.recv_mbuf.buf = buf;
+    nc.recv_mbuf.len = nc.recv_mbuf.size = n;
     nc.listener = ls;
     nc.flags = NSF_UDP;
 
@@ -870,12 +863,12 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     }
 
     if (!(nc->flags & NSF_WANT_WRITE) &&
-        nc->recv_iobuf.len < nc->recv_iobuf_limit) {
+        nc->recv_mbuf.len < nc->recv_mbuf_limit) {
       ns_add_to_set(nc->sock, &read_set, &max_fd);
     }
 
     if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
-        (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
+        (nc->send_mbuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
          !(nc->flags & NSF_DONT_SEND))) {
       ns_add_to_set(nc->sock, &write_set, &max_fd);
       ns_add_to_set(nc->sock, &err_set, &max_fd);
@@ -951,7 +944,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
-        (nc->send_iobuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
+        (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
       ns_close_conn(nc);
     }
   }
@@ -2001,9 +1994,9 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
-  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len, len,
+  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_mbuf.len, len,
               mask_len = 0, header_len = 0;
-  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf, *buf = p,
+  unsigned char *p = (unsigned char *) nc->recv_mbuf.buf, *buf = p,
                 *e = p + buf_len;
   unsigned *sizep = (unsigned *) &p[1]; /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
@@ -2052,7 +2045,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     if (reass) {
       /* On first fragmented frame, nullify size */
       if (is_ws_first_fragment(wsm.flags)) {
-        iobuf_resize(&nc->recv_iobuf, nc->recv_iobuf.size + sizeof(*sizep));
+        mbuf_resize(&nc->recv_mbuf, nc->recv_mbuf.size + sizeof(*sizep));
         p[0] &= ~0x0f; /* Next frames will be treated as continuation */
         buf = p + 1 + sizeof(*sizep);
         *sizep = 0; /* TODO(lsm): fix. this can stomp over frame data */
@@ -2061,19 +2054,19 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       /* Append this frame to the reassembled buffer */
       memmove(buf, wsm.data, e - wsm.data);
       (*sizep) += wsm.size;
-      nc->recv_iobuf.len -= wsm.data - buf;
+      nc->recv_mbuf.len -= wsm.data - buf;
 
       /* On last fragmented frame - call user handler and remove data */
       if (wsm.flags & 0x80) {
         wsm.data = p + 1 + sizeof(*sizep);
         wsm.size = *sizep;
         handle_incoming_websocket_frame(nc, &wsm);
-        iobuf_remove(&nc->recv_iobuf, 1 + sizeof(*sizep) + *sizep);
+        mbuf_remove(&nc->recv_mbuf, 1 + sizeof(*sizep) + *sizep);
       }
     } else {
       /* TODO(lsm): properly handle OOB control frames during defragmentation */
       handle_incoming_websocket_frame(nc, &wsm);
-      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len); /* Cleanup frame */
+      mbuf_remove(&nc->recv_mbuf, (size_t) frame_len); /* Cleanup frame */
     }
 
     /* If client closes, close too */
@@ -2215,8 +2208,8 @@ static void free_http_proto_data(struct ns_connection *nc) {
 
 /* Move data from one connection to another */
 static void ns_forward(struct ns_connection *from, struct ns_connection *to) {
-  ns_send(to, from->recv_iobuf.buf, from->recv_iobuf.len);
-  iobuf_remove(&from->recv_iobuf, from->recv_iobuf.len);
+  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
+  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
 }
 
 static void transfer_file_data(struct ns_connection *nc) {
@@ -2226,7 +2219,7 @@ static void transfer_file_data(struct ns_connection *nc) {
   size_t n = 0, to_read = 0;
 
   if (dp->type == DATA_FILE) {
-    struct iobuf *io = &nc->send_iobuf;
+    struct mbuf *io = &nc->send_mbuf;
     if (io->len < sizeof(buf)) {
       to_read = sizeof(buf) - io->len;
     }
@@ -2236,7 +2229,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     }
 
     if (to_read == 0) {
-      /* Rate limiting. send_iobuf is too full, wait until it's drained. */
+      /* Rate limiting. send_mbuf is too full, wait until it's drained. */
     } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
@@ -2244,12 +2237,12 @@ static void transfer_file_data(struct ns_connection *nc) {
       free_http_proto_data(nc);
     }
   } else if (dp->type == DATA_PUT) {
-    struct iobuf *io = &nc->recv_iobuf;
+    struct mbuf *io = &nc->recv_mbuf;
     size_t to_write =
         left <= 0 ? 0 : left < (int64_t) io->len ? (size_t) left : io->len;
     size_t n = fwrite(io->buf, 1, to_write, dp->fp);
     if (n > 0) {
-      iobuf_remove(io, n);
+      mbuf_remove(io, n);
       dp->sent += n;
     }
     if (n == 0 || dp->sent >= dp->cl) {
@@ -2266,7 +2259,7 @@ static void transfer_file_data(struct ns_connection *nc) {
 }
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
@@ -2299,7 +2292,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
                ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
       /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
-      iobuf_remove(io, req_len);
+      mbuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
       nc->flags |= NSF_IS_WEBSOCKET;
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
@@ -2307,14 +2300,14 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     } else if (nc->listener != NULL &&
                (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
       /* This is a websocket request. Switch protocol handlers. */
-      iobuf_remove(io, req_len);
+      mbuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
       nc->flags |= NSF_IS_WEBSOCKET;
 
       /* Send handshake */
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
       if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-        if (nc->send_iobuf.len == 0) {
+        if (nc->send_mbuf.len == 0) {
           ws_handshake(nc, vec);
         }
         nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
@@ -2323,7 +2316,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     } else if (hm.message.len <= io->len) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
-      iobuf_remove(io, hm.message.len);
+      mbuf_remove(io, hm.message.len);
     }
   }
 }
@@ -3336,8 +3329,8 @@ static void handle_put(struct ns_connection *nc, const char *path,
     }
     ns_printf(nc, "HTTP/1.1 %d OK\r\nContent-Length: 0\r\n\r\n", status_code);
     nc->proto_data = dp;
-    /* Remove HTTP request from the iobuf, leave only payload */
-    iobuf_remove(&nc->recv_iobuf, hm->message.len - hm->body.len);
+    /* Remove HTTP request from the mbuf, leave only payload */
+    mbuf_remove(&nc->recv_mbuf, hm->message.len - hm->body.len);
     transfer_file_data(nc);
   }
 }
@@ -3780,7 +3773,7 @@ static void cgi_ev_handler(struct ns_connection *cgi_nc, int ev,
        * which makes data to be sent to the user.
        */
       if (nc->flags & NSF_USER_1) {
-        struct iobuf *io = &cgi_nc->recv_iobuf;
+        struct mbuf *io = &cgi_nc->recv_mbuf;
         int len = get_request_len(io->buf, io->len);
 
         if (len == 0) break;
@@ -3850,16 +3843,16 @@ static void handle_cgi(struct ns_connection *nc, const char *prog,
     send_http_error(nc, 500, "OOM"); /* LCOV_EXCL_LINE */
   } else if (start_process(opts->cgi_interpreter, prog, blk.buf, blk.vars, dir,
                            fds[1]) != 0) {
-    size_t n = nc->recv_iobuf.len - (hm->message.len - hm->body.len);
+    size_t n = nc->recv_mbuf.len - (hm->message.len - hm->body.len);
     dp->type = DATA_CGI;
     dp->cgi_nc = ns_add_sock(nc->mgr, fds[0], cgi_ev_handler);
     dp->cgi_nc->user_data = nc;
     nc->flags |= NSF_USER_1;
     /* Push POST data to the CGI */
-    if (n > 0 && n < nc->recv_iobuf.len) {
+    if (n > 0 && n < nc->recv_mbuf.len) {
       ns_send(dp->cgi_nc, hm->body.p, n);
     }
-    iobuf_remove(&nc->recv_iobuf, nc->recv_iobuf.len);
+    mbuf_remove(&nc->recv_mbuf, nc->recv_mbuf.len);
   } else {
     closesocket(fds[0]);
     send_http_error(nc, 500, "CGI failure");
@@ -4463,7 +4456,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
 #ifndef NS_DISABLE_FILESYSTEM
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev) {
-  const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
+  const struct mbuf *io = ev == NS_SEND ? &nc->send_mbuf : &nc->recv_mbuf;
   FILE *fp;
   char *buf, src[60], dst[60];
   int buf_size = num_bytes * 5 + 100;
@@ -4738,7 +4731,7 @@ int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
 #ifndef NS_DISABLE_MQTT
 
 
-static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
+static int parse_mqtt(struct mbuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
   int cmd;
   size_t len = 0;
@@ -4757,7 +4750,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 
   if (io->len < (size_t)(len - 1)) return -1;
 
-  iobuf_remove(io, 1 + (vlen - &io->buf[1]));
+  mbuf_remove(io, 1 + (vlen - &io->buf[1]));
   mm->cmd = cmd;
   mm->qos = NS_MQTT_GET_QOS(header);
 
@@ -4802,13 +4795,13 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
       break;
   }
 
-  iobuf_remove(io, var_len);
+  mbuf_remove(io, var_len);
   return len - var_len;
 }
 
 static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
   int len;
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_mqtt_message mm;
   memset(&mm, 0, sizeof(mm));
 
@@ -4826,7 +4819,7 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
       if (mm.topic) {
         NS_FREE(mm.topic);
       }
-      iobuf_remove(io, mm.payload.len);
+      mbuf_remove(io, mm.payload.len);
       break;
   }
 }
@@ -4872,13 +4865,13 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id,
 
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
                                    uint8_t flags, size_t len) {
-  size_t off = nc->send_iobuf.len - len;
+  size_t off = nc->send_mbuf.len - len;
   uint8_t header = cmd << 4 | (uint8_t) flags;
 
   uint8_t buf[1 + sizeof(size_t)];
   uint8_t *vlen = &buf[1];
 
-  assert(nc->send_iobuf.len >= len);
+  assert(nc->send_mbuf.len >= len);
 
   buf[0] = header;
 
@@ -4890,13 +4883,13 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
     vlen++;
   } while (len > 0);
 
-  iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
+  mbuf_insert(&nc->send_mbuf, off, buf, vlen - buf);
 }
 
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags, const void *data,
                      size_t len) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t topic_len = htons(strlen(topic));
   uint16_t message_id_net = htons(message_id);
@@ -4909,13 +4902,13 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
   ns_send(nc, data, len);
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PUBLISH, flags,
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t message_id_n = htons(message_id);
   size_t i;
@@ -4929,7 +4922,7 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, NS_MQTT_QOS(1),
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
@@ -4947,7 +4940,7 @@ int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
 
 void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          size_t topics_len, uint16_t message_id) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t message_id_n = htons(message_id);
   size_t i;
@@ -4960,7 +4953,7 @@ void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_UNSUBSCRIBE, NS_MQTT_QOS(1),
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
 void ns_mqtt_connack(struct ns_connection *nc, uint8_t return_code) {
@@ -5265,7 +5258,7 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
   return -1;
 }
 
-int ns_dns_insert_header(struct iobuf *io, size_t pos,
+int ns_dns_insert_header(struct mbuf *io, size_t pos,
                          struct ns_dns_message *msg) {
   struct ns_dns_header header;
 
@@ -5275,15 +5268,15 @@ int ns_dns_insert_header(struct iobuf *io, size_t pos,
   header.num_questions = htons(msg->num_questions);
   header.num_answers = htons(msg->num_answers);
 
-  return iobuf_insert(io, pos, &header, sizeof(header));
+  return mbuf_insert(io, pos, &header, sizeof(header));
 }
 
-int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
-  return iobuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
+int ns_dns_copy_body(struct mbuf *io, struct ns_dns_message *msg) {
+  return mbuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
                       msg->pkt.len - sizeof(struct ns_dns_header));
 }
 
-static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
+static int ns_dns_encode_name(struct mbuf *io, const char *name, size_t len) {
   const char *s;
   unsigned char n;
   size_t pos = io->len;
@@ -5297,8 +5290,8 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
       return -1; /* TODO(mkm) cover */
     }
     n = s - name;            /* chunk length */
-    iobuf_append(io, &n, 1); /* send length */
-    iobuf_append(io, name, n);
+    mbuf_append(io, &n, 1); /* send length */
+    mbuf_append(io, name, n);
 
     if (*s == '.') {
       n++;
@@ -5307,12 +5300,12 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
     name += n;
     len -= n;
   } while (*s != '\0');
-  iobuf_append(io, "\0", 1); /* Mark end of host name */
+  mbuf_append(io, "\0", 1); /* Mark end of host name */
 
   return io->len - pos;
 }
 
-int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
+int ns_dns_encode_record(struct mbuf *io, struct ns_dns_resource_record *rr,
                          const char *name, size_t nlen, const void *rdata,
                          size_t rlen) {
   size_t pos = io->len;
@@ -5328,19 +5321,19 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
   }
 
   u16 = htons(rr->rtype);
-  iobuf_append(io, &u16, 2);
+  mbuf_append(io, &u16, 2);
   u16 = htons(rr->rclass);
-  iobuf_append(io, &u16, 2);
+  mbuf_append(io, &u16, 2);
 
   if (rr->kind == NS_DNS_ANSWER) {
     u32 = htonl(rr->ttl);
-    iobuf_append(io, &u32, 4);
+    mbuf_append(io, &u32, 4);
 
     if (rr->rtype == NS_DNS_CNAME_RECORD) {
       int clen;
       /* fill size after encoding */
       size_t off = io->len;
-      iobuf_append(io, &u16, 2);
+      mbuf_append(io, &u16, 2);
       if ((clen = ns_dns_encode_name(io, (const char *) rdata, rlen)) == -1) {
         return -1;
       }
@@ -5349,8 +5342,8 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
       io->buf[off + 1] = u16 & 0xff;
     } else {
       u16 = htons(rlen);
-      iobuf_append(io, &u16, 2);
-      iobuf_append(io, rdata, rlen);
+      mbuf_append(io, &u16, 2);
+      mbuf_append(io, rdata, rlen);
     }
   }
 
@@ -5360,10 +5353,10 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
 void ns_send_dns_query(struct ns_connection *nc, const char *name,
                        int query_type) {
   struct ns_dns_message msg;
-  struct iobuf pkt;
+  struct mbuf pkt;
   struct ns_dns_resource_record *rr = &msg.questions[0];
 
-  iobuf_init(&pkt, MAX_DNS_PACKET_LEN);
+  mbuf_init(&pkt, MAX_DNS_PACKET_LEN);
   memset(&msg, 0, sizeof(msg));
 
   msg.transaction_id = ++ns_dns_tid;
@@ -5384,11 +5377,11 @@ void ns_send_dns_query(struct ns_connection *nc, const char *name,
   /* TCP DNS requires messages to be prefixed with len */
   if (!(nc->flags & NSF_UDP)) {
     uint16_t len = htons(pkt.len);
-    iobuf_insert(&pkt, 0, &len, 2);
+    mbuf_insert(&pkt, 0, &len, 2);
   }
 
   ns_send(nc, pkt.buf, pkt.len);
-  iobuf_free(&pkt);
+  mbuf_free(&pkt);
 }
 
 static unsigned char *ns_parse_dns_resource_record(
@@ -5518,7 +5511,7 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
 }
 
 static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_dns_message msg;
 
   /* Pass low-level events to the user handler */
@@ -5527,23 +5520,23 @@ static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_RECV:
       if (!(nc->flags & NSF_UDP)) {
-        iobuf_remove(&nc->recv_iobuf, 2);
+        mbuf_remove(&nc->recv_mbuf, 2);
       }
-      if (ns_parse_dns(nc->recv_iobuf.buf, nc->recv_iobuf.len, &msg) == -1) {
+      if (ns_parse_dns(nc->recv_mbuf.buf, nc->recv_mbuf.len, &msg) == -1) {
         /* reply + recursion allowed + format error */
         memset(&msg, 0, sizeof(msg));
         msg.flags = 0x8081;
         ns_dns_insert_header(io, 0, &msg);
         if (!(nc->flags & NSF_UDP)) {
           uint16_t len = htons(io->len);
-          iobuf_insert(io, 0, &len, 2);
+          mbuf_insert(io, 0, &len, 2);
         }
         ns_send(nc, io->buf, io->len);
       } else {
         /* Call user handler with parsed message */
         nc->handler(nc, NS_DNS_MESSAGE, &msg);
       }
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
       break;
   }
 }
@@ -5565,7 +5558,7 @@ void ns_set_protocol_dns(struct ns_connection *nc) {
 #ifdef NS_ENABLE_DNS_SERVER
 
 
-struct ns_dns_reply ns_dns_create_reply(struct iobuf *io,
+struct ns_dns_reply ns_dns_create_reply(struct mbuf *io,
                                         struct ns_dns_message *msg) {
   struct ns_dns_reply rep;
   rep.msg = msg;
@@ -5585,10 +5578,10 @@ int ns_dns_send_reply(struct ns_connection *nc, struct ns_dns_reply *r) {
   ns_dns_insert_header(r->io, r->start, r->msg);
   if (!(nc->flags & NSF_UDP)) {
     uint16_t len = htons(sent);
-    iobuf_insert(r->io, r->start, &len, 2);
+    mbuf_insert(r->io, r->start, &len, 2);
   }
 
-  if (&nc->send_iobuf != r->io || nc->flags & NSF_UDP) {
+  if (&nc->send_mbuf != r->io || nc->flags & NSF_UDP) {
     sent = ns_send(nc, r->io->buf + r->start, r->io->len - r->start);
     r->io->len = r->start;
   }
@@ -5783,7 +5776,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       }
       break;
     case NS_RECV:
-      if (ns_parse_dns(nc->recv_iobuf.buf, *(int *) data, &msg) == 0 &&
+      if (ns_parse_dns(nc->recv_mbuf.buf, *(int *) data, &msg) == 0 &&
           msg.num_answers > 0) {
         req->callback(&msg, req->data);
       } else {
@@ -6136,7 +6129,7 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
  *
  * Helper function.
  */
-static char *coap_parse_header(char *ptr, struct iobuf *io,
+static char *coap_parse_header(char *ptr, struct mbuf *io,
                                struct ns_coap_message *cm) {
   if (io->len < sizeof(uint32_t)) {
     cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
@@ -6200,7 +6193,7 @@ static char *coap_parse_header(char *ptr, struct iobuf *io,
  *
  * Helper function.
  */
-static char *coap_get_token(char *ptr, struct iobuf *io,
+static char *coap_get_token(char *ptr, struct mbuf *io,
                             struct ns_coap_message *cm) {
   if (cm->token.len != 0) {
     if (ptr + cm->token.len > io->buf + io->len) {
@@ -6221,7 +6214,7 @@ static char *coap_get_token(char *ptr, struct iobuf *io,
  *
  * Helper function.
  */
-static int coap_get_ext_opt(char *ptr, struct iobuf *io, uint16_t *opt_info) {
+static int coap_get_ext_opt(char *ptr, struct mbuf *io, uint16_t *opt_info) {
   int ret = 0;
 
   if (*opt_info == 13) {
@@ -6267,7 +6260,7 @@ static int coap_get_ext_opt(char *ptr, struct iobuf *io, uint16_t *opt_info) {
  * \         Option Value          \  0 or more bytes
  * +-------------------------------+
  */
-static char *coap_get_options(char *ptr, struct iobuf *io,
+static char *coap_get_options(char *ptr, struct mbuf *io,
                               struct ns_coap_message *cm) {
   uint16_t prev_opt = 0;
 
@@ -6351,7 +6344,7 @@ static char *coap_get_options(char *ptr, struct iobuf *io,
   return ptr;
 }
 
-uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
+uint32_t ns_coap_parse(struct mbuf *io, struct ns_coap_message *cm) {
   char *ptr;
 
   memset(cm, 0, sizeof(*cm));
@@ -6500,7 +6493,7 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
   return 0;
 }
 
-uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
+uint32_t ns_coap_compose(struct ns_coap_message *cm, struct mbuf *io) {
   struct ns_coap_option *opt;
   uint32_t res, prev_opt_number;
   size_t prev_io_len, packet_size;
@@ -6511,9 +6504,9 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
     return res;
   }
 
-  /* saving previous lenght to handle non-empty iobuf */
+  /* saving previous lenght to handle non-empty mbuf */
   prev_io_len = io->len;
-  iobuf_append(io, NULL, packet_size);
+  mbuf_append(io, NULL, packet_size);
   ptr = io->buf + prev_io_len;
 
   /*
@@ -6573,18 +6566,18 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
 
 uint32_t ns_coap_send_message(struct ns_connection *nc,
                               struct ns_coap_message *cm) {
-  struct iobuf packet_out;
+  struct mbuf packet_out;
   int send_res;
   uint32_t compose_res;
 
-  iobuf_init(&packet_out, 0);
+  mbuf_init(&packet_out, 0);
   compose_res = ns_coap_compose(cm, &packet_out);
   if (compose_res != 0) {
     return compose_res; /* LCOV_EXCL_LINE */
   }
 
   send_res = ns_send(nc, packet_out.buf, (int) packet_out.len);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   if (send_res == 0) {
     /*
@@ -6607,7 +6600,7 @@ uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id) {
 }
 
 static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_coap_message cm;
   uint32_t parse_res;
 
@@ -6630,7 +6623,7 @@ static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
       }
 
       ns_coap_free_options(&cm);
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
       break;
   }
 }

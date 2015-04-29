@@ -114,7 +114,7 @@ static struct http_backend *choose_backend(struct http_message *hm) {
 
 static void forward_body(struct ns_connection *src, struct ns_connection *dst) {
   struct conn_data *data = (struct conn_data *) src->user_data;
-  struct iobuf *io = &src->recv_iobuf;
+  struct mbuf *io = &src->recv_mbuf;
   struct peer *peer = src == data->client.nc ? &data->client : &data->backend;
 
   if (peer->body_sent < peer->body_len) {
@@ -134,7 +134,7 @@ static void forward_body(struct ns_connection *src, struct ns_connection *dst) {
 static void start_forwarding(struct http_message *hm, struct ns_connection *src,
                              struct ns_connection *dst) {
   struct conn_data *data = (struct conn_data *) src->user_data;
-  struct iobuf *io = &src->recv_iobuf;
+  struct mbuf *io = &src->recv_mbuf;
   int i, is_request = src == data->client.nc;
 
   if (is_request) {
@@ -185,7 +185,7 @@ static void start_forwarding(struct http_message *hm, struct ns_connection *src,
   }
   ns_printf(dst, "%s", "\r\n");
 
-  iobuf_remove(io, hm->body.p - hm->message.p); /* We've forwarded headers */
+  mbuf_remove(io, hm->body.p - hm->message.p); /* We've forwarded headers */
   forward_body(src, dst);
 }
 

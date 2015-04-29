@@ -89,54 +89,57 @@ static char *read_file(const char *path, size_t *size) {
   return data;
 }
 
-static const char *test_iobuf(void) {
-  struct iobuf io;
+static const char *test_mbuf(void) {
+  struct mbuf io;
   const char *data = "TEST";
   const char *prefix = "MY";
   const char *big_prefix = "Some long prefix: ";
+  size_t old_size;
 
-  iobuf_init(&io, 0);
+  mbuf_init(&io, 0);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
-  iobuf_free(&io);
+  mbuf_free(&io);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
 
-  iobuf_init(&io, 10);
+  mbuf_init(&io, 10);
   ASSERT(io.buf != NULL && io.len == 0 && io.size == 10);
-  iobuf_free(&io);
+  mbuf_free(&io);
   ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
 
-  iobuf_init(&io, 10);
-  ASSERT(iobuf_append(&io, NULL, 0) == 0);
+  mbuf_init(&io, 10);
+  ASSERT(mbuf_append(&io, NULL, 0) == 0);
   /* test allocation failure */
-  ASSERT(iobuf_append(&io, NULL, 1125899906842624) == 0);
+  ASSERT(mbuf_append(&io, NULL, 1125899906842624) == 0);
 
-  ASSERT(iobuf_append(&io, data, strlen(data)) == strlen(data));
+  ASSERT(mbuf_append(&io, data, strlen(data)) == strlen(data));
 
-  iobuf_resize(&io, 2);
+  mbuf_resize(&io, 2);
   ASSERT(io.size == 10);
   ASSERT(io.len == strlen(data));
 
-  ASSERT(iobuf_insert(&io, 0, prefix, strlen(prefix)) == strlen(prefix));
+  ASSERT(mbuf_insert(&io, 0, prefix, strlen(prefix)) == strlen(prefix));
   ASSERT(io.size == 10);
   ASSERT(io.len == strlen(data) + strlen(prefix));
 
-  ASSERT(iobuf_insert(&io, 0, big_prefix, strlen(big_prefix)) ==
+  ASSERT(mbuf_insert(&io, 0, big_prefix, strlen(big_prefix)) ==
          strlen(big_prefix));
-  ASSERT(io.size == strlen(big_prefix) + strlen(prefix) + strlen(data));
+  ASSERT(io.size ==
+         MBUF_SIZE_MULTIPLIER *
+             (strlen(big_prefix) + strlen(prefix) + strlen(data)));
   ASSERT(strncmp(io.buf, "Some long prefix: MYTEST", 24) == 0);
 
-  ASSERT(iobuf_insert(&io, strlen(big_prefix), data, strlen(data)) ==
+  old_size = io.size;
+  ASSERT(mbuf_insert(&io, strlen(big_prefix), data, strlen(data)) ==
          strlen(data));
-  ASSERT(io.size ==
-         strlen(big_prefix) + strlen(data) + strlen(prefix) + strlen(data));
+  ASSERT(io.size == old_size);
   ASSERT(strncmp(io.buf, "Some long prefix: TESTMYTEST", 28) == 0);
 
   /* test allocation failure */
-  ASSERT(iobuf_insert(&io, 0, NULL, 1125899906842624) == 0);
+  ASSERT(mbuf_insert(&io, 0, NULL, 1125899906842624) == 0);
 
   /* test overflow */
-  ASSERT(iobuf_insert(&io, 0, NULL, -1) == 0);
-  iobuf_free(&io);
+  ASSERT(mbuf_insert(&io, 0, NULL, -1) == 0);
+  mbuf_free(&io);
   return NULL;
 }
 
@@ -147,7 +150,7 @@ static void poll_mgr(struct ns_mgr *mgr, int num_iterations) {
 }
 
 static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
 
   switch (ev) {
     case NS_CONNECT:
@@ -156,7 +159,7 @@ static void eh1(struct ns_connection *nc, int ev, void *ev_data) {
     case NS_RECV:
       if (nc->listener != NULL) {
         ns_printf(nc, "%d", (int) io->len);
-        iobuf_remove(io, io->len);
+        mbuf_remove(io, io->len);
       } else if (io->len == 2 && memcmp(io->buf, "10", 2) == 0) {
         sprintf((char *) nc->user_data, "%s", "ok!");
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
@@ -418,7 +421,7 @@ static void eh2(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   switch (ev) {
     case NS_RECV:
-      strcpy((char *) nc->user_data, nc->recv_iobuf.buf);
+      strcpy((char *) nc->user_data, nc->recv_mbuf.buf);
       break;
     default:
       break;
@@ -457,7 +460,7 @@ struct udp_res {
 };
 
 static void eh3_srv(struct ns_connection *nc, int ev, void *p) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   (void) p;
 
   if (ev == NS_RECV) {
@@ -467,7 +470,7 @@ static void eh3_srv(struct ns_connection *nc, int ev, void *p) {
 }
 
 static void eh3_clnt(struct ns_connection *nc, int ev, void *p) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   (void) p;
 
   if (ev == NS_RECV) {
@@ -1125,10 +1128,10 @@ static const char *test_mqtt_handshake(void) {
   const char *got;
 
   ns_send_mqtt_handshake(nc, client_id);
-  got = nc->send_iobuf.buf;
+  got = nc->send_mbuf.buf;
 
   /* handshake header + keepalive + client id len + client id */
-  ASSERT(nc->send_iobuf.len == 12 + 2 + 2 + strlen(client_id));
+  ASSERT(nc->send_mbuf.len == 12 + 2 + 2 + strlen(client_id));
 
   ASSERT(got[2] == 0 && got[3] == 6);
   ASSERT(strncmp(&got[4], "MQIsdp", 6) == 0);
@@ -1139,7 +1142,7 @@ static const char *test_mqtt_handshake(void) {
   ASSERT(got[14] == 0 && got[15] == (char) strlen(client_id));
   ASSERT(strncmp(&got[16], client_id, strlen(client_id)) == 0);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1151,13 +1154,13 @@ static const char *test_mqtt_publish(void) {
 
   ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data,
                   sizeof(data));
-  got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len == 17);
+  got = nc->send_mbuf.buf;
+  ASSERT(nc->send_mbuf.len == 17);
 
   ASSERT(got[0] & NS_MQTT_RETAIN);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_PUBLISH << 4));
   ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
 
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 5);
@@ -1168,7 +1171,7 @@ static const char *test_mqtt_publish(void) {
 
   ASSERT(strncmp(&got[11], data, sizeof(data)) == 0);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1180,10 +1183,10 @@ static const char *test_mqtt_subscribe(void) {
   struct ns_mqtt_topic_expression topic_expressions[] = {{"/stuff", qos}};
 
   ns_mqtt_subscribe(nc, topic_expressions, 1, 42);
-  got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len == 13);
+  got = nc->send_mbuf.buf;
+  ASSERT(nc->send_mbuf.len == 13);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBSCRIBE << 4));
-  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
@@ -1192,7 +1195,7 @@ static const char *test_mqtt_subscribe(void) {
   ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
   ASSERT(got[12] == qos);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1203,10 +1206,10 @@ static const char *test_mqtt_unsubscribe(void) {
   char *topics[] = {(char *) "/stuff"};
 
   ns_mqtt_unsubscribe(nc, topics, 1, 42);
-  got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len == 12);
+  got = nc->send_mbuf.buf;
+  ASSERT(nc->send_mbuf.len == 12);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_UNSUBSCRIBE << 4));
-  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
 
@@ -1214,7 +1217,7 @@ static const char *test_mqtt_unsubscribe(void) {
   ASSERT(got[5] == 6);
   ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1223,13 +1226,13 @@ static const char *test_mqtt_connack(void) {
   struct ns_connection *nc = (struct ns_connection *) calloc(1, sizeof(*nc));
   const char *got;
   ns_mqtt_connack(nc, 42);
-  got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len > 0);
+  got = nc->send_mbuf.buf;
+  ASSERT(nc->send_mbuf.len > 0);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_CONNACK << 4));
-  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
   ASSERT(got[3] == 42);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1242,16 +1245,16 @@ static const char *test_mqtt_suback(void) {
 
   ns_mqtt_suback(nc, qoss, 1, 42);
 
-  got = nc->send_iobuf.buf;
-  ASSERT(nc->send_iobuf.len == 5);
+  got = nc->send_mbuf.buf;
+  ASSERT(nc->send_mbuf.len == 5);
   ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBACK << 4));
   ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
   ASSERT(got[2] == 0);
   ASSERT(got[3] == 42);
   ASSERT(got[4] == 1);
 
-  iobuf_free(&nc->send_iobuf);
+  mbuf_free(&nc->send_mbuf);
   free(nc);
   return NULL;
 }
@@ -1275,15 +1278,15 @@ static const char *test_mqtt_simple_acks(void) {
 
     cases[i].f(nc, 42);
 
-    got = nc->send_iobuf.buf;
-    ASSERT(nc->send_iobuf.len == 4);
+    got = nc->send_mbuf.buf;
+    ASSERT(nc->send_mbuf.len == 4);
     ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
     ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-    ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+    ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
     ASSERT(got[2] == 0);
     ASSERT(got[3] == 42);
 
-    iobuf_free(&nc->send_iobuf);
+    mbuf_free(&nc->send_mbuf);
     free(nc);
   }
   return NULL;
@@ -1306,12 +1309,12 @@ static const char *test_mqtt_nullary(void) {
 
     cases[i].f(nc);
 
-    got = nc->send_iobuf.buf;
-    ASSERT(nc->send_iobuf.len == 2);
+    got = nc->send_mbuf.buf;
+    ASSERT(nc->send_mbuf.len == 2);
     ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
-    ASSERT((size_t) got[1] == (nc->send_iobuf.len - 2));
+    ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
 
-    iobuf_free(&nc->send_iobuf);
+    mbuf_free(&nc->send_mbuf);
     free(nc);
   }
   return NULL;
@@ -1334,7 +1337,7 @@ static void mqtt_eh(struct ns_connection *nc, int ev, void *ev_data) {
       if (strncmp(mm->topic, "/topic", 6)) break;
 
       for (i = 0; i < mm->payload.len; i++) {
-        if (nc->recv_iobuf.buf[10 + i] != 'A') break;
+        if (nc->recv_mbuf.buf[10 + i] != 'A') break;
       }
 
       if (mm->payload.len == mqtt_long_payload_len) {
@@ -1361,11 +1364,11 @@ static const char *test_mqtt_parse_mqtt(void) {
   nc->handler = mqtt_eh;
   ns_set_protocol_mqtt(nc);
 
-  iobuf_append(&nc->recv_iobuf, msg, num_bytes);
+  mbuf_append(&nc->recv_mbuf, msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 1);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->recv_mbuf);
 
   /* test a payload whose length encodes as two bytes */
   rest_len = 8 + mqtt_long_payload_len;
@@ -1377,11 +1380,11 @@ static const char *test_mqtt_parse_mqtt(void) {
   memset(&long_msg[11], 'A', mqtt_long_payload_len);
 
   num_bytes = 2 + rest_len;
-  iobuf_append(&nc->recv_iobuf, long_msg, num_bytes);
+  mbuf_append(&nc->recv_mbuf, long_msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 2);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
   /* test a payload whose length encodes as two bytes */
@@ -1395,35 +1398,35 @@ static const char *test_mqtt_parse_mqtt(void) {
   memset(&long_msg[12], 'A', mqtt_very_long_payload_len);
 
   num_bytes = 2 + rest_len;
-  iobuf_append(&nc->recv_iobuf, long_msg, num_bytes);
+  mbuf_append(&nc->recv_mbuf, long_msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 3);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
   /* test encoding a large payload */
   long_msg = (char *) malloc(mqtt_very_long_payload_len);
   memset(long_msg, 'A', mqtt_very_long_payload_len);
   ns_mqtt_publish(nc, "/topic", 0, 0, long_msg, mqtt_very_long_payload_len);
-  nc->recv_iobuf = nc->send_iobuf;
-  iobuf_init(&nc->send_iobuf, 0);
-  num_bytes = nc->recv_iobuf.len;
+  nc->recv_mbuf = nc->send_mbuf;
+  mbuf_init(&nc->send_mbuf, 0);
+  num_bytes = nc->recv_mbuf.len;
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 3);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
   /* test connack parsing */
   ns_mqtt_connack(nc, 0);
-  nc->recv_iobuf = nc->send_iobuf;
-  iobuf_init(&nc->send_iobuf, 0);
+  nc->recv_mbuf = nc->send_mbuf;
+  mbuf_init(&nc->send_mbuf, 0);
   num_bytes = 4;
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
   ASSERT(check == 4);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->recv_mbuf);
 
   free(nc);
   return NULL;
@@ -1706,12 +1709,12 @@ static const char *test_hexdump_file(void) {
   nc->user_data = (void *) 0xbeef;
   close(open(path, O_TRUNC | O_WRONLY));
 
-  iobuf_append(&nc->send_iobuf, "foo", 3);
-  iobuf_append(&nc->recv_iobuf, "bar", 3);
+  mbuf_append(&nc->send_mbuf, "foo", 3);
+  mbuf_append(&nc->recv_mbuf, "bar", 3);
   ns_hexdump_connection(nc, path, 3, NS_SEND);
 
-  iobuf_free(&nc->send_iobuf);
-  iobuf_free(&nc->recv_iobuf);
+  mbuf_free(&nc->send_mbuf);
+  mbuf_free(&nc->recv_mbuf);
   free(nc);
 
   ASSERT((data = read_file(path, &size)) != NULL);
@@ -1740,14 +1743,14 @@ static const char *test_http_chunk(void) {
   memset(&nc, 0, sizeof(nc));
 
   ns_printf_http_chunk(&nc, "%d %s", 123, ":-)");
-  ASSERT(nc.send_iobuf.len == 12);
-  ASSERT(memcmp(nc.send_iobuf.buf, "7\r\n123 :-)\r\n", 12) == 0);
-  iobuf_free(&nc.send_iobuf);
+  ASSERT(nc.send_mbuf.len == 12);
+  ASSERT(memcmp(nc.send_mbuf.buf, "7\r\n123 :-)\r\n", 12) == 0);
+  mbuf_free(&nc.send_mbuf);
 
   ns_send_http_chunk(&nc, "", 0);
-  ASSERT(nc.send_iobuf.len == 5);
-  ASSERT(memcmp(nc.send_iobuf.buf, "0\r\n\r\n", 3) == 0);
-  iobuf_free(&nc.send_iobuf);
+  ASSERT(nc.send_mbuf.len == 5);
+  ASSERT(memcmp(nc.send_mbuf.buf, "0\r\n\r\n", 3) == 0);
+  mbuf_free(&nc.send_mbuf);
 
   return NULL;
 }
@@ -1766,8 +1769,8 @@ static const char *test_dns_encode(void) {
 
   for (i = 0; i < ARRAY_SIZE(query_types); i++) {
     ns_send_dns_query(&nc, "www.cesanta.com", query_types[i]);
-    got = nc.send_iobuf.buf;
-    ASSERT(nc.send_iobuf.len == 12 + 4 + 13 + 4 + 2);
+    got = nc.send_mbuf.buf;
+    ASSERT(nc.send_mbuf.len == 12 + 4 + 13 + 4 + 2);
     ASSERT(got[14] == 3);
     ASSERT(strncmp(&got[15], "www", 3) == 0);
     ASSERT(got[18] == 7);
@@ -1778,7 +1781,7 @@ static const char *test_dns_encode(void) {
     ASSERT(got[31] == 0 && got[32] == query_types[i]);
     ASSERT(got[33] == 0 && got[34] == 1);
 
-    iobuf_free(&nc.send_iobuf);
+    mbuf_free(&nc.send_mbuf);
   }
   return NULL;
 }
@@ -2041,19 +2044,19 @@ static const char *test_dns_reply_encode(void) {
   struct ns_dns_resource_record *rr;
   char name[256];
   in_addr_t addr = inet_addr("54.194.65.250");
-  struct iobuf pkt;
+  struct mbuf pkt;
   struct ns_connection nc;
 
-  iobuf_init(&pkt, 0);
+  mbuf_init(&pkt, 0);
   memset(&nc, 0, sizeof(nc));
 
   /* create a fake query */
 
   ns_send_dns_query(&nc, "www.cesanta.com", NS_DNS_A_RECORD);
   /* remove message length from tcp buffer */
-  iobuf_remove(&nc.send_iobuf, 2);
+  mbuf_remove(&nc.send_mbuf, 2);
 
-  ns_parse_dns(nc.send_iobuf.buf, nc.send_iobuf.len, &msg);
+  ns_parse_dns(nc.send_mbuf.buf, nc.send_mbuf.len, &msg);
 
   /* build an answer */
 
@@ -2081,8 +2084,8 @@ static const char *test_dns_reply_encode(void) {
     return err;
   }
 
-  iobuf_free(&pkt);
-  iobuf_free(&nc.send_iobuf);
+  mbuf_free(&pkt);
+  mbuf_free(&nc.send_mbuf);
   return NULL;
 }
 
@@ -2097,7 +2100,7 @@ static void dns_server_eh(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_DNS_MESSAGE:
       msg = (struct ns_dns_message *) ev_data;
-      reply = ns_dns_create_reply(&nc->send_iobuf, msg);
+      reply = ns_dns_create_reply(&nc->send_mbuf, msg);
 
       for (i = 0; i < msg->num_questions; i++) {
         rr = &msg->questions[i];
@@ -2144,53 +2147,53 @@ static const char *test_dns_server(void) {
 
   ns_send_dns_query(&nc, "www.cesanta.com", NS_DNS_A_RECORD);
 
-  nc.recv_iobuf = nc.send_iobuf;
-  iobuf_init(&nc.send_iobuf, 0);
+  nc.recv_mbuf = nc.send_mbuf;
+  mbuf_init(&nc.send_mbuf, 0);
 
-  ilen = nc.recv_iobuf.len;
+  ilen = nc.recv_mbuf.len;
   nc.proto_handler(&nc, NS_RECV, &ilen);
   /* remove message length from tcp buffer before manually checking */
-  iobuf_remove(&nc.send_iobuf, 2);
+  mbuf_remove(&nc.send_mbuf, 2);
 
-  if ((err = check_www_cesanta_com_reply(nc.send_iobuf.buf,
-                                         nc.send_iobuf.len)) != NULL) {
+  if ((err = check_www_cesanta_com_reply(nc.send_mbuf.buf,
+                                         nc.send_mbuf.len)) != NULL) {
     return err;
   }
 
-  iobuf_free(&nc.send_iobuf);
+  mbuf_free(&nc.send_mbuf);
 
   /* test ns_dns_reply_record */
   ns_send_dns_query(&nc, "cesanta.com", NS_DNS_A_RECORD);
 
-  nc.recv_iobuf = nc.send_iobuf;
-  iobuf_init(&nc.send_iobuf, 0);
+  nc.recv_mbuf = nc.send_mbuf;
+  mbuf_init(&nc.send_mbuf, 0);
 
-  ilen = nc.recv_iobuf.len;
+  ilen = nc.recv_mbuf.len;
   nc.proto_handler(&nc, NS_RECV, &ilen);
   /* remove message length from tcp buffer before manually checking */
-  iobuf_remove(&nc.send_iobuf, 2);
+  mbuf_remove(&nc.send_mbuf, 2);
 
-  ASSERT(ns_parse_dns(nc.send_iobuf.buf, nc.send_iobuf.len, &msg) != -1);
+  ASSERT(ns_parse_dns(nc.send_mbuf.buf, nc.send_mbuf.len, &msg) != -1);
   ASSERT(msg.num_answers == 1);
   ASSERT(msg.answers[0].rtype == NS_DNS_A_RECORD);
   ASSERT(check_record_name(&msg, &msg.answers[0].name, "cesanta.com"));
 
-  iobuf_free(&nc.send_iobuf);
-  iobuf_free(&nc.recv_iobuf);
+  mbuf_free(&nc.send_mbuf);
+  mbuf_free(&nc.recv_mbuf);
 
   /* check malformed request error */
   memset(&msg, 0, sizeof(msg));
   ilen = 0;
   nc.proto_handler(&nc, NS_RECV, &ilen);
   /* remove message length from tcp buffer before manually checking */
-  iobuf_remove(&nc.send_iobuf, 2);
+  mbuf_remove(&nc.send_mbuf, 2);
 
-  ASSERT(ns_parse_dns(nc.send_iobuf.buf, nc.send_iobuf.len, &msg) != -1);
+  ASSERT(ns_parse_dns(nc.send_mbuf.buf, nc.send_mbuf.len, &msg) != -1);
   ASSERT(msg.flags & 1);
   ASSERT(msg.num_questions == 0);
   ASSERT(msg.num_answers == 0);
 
-  iobuf_free(&nc.send_iobuf);
+  mbuf_free(&nc.send_mbuf);
   return NULL;
 }
 
@@ -2275,13 +2278,13 @@ static const char *test_dns_resolve_hosts(void) {
 }
 
 static void ehb_srv(struct ns_connection *nc, int ev, void *p) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   (void) io;
   (void) p;
 
   if (ev == NS_RECV) {
     if (*(int *) p == 1) (*(int *) nc->mgr->user_data)++;
-    iobuf_remove(io, *(int *) p);
+    mbuf_remove(io, *(int *) p);
   }
 }
 
@@ -2293,7 +2296,7 @@ static const char *test_buffer_limit(void) {
 
   ns_mgr_init(&mgr, &res);
   ASSERT((srv = ns_bind(&mgr, address, ehb_srv)) != NULL);
-  srv->recv_iobuf_limit = 1;
+  srv->recv_mbuf_limit = 1;
   ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(clnt, "abcd");
 
@@ -2372,7 +2375,7 @@ static void coap_handler_1(struct ns_connection *nc, int ev, void *p) {
 }
 
 static const char *test_coap(void) {
-  struct iobuf packet_in, packet_out;
+  struct mbuf packet_in, packet_out;
   struct ns_coap_message cm;
   uint32_t res;
 
@@ -2403,14 +2406,14 @@ static const char *test_coap(void) {
       0x67, 0x65, 0x0a, 0x6d, 0x79, 0x72, 0x65, 0x73, 0x6f, 0x75,
       0x72, 0x63, 0x65, 0xf1, 0x6d, 0x79, 0x64, 0x61, 0x74, 0x61};
 
-  iobuf_init(&packet_in, 0);
+  mbuf_init(&packet_in, 0);
   /* empty buf */
   res = ns_coap_parse(&packet_in, &cm);
   ASSERT((res & NS_COAP_NOT_ENOUGH_DATA) != 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_in);
+  mbuf_free(&packet_in);
 
-  iobuf_init(&packet_out, 0);
+  mbuf_init(&packet_out, 0);
   /* ACK, MID: 59675, Empty Message */
   packet_in.buf = (char *) coap_packet_2;
   packet_in.len = sizeof(coap_packet_2);
@@ -2430,7 +2433,7 @@ static const char *test_coap(void) {
   ASSERT(packet_out.len == sizeof(coap_packet_2));
   ASSERT(memcmp(packet_out.buf, coap_packet_2, packet_out.len) == 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   /* ACK, MID: 22287, Empty Message */
   packet_in.buf = (char *) coap_packet_4;
@@ -2451,7 +2454,7 @@ static const char *test_coap(void) {
   ASSERT(packet_out.len == sizeof(coap_packet_4));
   ASSERT(memcmp(packet_out.buf, coap_packet_4, packet_out.len) == 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   /* CON, MID: 59675 ... */
   packet_in.buf = (char *) coap_packet_1;
@@ -2484,7 +2487,7 @@ static const char *test_coap(void) {
   ASSERT(packet_out.len == sizeof(coap_packet_1));
   ASSERT(memcmp(packet_out.buf, coap_packet_1, packet_out.len) == 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   /* CON, MID: 22287 ... */
   packet_in.buf = (char *) coap_packet_3;
@@ -2510,7 +2513,7 @@ static const char *test_coap(void) {
   ASSERT(packet_out.len == sizeof(coap_packet_3));
   ASSERT(memcmp(packet_out.buf, coap_packet_3, packet_out.len) == 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   packet_in.buf = (char *) coap_packet_5;
   packet_in.len = sizeof(coap_packet_5);
@@ -2537,7 +2540,7 @@ static const char *test_coap(void) {
   ASSERT(packet_out.len == sizeof(coap_packet_5));
   ASSERT(memcmp(packet_out.buf, coap_packet_5, packet_out.len) == 0);
   ns_coap_free_options(&cm);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   packet_in.buf = (char *) coap_packet_6;
   packet_in.len = sizeof(coap_packet_6);
@@ -2603,7 +2606,7 @@ static const char *test_coap(void) {
     ASSERT(cm.options->value.len == 2);
     ASSERT(memcmp(cm.options->value.p, value16, cm.options->value.len) == 0);
     ns_coap_free_options(&cm);
-    iobuf_free(&packet_out);
+    mbuf_free(&packet_out);
   }
 
   memset(&cm, 0, sizeof(cm));
@@ -2695,7 +2698,7 @@ static const char *test_strcmp(void) {
 }
 
 static const char *run_tests(const char *filter) {
-  RUN_TEST(test_iobuf);
+  RUN_TEST(test_mbuf);
   RUN_TEST(test_parse_address);
   RUN_TEST(test_check_ip_acl);
   RUN_TEST(test_connect_opts);

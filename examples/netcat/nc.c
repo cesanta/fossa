@@ -47,7 +47,7 @@ static void on_stdin_read(struct ns_connection *nc, int ev, void *p) {
   if (ch < 0) {
     // EOF is received from stdin. Schedule the connection to close
     nc->flags |= NSF_SEND_AND_CLOSE;
-    if (nc->send_iobuf.len <= 0) {
+    if (nc->send_mbuf.len <= 0) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     }
   } else {
@@ -84,8 +84,8 @@ static void ev_handler(struct ns_connection *nc, int ev, void *p) {
       break;
 
     case NS_RECV:
-      fwrite(nc->recv_iobuf.buf, 1, nc->recv_iobuf.len, stdout);
-      iobuf_remove(&nc->recv_iobuf, nc->recv_iobuf.len);
+      fwrite(nc->recv_mbuf.buf, 1, nc->recv_mbuf.len, stdout);
+      mbuf_remove(&nc->recv_mbuf, nc->recv_mbuf.len);
       break;
 
     default:

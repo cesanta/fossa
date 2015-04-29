@@ -37,7 +37,7 @@ static void send_mjpg_frame(struct ns_connection *nc, const char *file_path) {
   /* Check file modification time. */
   if (stat(file_path, &st) == 0) {
     /* Skip the frame if there is too much unsent data. */
-    if (nc->send_iobuf.len > 256) skipped_frames++;
+    if (nc->send_mbuf.len > 256) skipped_frames++;
 
     /* Read new mjpg frame into a buffer */
     fp = fopen(file_path, "rb");

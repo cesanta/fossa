@@ -31,18 +31,18 @@ static void server_handler(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   if (ev == NS_RECV) {
     // Push received message to all ncections
-    struct iobuf *io = &nc->recv_iobuf;
+    struct mbuf *io = &nc->recv_mbuf;
     struct ns_connection *c;
 
     for (c = ns_next(nc->mgr, NULL); c != NULL; c = ns_next(nc->mgr, c)) {
       ns_send(c, io->buf, io->len);
     }
-    iobuf_remove(io, io->len);
+    mbuf_remove(io, io->len);
   }
 }
 
 static void client_handler(struct ns_connection *conn, int ev, void *p) {
-  struct iobuf *io = &conn->recv_iobuf;
+  struct mbuf *io = &conn->recv_mbuf;
   (void) p;
 
   if (ev == NS_CONNECT) {
@@ -56,11 +56,11 @@ static void client_handler(struct ns_connection *conn, int ev, void *p) {
       // Received data from the stdin, forward it to the server
       struct ns_connection *c = (struct ns_connection *) conn->user_data;
       ns_send(c, io->buf, io->len);
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
     } else {
       // Received data from server connection, print it
       fwrite(io->buf, io->len, 1, stdout);
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
     }
   } else if (ev == NS_CLOSE) {
     // Connection has closed, most probably cause server has stopped

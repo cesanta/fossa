@@ -19,13 +19,13 @@
 #include "fossa.h"
 
 static void ev_handler(struct ns_connection *nc, int ev, void *p) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   (void) p;
 
   switch (ev) {
     case NS_RECV:
       ns_send(nc, io->buf, io->len);  // Echo message back
-      iobuf_remove(io, io->len);        // Discard message from recv buffer
+      mbuf_remove(io, io->len);        // Discard message from recv buffer
       break;
     default:
       break;

@@ -312,6 +312,25 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 
 #endif
 /*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#if !defined(BASE64_H_INCLUDED) && !defined(DISABLE_BASE64)
+#define BASE64_H_INCLUDED
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void base64_encode(const unsigned char *src, int src_len, char *dst);
+int base64_decode(const unsigned char *s, int len, char *dst);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+/*
  * Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
  * Copyright (c) 2013 Cesanta Software Limited
  * All rights reserved

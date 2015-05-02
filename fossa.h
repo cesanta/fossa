@@ -18,10 +18,14 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-#ifndef NS_COMMON_HEADER_INCLUDED
-#define NS_COMMON_HEADER_INCLUDED
-
 #define NS_FOSSA_VERSION "2.0.0"
+/*
+ * Copyright (c) 2015 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef OSDEP_HEADER_INCLUDED
+#define OSDEP_HEADER_INCLUDED
 
 #if !defined(NS_DISABLE_FILESYSTEM) && defined(AVR_NOFS)
 #define NS_DISABLE_FILESYSTEM
@@ -41,6 +45,15 @@
 #define _LARGEFILE_SOURCE /* Enable fseeko() and ftello() functions */
 #endif
 #define _FILE_OFFSET_BITS 64 /* Enable 64-bit file offsets */
+
+#ifndef BYTE_ORDER
+#define LITTLE_ENDIAN 0x41424344
+#define BIG_ENDIAN 0x44434241
+#define PDP_ENDIAN 0x42414443
+/* TODO(lsm): fix for big-endian machines. 'ABCD' is not portable */
+/*#define BYTE_ORDER 'ABCD'*/
+#define BYTE_ORDER LITTLE_ENDIAN
+#endif
 
 /*
  * MSVC++ 12.0 _MSC_VER == 1800 (Visual Studio 2013)
@@ -178,7 +191,7 @@ int64_t strtoll(const char* str, char** endptr, int base);
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-#endif /* NS_COMMON_HEADER_INCLUDED */
+#endif /* OSDEP_HEADER_INCLUDED */
 /*
  * Copyright (c) 2015 Cesanta Software Limited
  * All rights reserved
@@ -266,6 +279,7 @@ void mbuf_trim(struct mbuf *);
 #if !defined(NS_SHA1_HEADER_INCLUDED) && !defined(DISABLE_SHA1)
 #define NS_SHA1_HEADER_INCLUDED
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -291,6 +305,7 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *);
 
 #ifndef MD5_HEADER_DEFINED
 #define MD5_HEADER_DEFINED
+
 
 #ifdef __cplusplus
 extern "C" {

@@ -141,13 +141,6 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 #ifndef ISABLE_SHA1
 
 
-#ifndef BYTE_ORDER
-#define LITTLE_ENDIAN 0x41424344UL
-#define BIG_ENDIAN 0x44434241UL
-#define PDP_ENDIAN 0x42414443UL
-#define BYTE_ORDER ('ABCD')
-#endif
-
 #define SHA1HANDSOFF
 #if defined(__sun)
 #endif
@@ -158,7 +151,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 
 static uint32_t blk0(union char64long16 *block, int i) {
   /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
-#if BYTE_ORDER == BIG_ENDIAN
+#if BYTE_ORDER == LITTLE_ENDIAN
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
       (rol(block->l[i], 8) & 0x00FF00FF);
 #endif
@@ -298,13 +291,6 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
 
 #ifndef DISABLE_MD5
 
-
-#ifndef BYTE_ORDER
-#define LITTLE_ENDIAN 0x41424344UL
-#define BIG_ENDIAN 0x44434241UL
-#define PDP_ENDIAN 0x42414443UL
-#define BYTE_ORDER ('ABCD')
-#endif
 
 static void byteReverse(unsigned char *buf, unsigned longs) {
 

@@ -18,7 +18,7 @@
 #ifndef NS_UNIT_TEST_HEADER_INCLUDED
 #define NS_UNIT_TEST_HEADER_INCLUDED
 
-#include "../../common/osdep.h"
+#include "osdep.h"
 
 extern void * (*test_malloc)(size_t);
 extern void * (*test_calloc)(size_t, size_t);

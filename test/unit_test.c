@@ -1679,6 +1679,46 @@ static const char *test_base64(void) {
   return NULL;
 }
 
+static const char *test_sock_addr_to_str(void) {
+  char buf[60];
+  buf[0] = '\0';
+  {
+    union socket_address a4;
+    memset(&a4, 0, sizeof(a4));
+    a4.sa.sa_family = AF_INET;
+    a4.sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+    a4.sin.sin_port = htons(12345);
+    ns_sock_addr_to_str(&a4, buf, sizeof(buf), 0);
+    ASSERT(strcmp(buf, "") == 0);
+    ns_sock_addr_to_str(&a4, buf, sizeof(buf), NS_SOCK_STRINGIFY_IP);
+    ASSERT(strcmp(buf, "127.0.0.1") == 0);
+    ns_sock_addr_to_str(&a4, buf, sizeof(buf), NS_SOCK_STRINGIFY_PORT);
+    ASSERT(strcmp(buf, "12345") == 0);
+    ns_sock_addr_to_str(&a4, buf, sizeof(buf),
+                        NS_SOCK_STRINGIFY_IP | NS_SOCK_STRINGIFY_PORT);
+    ASSERT(strcmp(buf, "127.0.0.1:12345") == 0);
+  }
+#if defined(NS_ENABLE_IPV6) && !defined(_WIN32)
+  {
+    union socket_address a6;
+    memset(&a6, 0, sizeof(a6));
+    a6.sa.sa_family = AF_INET6;
+    ASSERT(inet_pton(AF_INET6, "2001::123", &a6.sin6.sin6_addr) == 1);
+    a6.sin6.sin6_port = htons(12345);
+    ns_sock_addr_to_str(&a6, buf, sizeof(buf), 0);
+    ASSERT(strcmp(buf, "") == 0);
+    ns_sock_addr_to_str(&a6, buf, sizeof(buf), NS_SOCK_STRINGIFY_IP);
+    ASSERT(strcmp(buf, "2001::123") == 0);
+    ns_sock_addr_to_str(&a6, buf, sizeof(buf), NS_SOCK_STRINGIFY_PORT);
+    ASSERT(strcmp(buf, "12345") == 0);
+    ns_sock_addr_to_str(&a6, buf, sizeof(buf),
+                        NS_SOCK_STRINGIFY_IP | NS_SOCK_STRINGIFY_PORT);
+    ASSERT(strcmp(buf, "[2001::123]:12345") == 0);
+  }
+#endif
+  return NULL;
+}
+
 static const char *test_hexdump(void) {
   const char *src = "\1\2\3\4abcd";
   char got[256];
@@ -2749,6 +2789,7 @@ static const char *run_tests(const char *filter) {
   RUN_TEST(test_resolve);
 #endif
   RUN_TEST(test_base64);
+  RUN_TEST(test_sock_addr_to_str);
   RUN_TEST(test_hexdump);
   RUN_TEST(test_hexdump_file);
 #ifdef NS_ENABLE_SSL

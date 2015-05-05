@@ -4593,31 +4593,57 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
 
-  if (buf != NULL && len > 0) {
-    buf[0] = '\0';
-    memset(&sa, 0, sizeof(sa));
-    if (flags & 4) {
-      getpeername(sock, &sa.sa, &slen);
-    } else {
-      getsockname(sock, &sa.sa, &slen);
-    }
-    if (flags & 1) {
+  memset(&sa, 0, sizeof(sa));
+  if (flags & NS_SOCK_STRINGIFY_REMOTE) {
+    getpeername(sock, &sa.sa, &slen);
+  } else {
+    getsockname(sock, &sa.sa, &slen);
+  }
+
+  ns_sock_addr_to_str(&sa, buf, len, flags);
+}
+
+void ns_sock_addr_to_str(const union socket_address* sa, char *buf, size_t len,
+                         int flags) {
+  if (buf == NULL || len <= 0) return;
+  buf[0] = '\0';
 #if defined(NS_ENABLE_IPV6)
-      inet_ntop(sa.sa.sa_family,
-                sa.sa.sa_family == AF_INET ? (void *) &sa.sin.sin_addr
-                                           : (void *) &sa.sin6.sin6_addr,
-                buf, len);
-#elif defined(_WIN32)
-      /* Only Windoze Vista (and newer) have inet_ntop() */
-      strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
+  int is_v6 = sa->sa.sa_family == AF_INET6;
 #else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
-                (socklen_t) len);
+  int is_v6 = 0;
 #endif
+  if (flags & NS_SOCK_STRINGIFY_IP) {
+#if defined(NS_ENABLE_IPV6)
+    const void* addr = NULL;
+    char *start = buf;
+    socklen_t capacity = len;
+    if (!is_v6) {
+      addr = &sa->sin.sin_addr;
+    } else {
+      addr = (void *) &sa->sin6.sin6_addr;
+      if (flags & NS_SOCK_STRINGIFY_PORT) {
+        *buf = '[';
+        start++;
+        capacity--;
+      }
     }
-    if (flags & 2) {
-      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s%d",
-               flags & 1 ? ":" : "", (int) ntohs(sa.sin.sin_port));
+    if (inet_ntop(sa->sa.sa_family, addr, start, capacity) == NULL) {
+      *buf = '\0';
+    }
+#elif defined(_WIN32)
+    /* Only Windoze Vista (and newer) have inet_ntop() */
+    strncpy(buf, inet_ntoa(sa->sin.sin_addr), len);
+#else
+    inet_ntop(AF_INET, (void *) &sa->sin.sin_addr, buf, len);
+#endif
+  }
+  if (flags & NS_SOCK_STRINGIFY_PORT) {
+    int port = ntohs(sa->sin.sin_port);
+    if (flags & NS_SOCK_STRINGIFY_IP) {
+      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s:%d",
+               (is_v6 ? "]" : ""), port);
+    } else {
+      snprintf(buf, len, "%d", port);
     }
   }
 }

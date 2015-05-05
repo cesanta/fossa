@@ -817,6 +817,8 @@ int ns_check_ip_acl(const char *acl, uint32_t remote_ip);
 #ifndef NS_UTIL_HEADER_DEFINED
 #define NS_UTIL_HEADER_DEFINED
 
+#include <stdio.h>
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -887,7 +889,7 @@ void ns_base64_encode(const unsigned char *src, int src_len, char *dst);
  *
  * Return value is the same as for `stat()` syscall.
  */
- int ns_stat(const char *path, ns_stat_t *st);
+int ns_stat(const char *path, ns_stat_t *st);
 
 /*
  * Open the given file and return a file stream.
@@ -937,6 +939,14 @@ void ns_set_close_on_exec(sock_t);
  * If compiled with `-DNS_ENABLE_IPV6`, IPv6 addresses are supported.
  */
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
+
+/*
+ * Convert socket's address into string.
+ *
+ * `flags` is NS_SOCK_STRINGIFY_IP and/or NS_SOCK_STRINGIFY_PORT.
+ */
+void ns_sock_addr_to_str(const union socket_address* sa,
+                         char *buf, size_t len, int flags);
 
 /*
  * Generates human-readable hexdump of memory chunk.

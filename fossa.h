@@ -667,6 +667,7 @@ struct ns_connection *ns_bind(struct ns_mgr *, const char *,
  * parameters.
  *
  * Return a new listening connection, or `NULL` on error.
+ * NOTE: Connection remains owned by the manager, do not free().
  */
 struct ns_connection *ns_bind_opt(struct ns_mgr *, const char *,
                                   ns_event_handler_t, struct ns_bind_opts);
@@ -700,6 +701,8 @@ struct ns_connection *ns_connect(struct ns_mgr *, const char *,
  * parameters.
  *
  * Returns a new outbound connection, or `NULL` on error.
+ *
+ * NOTE: Connection remains owned by the manager, do not free().
  *
  * NOTE: To enable IPv6 addresses, `-DNS_ENABLE_IPV6` should be specified
  * in the compilation flags.

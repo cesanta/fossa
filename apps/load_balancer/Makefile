@@ -29,5 +29,11 @@ test: $(PROG)
 	$(MAKE) -C ../api_server
 	sh unit_test.sh $$(pwd)/$(PROG)
 
+docker-build:
+	docker build -t cesanta/load_balancer .
+
+docker-push:
+	docker push cesanta/load_balancer
+
 clean:
 	rm -rf *.gc* *.dSYM *.exe *.obj *.o a.out $(PROG)

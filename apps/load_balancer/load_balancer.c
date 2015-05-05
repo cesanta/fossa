@@ -17,8 +17,11 @@ struct http_backend {
 
 struct peer {
   struct ns_connection *nc;
-  int64_t body_len;           /* Size of the HTTP body to forward */
-  int64_t body_sent;          /* Number of bytes already forwarded */
+  int64_t body_len;               /* Size of the HTTP body to forward */
+  int64_t body_sent;              /* Number of bytes already forwarded */
+  struct {
+    unsigned int headers_sent:1;  /* Headers have been sent, no more headers. */
+  } flags;
 };
 
 struct conn_data {
@@ -40,6 +43,7 @@ const char *s_ssl_cert = NULL;
 #endif
 
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data);
+static void write_log(const char *fmt, ...);
 
 static void signal_handler(int sig_num) {
   signal(sig_num, signal_handler);
@@ -48,6 +52,20 @@ static void signal_handler(int sig_num) {
 
 static void send_http_err(struct ns_connection *nc, const char *err_line) {
   ns_printf(nc, "%s%s%s\r\n", err_line, s_content_len_0, s_connection_close);
+}
+
+static void respond_with_error(struct conn_data *conn, const char *err_line) {
+  struct ns_connection *nc = conn->client.nc;
+  int headers_sent = conn->client.flags.headers_sent;
+#ifdef DEBUG
+  write_log("conn=%p nc=%p respond_with_error %d\n", conn, nc, headers_sent);
+#endif
+  if (nc == NULL) return;
+  if (!headers_sent) {
+    send_http_err(nc, err_line);
+    conn->client.flags.headers_sent = 1;
+  }
+  nc->flags |= NSF_SEND_AND_CLOSE;
 }
 
 static int has_prefix(const struct ns_str *uri, const char *prefix) {
@@ -74,18 +92,12 @@ static void write_log(const char *fmt, ...) {
   }
 }
 
-static void disconnect_backend(struct ns_connection *nc) {
-  struct conn_data *data = (struct conn_data *) nc->user_data;
-  if (data != NULL) {
-    data->backend.nc->flags |= NSF_SEND_AND_CLOSE;
-    data->client.nc->user_data = data->backend.nc->user_data = NULL;
-    free(data);
-  }
-}
-
 static struct http_backend *choose_backend(struct http_message *hm) {
   int i, chosen = -1;
-  struct ns_str vhost = *ns_get_http_header(hm, "host");
+  const struct ns_str *host = ns_get_http_header(hm, "host");
+  if (host == NULL) return NULL;
+
+  struct ns_str vhost = *host;
   const char *vhost_end = vhost.p;
 
   while (vhost_end < vhost.p + vhost.len && *vhost_end != ':') {
@@ -106,36 +118,38 @@ static struct http_backend *choose_backend(struct http_message *hm) {
           s_http_backends[i].usage_counter <
               s_http_backends[chosen].usage_counter))) {
       chosen = i;
+      s_http_backends[chosen].usage_counter++;
     }
   }
 
   return chosen < 0 ? NULL : &s_http_backends[chosen];
 }
 
-static void forward_body(struct ns_connection *src, struct ns_connection *dst) {
-  struct conn_data *data = (struct conn_data *) src->user_data;
-  struct mbuf *io = &src->recv_mbuf;
-  struct peer *peer = src == data->client.nc ? &data->client : &data->backend;
-
-  if (peer->body_sent < peer->body_len) {
-    size_t to_send = peer->body_len - peer->body_sent;
-    if (io->len < to_send) {
-      to_send = io->len;
+static void forward_body(struct peer *src, struct peer *dst) {
+  struct mbuf *src_io = &src->nc->recv_mbuf;
+  if (src->body_sent < src->body_len) {
+    size_t to_send = src->body_len - src->body_sent;
+    if (src_io->len < to_send) {
+      to_send = src_io->len;
     }
-    ns_send(dst, io->buf, to_send);
-    peer->body_sent += to_send;
+    ns_send(dst->nc, src_io->buf, to_send);
+    src->body_sent += to_send;
   }
-
-  if (peer->body_sent == peer->body_len) {
-    disconnect_backend(src);
-  }
+#ifdef DEBUG
+  write_log("forward_body %p -> %p sent %d of %d\n",
+            src->nc, dst->nc, src->body_sent, src->body_len);
+#endif
 }
 
-static void start_forwarding(struct http_message *hm, struct ns_connection *src,
-                             struct ns_connection *dst) {
+static void forward(struct http_message *hm, struct peer *src_peer,
+                    struct peer *dst_peer) {
+  struct ns_connection *src = src_peer->nc;
+  struct ns_connection *dst = dst_peer->nc;
   struct conn_data *data = (struct conn_data *) src->user_data;
   struct mbuf *io = &src->recv_mbuf;
-  int i, is_request = src == data->client.nc;
+  int i;
+  int is_request = (src_peer == &data->client);
+  src_peer->body_len = hm->body.len;
 
   if (is_request) {
     /* Write rewritten request line. */
@@ -186,7 +200,9 @@ static void start_forwarding(struct http_message *hm, struct ns_connection *src,
   ns_printf(dst, "%s", "\r\n");
 
   mbuf_remove(io, hm->body.p - hm->message.p); /* We've forwarded headers */
-  forward_body(src, dst);
+  dst_peer->flags.headers_sent = 1;
+
+  forward_body(src_peer, dst_peer);
 }
 
 /*
@@ -195,67 +211,117 @@ static void start_forwarding(struct http_message *hm, struct ns_connection *src,
  * one request request for each connection. To give a hint to backend about
  * this it inserts "Connection: close" header into each forwarded request.
  */
-static void connect_backend(struct ns_connection *nc, struct http_message *hm) {
-  struct conn_data *data = NULL;
+static int connect_backend(struct conn_data *conn, struct http_message *hm) {
+  struct ns_connection *nc = conn->client.nc;
   struct http_backend *be = choose_backend(hm);
 
   write_log("%.*s %.*s backend=%d\n", (int) hm->method.len, hm->method.p,
             (int) hm->uri.len, hm->uri.p, (int) (be - s_http_backends));
 
-  if (be == NULL) {
-    /* No backend with given uri_prefix found, bail out */
-    send_http_err(nc, s_error_500);
-  } else if (be->redirect != 0) {
+  if (be == NULL) return 0;
+  if (be->redirect != 0) {
     ns_printf(nc, "HTTP/1.1 302 Found\r\nLocation: %s\r\n\r\n", be->host_port);
-  } else if ((data = (struct conn_data *) calloc(1, sizeof(*data))) == NULL) {
-    send_http_err(nc->user_data, s_error_500);
-  } else if ((data->backend.nc =
-                  ns_connect(nc->mgr, be->host_port, ev_handler)) == NULL) {
-    write_log("Connection to [%s] failed\n", be->host_port);
-    free(data);
-    send_http_err(nc->user_data, s_error_500);
-  } else {
-    be->usage_counter++;
-    data->be = be;
-    data->client.nc = nc;
-    data->client.body_len = hm->body.len;
-    nc->user_data = data->backend.nc->user_data = data;
-    ns_set_protocol_http_websocket(data->backend.nc);
-    start_forwarding(hm, nc, data->backend.nc);
+    return 1;
   }
+  conn->backend.nc = ns_connect(nc->mgr, be->host_port, ev_handler);
+  if (conn->backend.nc == NULL) {
+    write_log("Connection to [%s] failed\n", be->host_port);
+    return 0;
+  }
+  conn->be = be;
+  conn->backend.nc->user_data = conn;
+  ns_set_protocol_http_websocket(conn->backend.nc);
+  return 1;
 }
 
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct conn_data *data = (struct conn_data *) nc->user_data;
+  struct conn_data *conn = (struct conn_data *) nc->user_data;
+#ifdef DEBUG
+  write_log("conn=%p nc=%p ev=%d data=%p data=%p\n", conn, nc, ev, ev_data);
+#endif
+
+  if (conn == NULL) {
+    if (ev == NS_ACCEPT) {
+      conn = calloc(1, sizeof(*conn));
+      if (conn == NULL) {
+        send_http_err(nc, s_error_500);
+      } else {
+        memset(conn, 0, sizeof(*conn));
+        nc->user_data = conn;
+        conn->client.body_len = -1;
+        conn->backend.body_len = -1;
+      }
+      return;
+    } else {
+      nc->flags |= NSF_CLOSE_IMMEDIATELY;
+      return;
+    }
+  }
 
   switch (ev) {
-    case NS_CONNECT:
-      if (* (int *) ev_data != 0) {
+    case NS_HTTP_REQUEST: {  /* From client */
+      assert(conn != NULL);
+      struct http_message *hm = (struct http_message *) ev_data;
+      conn->client.nc = nc;
+
+      if (!connect_backend(conn, hm)) {
+        respond_with_error(conn, s_error_500);
+        break;
+      }
+
+      if (conn->backend.nc == NULL) {
+        /* This is a redirect, we're done. */
+        conn->client.nc->flags |= NSF_SEND_AND_CLOSE;
+        break;
+      }
+
+      forward(hm, &conn->client, &conn->backend);
+      break;
+    }
+
+    case NS_CONNECT: {       /* To backend */
+      assert(conn != NULL);
+      int status = * (int *) ev_data;
+      if (status != 0) {
         /* TODO(lsm): mark backend as defunct, try it later on */
-        if (data != NULL) {
-          send_http_err(data->client.nc, s_error_500);
+        respond_with_error(conn, s_error_500);
+      }
+      break;
+    }
+
+    case NS_HTTP_REPLY: {    /* From backend */
+      assert(conn != NULL);
+      struct http_message *hm = (struct http_message *) ev_data;
+      forward(hm, &conn->backend, &conn->client);
+      /* TODO(rojer): Keepalive. */
+      conn->client.nc->flags |= NSF_SEND_AND_CLOSE;
+      break;
+    }
+
+    case NS_CLOSE: {
+      assert(conn != NULL);
+      if (nc == conn->client.nc) {
+#ifdef DEBUG
+        write_log("conn=%p nc=%p client closed, body_sent=%d\n",
+                  conn, nc, conn->backend.body_sent);
+#endif
+        conn->client.nc = NULL;
+        if (conn->backend.nc != NULL) {
+          conn->backend.nc->flags |= NSF_CLOSE_IMMEDIATELY;
         }
-        disconnect_backend(nc);
+      } else if (nc == conn->backend.nc) {
+        conn->backend.nc = NULL;
+        if (conn->client.nc != NULL && (
+              conn->backend.body_len < 0 ||
+              conn->backend.body_sent <  conn->backend.body_len)) {
+          respond_with_error(conn, s_error_500);
+        }
+      }
+      if (conn->client.nc == NULL && conn->backend.nc == NULL) {
+        free(conn);
       }
       break;
-    case NS_HTTP_REQUEST:
-      connect_backend(nc, ev_data);
-      break;
-    case NS_HTTP_REPLY:
-      if (data != NULL) {
-        data->backend.body_len = ((struct http_message *) ev_data)->body.len;
-        start_forwarding(ev_data, nc, data->client.nc);
-      }
-      break;
-    case NS_RECV:
-      if (data != NULL) {
-        forward_body(
-            nc, nc == data->client.nc ? data->backend.nc : data->client.nc);
-      }
-      break;
-    case NS_CLOSE:
-      disconnect_backend(nc);
-      break;
+    }
   }
 }
 
@@ -284,10 +350,14 @@ int main(int argc, char *argv[]) {
       mgr.hexdump_file = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
-      s_log_file = fopen(argv[i + 1], "a");
-      if (s_log_file == NULL) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
+      if (strcmp(argv[i + 1], "-l") == 0) {
+        s_log_file = stdout;
+      } else {
+        s_log_file = fopen(argv[i + 1], "a");
+        if (s_log_file == NULL) {
+          perror("fopen");
+          exit(EXIT_FAILURE);
+        }
       }
       i++;
     } else if (strcmp(argv[i], "-p") == 0) {

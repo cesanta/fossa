@@ -63,20 +63,20 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #include <assert.h>
 #include <string.h>
 
-void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
+ON_FLASH void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
   mbuf->len = mbuf->size = 0;
   mbuf->buf = NULL;
   mbuf_resize(mbuf, initial_size);
 }
 
-void mbuf_free(struct mbuf *mbuf) {
+ON_FLASH void mbuf_free(struct mbuf *mbuf) {
   if (mbuf->buf != NULL) {
     free(mbuf->buf);
     mbuf_init(mbuf, 0);
   }
 }
 
-void mbuf_resize(struct mbuf *a, size_t new_size) {
+ON_FLASH void mbuf_resize(struct mbuf *a, size_t new_size) {
   char *p;
   if ((new_size > a->size || (new_size < a->size && new_size >= a->len)) &&
       (p = (char *) realloc(a->buf, new_size)) != NULL) {
@@ -85,16 +85,18 @@ void mbuf_resize(struct mbuf *a, size_t new_size) {
   }
 }
 
-void mbuf_trim(struct mbuf *mbuf) {
+ON_FLASH void mbuf_trim(struct mbuf *mbuf) {
   mbuf_resize(mbuf, mbuf->len);
 }
 
-size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
+ON_FLASH size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
+#ifndef NO_LIBC
   assert(a != NULL);
   assert(a->len <= a->size);
   assert(off <= a->len);
+#endif
 
   /* check overflow */
   if (~(size_t) 0 - (size_t) a->buf < len) return 0;
@@ -121,11 +123,11 @@ size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   return len;
 }
 
-size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
+ON_FLASH size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
   return mbuf_insert(a, a->len, buf, len);
 }
 
-void mbuf_remove(struct mbuf *mb, size_t n) {
+ON_FLASH void mbuf_remove(struct mbuf *mb, size_t n) {
   if (n > 0 && n <= mb->len) {
     memmove(mb->buf, mb->buf + n, mb->len - n);
     mb->len -= n;
@@ -149,7 +151,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-static uint32_t blk0(union char64long16 *block, int i) {
+ON_FLASH static uint32_t blk0(union char64long16 *block, int i) {
   /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
 #if BYTE_ORDER == LITTLE_ENDIAN
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
@@ -174,7 +176,7 @@ static uint32_t blk0(union char64long16 *block, int i) {
 #define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
 #define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
 
-void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
+ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   uint32_t a, b, c, d, e;
   union char64long16 block[1];
 
@@ -216,7 +218,7 @@ void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   (void) a; (void) b; (void) c; (void) d; (void) e;
 }
 
-void SHA1Init(SHA1_CTX *context) {
+ON_FLASH void SHA1Init(SHA1_CTX *context) {
   context->state[0] = 0x67452301;
   context->state[1] = 0xEFCDAB89;
   context->state[2] = 0x98BADCFE;
@@ -225,7 +227,7 @@ void SHA1Init(SHA1_CTX *context) {
   context->count[0] = context->count[1] = 0;
 }
 
-void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
+ON_FLASH void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
   uint32_t i, j;
 
   j = context->count[0];
@@ -245,7 +247,7 @@ void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
   memcpy(&context->buffer[j], &data[i], len - i);
 }
 
-void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
+ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   unsigned i;
   unsigned char finalcount[8], c;
 
@@ -292,7 +294,7 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
 #ifndef DISABLE_MD5
 
 
-static void byteReverse(unsigned char *buf, unsigned longs) {
+ON_FLASH static void byteReverse(unsigned char *buf, unsigned longs) {
 
   /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
 #if BYTE_ORDER == BIG_ENDIAN
@@ -320,7 +322,7 @@ static void byteReverse(unsigned char *buf, unsigned longs) {
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-void MD5_Init(MD5_CTX *ctx) {
+ON_FLASH void MD5_Init(MD5_CTX *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -330,7 +332,7 @@ void MD5_Init(MD5_CTX *ctx) {
   ctx->bits[1] = 0;
 }
 
-static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
+ON_FLASH static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -412,7 +414,7 @@ static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
+ON_FLASH void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
@@ -448,7 +450,7 @@ void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
+ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -488,7 +490,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  */
 
 
-void base64_encode(const unsigned char *src, int src_len, char *dst) {
+ON_FLASH void base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
@@ -514,7 +516,7 @@ void base64_encode(const unsigned char *src, int src_len, char *dst) {
 }
 
 /* Convert one byte of encoded base64 input stream to 6-bit chunk */
-static unsigned char from_b64(unsigned char ch) {
+ON_FLASH static unsigned char from_b64(unsigned char ch) {
   /* Inverse lookup map */
   static const unsigned char tab[128] = {
       255, 255, 255, 255,
@@ -553,7 +555,7 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-int base64_decode(const unsigned char *s, int len, char *dst) {
+ON_FLASH int base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   int orig_len = len;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
@@ -2335,7 +2337,6 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
 
     if (k->len == 0 || v->len == 0) {
       k->p = v->p = NULL;
-      k->len = v->len = 0;
       break;
     }
 

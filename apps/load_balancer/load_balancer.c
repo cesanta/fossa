@@ -17,25 +17,26 @@ struct http_backend {
 
 struct peer {
   struct ns_connection *nc;
-  int64_t body_len;               /* Size of the HTTP body to forward */
-  int64_t body_sent;              /* Number of bytes already forwarded */
+  int64_t body_len;  /* Size of the HTTP body to forward */
+  int64_t body_sent; /* Number of bytes already forwarded */
   struct {
-    unsigned int headers_sent:1;  /* Headers have been sent, no more headers. */
+    /* Headers have been sent, no more headers. */
+    unsigned int headers_sent : 1;
   } flags;
 };
 
 struct conn_data {
-  struct http_backend *be;    /* Chosen backend */
-  struct peer client;         /* Client peer */
-  struct peer backend;        /* Backend peer */
+  struct http_backend *be; /* Chosen backend */
+  struct peer client;      /* Client peer */
+  struct peer backend;     /* Backend peer */
 };
 
 static const char *s_error_500 = "HTTP/1.1 500 Failed\r\n";
 static const char *s_content_len_0 = "Content-Length: 0\r\n";
 static const char *s_connection_close = "Connection: close\r\n";
 static const char *s_http_port = "8000";
-static struct http_backend s_http_backends[100];
-static int s_num_http_backends = 0;
+static struct http_backend s_vhost_backends[100], s_default_backends[100];
+static int s_num_vhost_backends = 0, s_num_default_backends = 0;
 static int s_sig_num = 0;
 static FILE *s_log_file = NULL;
 #ifdef NS_ENABLE_SSL
@@ -92,12 +93,13 @@ static void write_log(const char *fmt, ...) {
   }
 }
 
-static struct http_backend *choose_backend(struct http_message *hm) {
-  int i, chosen = -1;
+static struct http_backend *choose_backend_from_list(
+    struct http_message *hm, struct http_backend *backends, int num_backends) {
+  int i;
+  struct ns_str vhost = {"", 0};
   const struct ns_str *host = ns_get_http_header(hm, "host");
-  if (host == NULL) return NULL;
+  if (host != NULL) vhost = *host;
 
-  struct ns_str vhost = *host;
   const char *vhost_end = vhost.p;
 
   while (vhost_end < vhost.p + vhost.len && *vhost_end != ':') {
@@ -105,24 +107,37 @@ static struct http_backend *choose_backend(struct http_message *hm) {
   }
   vhost.len = vhost_end - vhost.p;
 
-  for (i = 0; i < s_num_http_backends; i++) {
-    if (has_prefix(&hm->uri, s_http_backends[i].uri_prefix) &&
-        matches_vhost(&vhost, s_http_backends[i].vhost) &&
-        (chosen == -1 ||
+  struct http_backend *chosen = NULL;
+  for (i = 0; i < num_backends; i++) {
+    struct http_backend *be = &backends[i];
+    if (has_prefix(&hm->uri, be->uri_prefix) &&
+        matches_vhost(&vhost, be->vhost) &&
+        (chosen == NULL ||
          /* Prefer most specific URI prefixes */
-         strlen(s_http_backends[i].uri_prefix) >
-             strlen(s_http_backends[chosen].uri_prefix) ||
+         strlen(be->uri_prefix) > strlen(chosen->uri_prefix) ||
          /* Among prefixes of the same length chose the least used. */
-         (strlen(s_http_backends[i].uri_prefix) ==
-              strlen(s_http_backends[chosen].uri_prefix) &&
-          s_http_backends[i].usage_counter <
-              s_http_backends[chosen].usage_counter))) {
-      chosen = i;
-      s_http_backends[chosen].usage_counter++;
+         (strlen(be->uri_prefix) == strlen(chosen->uri_prefix) &&
+          be->usage_counter < chosen->usage_counter))) {
+      chosen = be;
     }
   }
 
-  return chosen < 0 ? NULL : &s_http_backends[chosen];
+  return chosen;
+}
+
+static struct http_backend *choose_backend(struct http_message *hm) {
+  struct http_backend *chosen =
+      choose_backend_from_list(hm, s_vhost_backends, s_num_vhost_backends);
+
+  /* Nothing was chosen for this vhost, look for vhost == NULL backends. */
+  if (chosen == NULL) {
+    chosen = choose_backend_from_list(hm, s_default_backends,
+                                      s_num_default_backends);
+  }
+
+  if (chosen != NULL) chosen->usage_counter++;
+
+  return chosen;
 }
 
 static void forward_body(struct peer *src, struct peer *dst) {
@@ -136,8 +151,8 @@ static void forward_body(struct peer *src, struct peer *dst) {
     src->body_sent += to_send;
   }
 #ifdef DEBUG
-  write_log("forward_body %p -> %p sent %d of %d\n",
-            src->nc, dst->nc, src->body_sent, src->body_len);
+  write_log("forward_body %p -> %p sent %d of %d\n", src->nc, dst->nc,
+            src->body_sent, src->body_len);
 #endif
 }
 
@@ -154,19 +169,18 @@ static void forward(struct http_message *hm, struct peer *src_peer,
   if (is_request) {
     /* Write rewritten request line. */
     size_t trim_len = strlen(data->be->uri_prefix);
-    ns_printf(dst, "%.*s%s%.*s\r\n", (int) (hm->uri.p - io->buf),
-              io->buf, data->be->uri_prefix_replacement,
+    ns_printf(dst, "%.*s%s%.*s\r\n", (int) (hm->uri.p - io->buf), io->buf,
+              data->be->uri_prefix_replacement,
               (int) (hm->proto.p + hm->proto.len - (hm->uri.p + trim_len)),
               hm->uri.p + trim_len);
   } else {
     /* Reply line goes without modification */
-    ns_printf(dst, "%.*s %.*s %.*s\r\n", (int)hm->method.len, hm->method.p,
-              (int)hm->uri.len, hm->uri.p, (int)hm->proto.len, hm->proto.p);
+    ns_printf(dst, "%.*s %.*s %.*s\r\n", (int) hm->method.len, hm->method.p,
+              (int) hm->uri.len, hm->uri.p, (int) hm->proto.len, hm->proto.p);
   }
 
   /* Headers. */
   for (i = 0; i < NS_MAX_HTTP_HEADERS && hm->header_names[i].len > 0; i++) {
-
 #ifdef NS_ENABLE_SSL
     /*
      * If we terminate SSL and backend redirects to local HTTP port,
@@ -186,16 +200,16 @@ static void forward(struct http_message *hm, struct peer *src_peer,
 
       if (ns_ncasecmp(v->p, "http://", 7) == 0 &&
           ns_ncasecmp(v->p + 7, hp, (p - hp)) == 0) {
-        ns_printf(dst, "Location: %.*s\r\n", (int)(v->len - (7 + (p - hp))),
+        ns_printf(dst, "Location: %.*s\r\n", (int) (v->len - (7 + (p - hp))),
                   v->p + 7 + (p - hp));
         continue;
       }
     }
 #endif
 
-    ns_printf(dst, "%.*s: %.*s\r\n",
-              (int) hm->header_names[i].len, hm->header_names[i].p,
-              (int) hm->header_values[i].len, hm->header_values[i].p);
+    ns_printf(dst, "%.*s: %.*s\r\n", (int) hm->header_names[i].len,
+              hm->header_names[i].p, (int) hm->header_values[i].len,
+              hm->header_values[i].p);
   }
   ns_printf(dst, "%s", "\r\n");
 
@@ -215,8 +229,8 @@ static int connect_backend(struct conn_data *conn, struct http_message *hm) {
   struct ns_connection *nc = conn->client.nc;
   struct http_backend *be = choose_backend(hm);
 
-  write_log("%.*s %.*s backend=%d\n", (int) hm->method.len, hm->method.p,
-            (int) hm->uri.len, hm->uri.p, (int) (be - s_http_backends));
+  write_log("%.*s %.*s backend=%s\n", (int) hm->method.len, hm->method.p,
+            (int) hm->uri.len, hm->uri.p, be->host_port);
 
   if (be == NULL) return 0;
   if (be->redirect != 0) {
@@ -259,7 +273,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 
   switch (ev) {
-    case NS_HTTP_REQUEST: {  /* From client */
+    case NS_HTTP_REQUEST: { /* From client */
       assert(conn != NULL);
       struct http_message *hm = (struct http_message *) ev_data;
       conn->client.nc = nc;
@@ -279,9 +293,9 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
     }
 
-    case NS_CONNECT: {       /* To backend */
+    case NS_CONNECT: { /* To backend */
       assert(conn != NULL);
-      int status = * (int *) ev_data;
+      int status = *(int *) ev_data;
       if (status != 0) {
         /* TODO(lsm): mark backend as defunct, try it later on */
         respond_with_error(conn, s_error_500);
@@ -289,7 +303,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       break;
     }
 
-    case NS_HTTP_REPLY: {    /* From backend */
+    case NS_HTTP_REPLY: { /* From backend */
       assert(conn != NULL);
       struct http_message *hm = (struct http_message *) ev_data;
       forward(hm, &conn->backend, &conn->client);
@@ -302,8 +316,8 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       assert(conn != NULL);
       if (nc == conn->client.nc) {
 #ifdef DEBUG
-        write_log("conn=%p nc=%p client closed, body_sent=%d\n",
-                  conn, nc, conn->backend.body_sent);
+        write_log("conn=%p nc=%p client closed, body_sent=%d\n", conn, nc,
+                  conn->backend.body_sent);
 #endif
         conn->client.nc = NULL;
         if (conn->backend.nc != NULL) {
@@ -311,9 +325,9 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
         }
       } else if (nc == conn->backend.nc) {
         conn->backend.nc = NULL;
-        if (conn->client.nc != NULL && (
-              conn->backend.body_len < 0 ||
-              conn->backend.body_sent <  conn->backend.body_len)) {
+        if (conn->client.nc != NULL &&
+            (conn->backend.body_len < 0 ||
+             conn->backend.body_sent < conn->backend.body_len)) {
           respond_with_error(conn, s_error_500);
         }
       }
@@ -350,7 +364,7 @@ int main(int argc, char *argv[]) {
       mgr.hexdump_file = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
-      if (strcmp(argv[i + 1], "-l") == 0) {
+      if (strcmp(argv[i + 1], "-") == 0) {
         s_log_file = stdout;
       } else {
         s_log_file = fopen(argv[i + 1], "a");
@@ -366,10 +380,16 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
       redirect = 1;
     } else if (strcmp(argv[i], "-v") == 0 && i + 1 < argc) {
-      vhost = argv[i + 1];
+      if (strcmp(argv[i + 1], "") == 0) {
+        vhost = NULL;
+      } else {
+        vhost = argv[i + 1];
+      }
       i++;
     } else if (strcmp(argv[i], "-b") == 0 && i + 2 < argc) {
-      struct http_backend *be = &s_http_backends[s_num_http_backends];
+      struct http_backend *be =
+          vhost != NULL ? &s_vhost_backends[s_num_vhost_backends++]
+                        : &s_default_backends[s_num_default_backends++];
       char *r = NULL;
       be->vhost = vhost;
       be->uri_prefix = argv[i + 1];
@@ -381,14 +401,12 @@ int main(int argc, char *argv[]) {
         be->uri_prefix_replacement = r + 1;
       }
       printf(
-          "Adding backend %d for %s%s : %s "
+          "Adding backend for %s%s : %s "
           "[redirect=%d,prefix_replacement=%s]\n",
-          s_num_http_backends, be->vhost == NULL ? "" : be->vhost,
-          be->uri_prefix, be->host_port, be->redirect,
-          be->uri_prefix_replacement);
+          be->vhost == NULL ? "" : be->vhost, be->uri_prefix, be->host_port,
+          be->redirect, be->uri_prefix_replacement);
       vhost = NULL;
       redirect = 0;
-      s_num_http_backends++;
       i += 2;
 #ifdef NS_ENABLE_SSL
     } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
@@ -416,7 +434,7 @@ int main(int argc, char *argv[]) {
 #endif
   ns_set_protocol_http_websocket(nc);
 
-  if (s_num_http_backends == 0) {
+  if (s_num_vhost_backends + s_num_default_backends == 0) {
     print_usage_and_exit(argv[0]);
   }
 

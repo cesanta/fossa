@@ -1,25 +1,3 @@
-general:
-  artifacts:
-    - "fossa.c"
-    - "fossa.h"
-    - "docs/index.html"
-
-machine:
-  pre:
-    - sudo pip install cpp-coveralls
-
-dependencies:
-  pre:
-    - gem install asciidoctor
-    - gem install pygments.rb
-
 test:
   pre:
-    - make all difftest
-
-deployment:
-  master:
-    branch: master
-    owner: cesanta
-    commands:
-      - scp docs/index.html circleci@cesanta.com://var/www/cesanta.com/docs/fossa/
+    - make all

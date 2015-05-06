@@ -1,49 +1,11 @@
 # Copyright (c) 2014 Cesanta Software
 # All rights reserved
 
-# Note: order is important
-SUBDIRS = src docs test examples apps
+SUBDIRS = test examples apps
 
-CLANG_FORMAT:=clang-format
-
-ifneq ("$(wildcard /usr/local/bin/clang-3.6)","")
-	CLANG:=/usr/local/bin/clang-3.6
-	CLANG_FORMAT:=/usr/local/bin/clang-format-3.6
-endif
-
-.PHONY: all $(SUBDIRS)
+.PHONY: $(SUBDIRS)
 
 all: $(SUBDIRS)
 
 $(SUBDIRS): %:
 	@$(MAKE) -C $@
-
-# full test suite, requiring more dependencies on the dev's machine
-alltests: all
-	@$(MAKE) -C test docker valgrind cpplint
-
-difftest:
-	@TMP=`mktemp -t checkout-diff.XXXXXX`; \
-	git diff docs/index.html fossa.c fossa.h >$$TMP ; \
-	if [ -s "$$TMP" ]; then echo found diffs in checkout:; git status -s;  exit 1; fi; \
-	rm $$TMP
-
-w:
-	wine cl test/unit_test.c fossa.c /Zi /nologo /MD advapi32.lib \
-	-DNS_ENABLE_COAP -DNS_ENABLE_THREADS -DNS_INTERNAL= \
-	-DNS_ENABLE_MQTT_BROKER -DNS_ENABLE_DNS_SERVER /Fetest/unit_test.exe
-	(cd test && wine unit_test.exe)
-
-update-frozen:
-	git subtree pull --prefix deps/frozen https://github.com/cesanta/frozen master --squash
-
-setup-hooks:
-	for i in .hooks/*; do ln -s ../../.hooks/$$(basename $$i) .git/hooks; done
-
-clean:
-	@for i in $(SUBDIRS); do $(MAKE) -C $$i clean ; done
-
-format:
-	@/usr/bin/find src apps -name "*.[ch]" | grep -v -E 'sha1.c|md5.c|sqlite' | xargs $(CLANG_FORMAT) -i
-	@/usr/bin/find platforms \( -name "*.cpp" -o -name "*.h" \) | grep -v adafruit | xargs $(CLANG_FORMAT) -i
-	@$(CLANG_FORMAT) -i test/unit_test.c

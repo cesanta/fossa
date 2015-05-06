@@ -4,7 +4,22 @@
  */
 
 #include "../../fossa.h"
+#include <sys/queue.h>
 
+#define MAX_IDLE_CONNS 5
+#define CONN_IDLE_TIMEOUT 30
+
+struct http_backend;
+
+struct be_conn {
+  struct http_backend *be;
+  struct ns_connection *nc;
+  time_t idle_deadline;
+
+  STAILQ_ENTRY(be_conn) conns;
+};
+
+STAILQ_HEAD(be_conn_list_head, be_conn);
 struct http_backend {
   const char *vhost;      /* NULL if any host */
   const char *uri_prefix; /* URI prefix, e.g. "/api/v1/", "/static/" */
@@ -13,22 +28,27 @@ struct http_backend {
   const char *host_port;              /* Backend address */
   int redirect;                       /* if true redirect instead of proxy */
   int usage_counter; /* Number of times this backend was chosen */
+
+  struct be_conn_list_head conns;
+  int num_conns;
 };
 
 struct peer {
   struct ns_connection *nc;
-  int64_t body_len;  /* Size of the HTTP body to forward */
-  int64_t body_sent; /* Number of bytes already forwarded */
+  int64_t body_len;               /* Size of the HTTP body to forward */
+  int64_t body_sent;              /* Number of bytes already forwarded */
   struct {
     /* Headers have been sent, no more headers. */
     unsigned int headers_sent : 1;
+    unsigned int keep_alive : 1;
   } flags;
 };
 
 struct conn_data {
-  struct http_backend *be; /* Chosen backend */
+  struct be_conn *be_conn; /* Chosen backend */
   struct peer client;      /* Client peer */
   struct peer backend;     /* Backend peer */
+  time_t last_activity;
 };
 
 static const char *s_error_500 = "HTTP/1.1 500 Failed\r\n";
@@ -38,6 +58,7 @@ static const char *s_http_port = "8000";
 static struct http_backend s_vhost_backends[100], s_default_backends[100];
 static int s_num_vhost_backends = 0, s_num_default_backends = 0;
 static int s_sig_num = 0;
+static int s_backend_keepalive = 0;
 static FILE *s_log_file = NULL;
 #ifdef NS_ENABLE_SSL
 const char *s_ssl_cert = NULL;
@@ -149,28 +170,29 @@ static void forward_body(struct peer *src, struct peer *dst) {
     }
     ns_send(dst->nc, src_io->buf, to_send);
     src->body_sent += to_send;
+    mbuf_remove(src_io, to_send);
   }
 #ifdef DEBUG
-  write_log("forward_body %p -> %p sent %d of %d\n", src->nc, dst->nc,
-            src->body_sent, src->body_len);
+  write_log("forward_body %p (ka=%d) -> %p sent %d of %d\n", src->nc,
+            src->flags.keep_alive, dst->nc, src->body_sent, src->body_len);
 #endif
 }
 
-static void forward(struct http_message *hm, struct peer *src_peer,
-                    struct peer *dst_peer) {
+static void forward(struct conn_data *conn, struct http_message *hm,
+                    struct peer *src_peer, struct peer *dst_peer) {
   struct ns_connection *src = src_peer->nc;
   struct ns_connection *dst = dst_peer->nc;
-  struct conn_data *data = (struct conn_data *) src->user_data;
   struct mbuf *io = &src->recv_mbuf;
   int i;
-  int is_request = (src_peer == &data->client);
+  int is_request = (src_peer == &conn->client);
   src_peer->body_len = hm->body.len;
+  struct http_backend *be = conn->be_conn->be;
 
   if (is_request) {
     /* Write rewritten request line. */
-    size_t trim_len = strlen(data->be->uri_prefix);
+    size_t trim_len = strlen(be->uri_prefix);
     ns_printf(dst, "%.*s%s%.*s\r\n", (int) (hm->uri.p - io->buf), io->buf,
-              data->be->uri_prefix_replacement,
+              be->uri_prefix_replacement,
               (int) (hm->proto.p + hm->proto.len - (hm->uri.p + trim_len)),
               hm->uri.p + trim_len);
   } else {
@@ -181,6 +203,8 @@ static void forward(struct http_message *hm, struct peer *src_peer,
 
   /* Headers. */
   for (i = 0; i < NS_MAX_HTTP_HEADERS && hm->header_names[i].len > 0; i++) {
+    struct ns_str hn = hm->header_names[i];
+    struct ns_str hv = hm->header_values[i];
 #ifdef NS_ENABLE_SSL
     /*
      * If we terminate SSL and backend redirects to local HTTP port,
@@ -188,35 +212,53 @@ static void forward(struct http_message *hm, struct peer *src_peer,
      * TODO(lsm): web page content may also contain local HTTP references,
      * they need to be rewritten too.
      */
-    if (ns_vcasecmp(&hm->header_names[i], "Location") == 0 &&
-        s_ssl_cert != NULL) {
-      size_t hlen = strlen(data->be->host_port);
-      const char *hp = data->be->host_port, *p = memchr(hp, ':', hlen);
-      const struct ns_str *v = &hm->header_values[i];
+    if (ns_vcasecmp(&hn, "Location") == 0 && s_ssl_cert != NULL) {
+      size_t hlen = strlen(be->host_port);
+      const char *hp = be->host_port, *p = memchr(hp, ':', hlen);
 
       if (p == NULL) {
         p = hp + hlen;
       }
 
-      if (ns_ncasecmp(v->p, "http://", 7) == 0 &&
-          ns_ncasecmp(v->p + 7, hp, (p - hp)) == 0) {
-        ns_printf(dst, "Location: %.*s\r\n", (int) (v->len - (7 + (p - hp))),
-                  v->p + 7 + (p - hp));
+      if (ns_ncasecmp(hv.p, "http://", 7) == 0 &&
+          ns_ncasecmp(hv.p + 7, hp, (p - hp)) == 0) {
+        ns_printf(dst, "Location: %.*s\r\n", (int) (hv.len - (7 + (p - hp))),
+                  hv->p + 7 + (p - hp));
         continue;
       }
     }
 #endif
 
-    ns_printf(dst, "%.*s: %.*s\r\n", (int) hm->header_names[i].len,
-              hm->header_names[i].p, (int) hm->header_values[i].len,
-              hm->header_values[i].p);
+    /* We always rewrite the connection header depending on the settings. */
+    if (ns_vcasecmp(&hn, "Connection") == 0) continue;
+
+    ns_printf(dst, "%.*s: %.*s\r\n", (int) hn.len, hn.p, (int) hv.len, hv.p);
   }
+
+  /* Emit the connection header. */
+  const char* connection_mode = "close";
+  if (dst_peer == &conn->backend) {
+    if (s_backend_keepalive) connection_mode = "keep-alive";
+  } else {
+    if (conn->client.flags.keep_alive) connection_mode = "keep-alive";
+  }
+  ns_printf(dst, "Connection: %s\r\n", connection_mode);
+
   ns_printf(dst, "%s", "\r\n");
 
   mbuf_remove(io, hm->body.p - hm->message.p); /* We've forwarded headers */
   dst_peer->flags.headers_sent = 1;
 
   forward_body(src_peer, dst_peer);
+}
+
+struct be_conn* get_conn(struct http_backend *be) {
+  return NULL;
+  if STAILQ_EMPTY(&be->conns) return NULL;
+  struct be_conn *result = STAILQ_FIRST(&be->conns);
+  STAILQ_REMOVE_HEAD(&be->conns, conns);
+  be->num_conns--;
+  return result;
 }
 
 /*
@@ -237,21 +279,119 @@ static int connect_backend(struct conn_data *conn, struct http_message *hm) {
     ns_printf(nc, "HTTP/1.1 302 Found\r\nLocation: %s\r\n\r\n", be->host_port);
     return 1;
   }
-  conn->backend.nc = ns_connect(nc->mgr, be->host_port, ev_handler);
-  if (conn->backend.nc == NULL) {
-    write_log("Connection to [%s] failed\n", be->host_port);
-    return 0;
+  struct be_conn *bec = get_conn(be);
+  if (bec != NULL) {
+    bec->nc->handler = ev_handler;
+#ifdef DEBUG
+    write_log("conn=%p to %p (%s) reusing bec=%p\n", conn, be, be->host_port, bec);
+#endif
+  } else {
+    bec = malloc(sizeof(*conn->be_conn));
+    memset(bec, 0, sizeof(*bec));
+    bec->nc = ns_connect(nc->mgr, be->host_port, ev_handler);
+#ifdef DEBUG
+    write_log("conn=%p new conn to %p (%s) bec=%p\n", conn, be, be->host_port, bec);
+#endif
+    if (bec->nc == NULL) {
+      free(bec);
+      write_log("Connection to [%s] failed\n", be->host_port);
+      return 0;
+    }
   }
-  conn->be = be;
+  bec->be = be;
+  conn->be_conn = bec;
+  conn->backend.nc = bec->nc;
   conn->backend.nc->user_data = conn;
   ns_set_protocol_http_websocket(conn->backend.nc);
   return 1;
 }
 
+static int is_keep_alive(struct http_message *hm) {
+  const struct ns_str *connection_header = ns_get_http_header(hm, "Connection");
+  if (connection_header == NULL) {
+    /* HTTP/1.1 connections are keep-alive by default. */
+    if (ns_vcasecmp(&hm->proto, "HTTP/1.1") != 0) return 0;
+  } else if (ns_vcasecmp(connection_header, "keep-alive") != 0) {
+    return 0;
+  }
+  // We must also have Content-Length.
+  return ns_get_http_header(hm, "Content-Length") != NULL;
+}
+
+static void idle_backend_handler(struct ns_connection *nc, int ev, void *ev_data) {
+  struct be_conn *bec = nc->user_data;
+  const time_t now = time(NULL);
+#ifdef DEBUG
+  write_log("%d idle bec=%p nc=%p ev=%d deadline=%d\n",
+            now, bec, nc, ev, bec->idle_deadline);
+#endif
+  switch (ev) {
+    case NS_POLL: {
+      if (bec->idle_deadline > 0 && now > bec->idle_deadline) {
+#ifdef DEBUG
+        write_log("bec=%p nc=%p closing due to idleness\n", bec, bec->nc);
+#endif
+        bec->nc->flags |= NSF_CLOSE_IMMEDIATELY;
+      }
+      break;
+    }
+
+    case NS_CLOSE: {
+#ifdef DEBUG
+      write_log("bec=%p closed\n", bec);
+#endif
+      if (bec->idle_deadline > 0) {
+        STAILQ_REMOVE(&bec->be->conns, bec, be_conn, conns);
+      }
+      free(bec);
+      break;
+    }
+  }
+}
+
+void release_backend(struct conn_data *conn) {
+  /* Disassociate the backend, put back on the pool. */
+  struct be_conn *bec = conn->be_conn;
+  conn->be_conn = NULL;
+  if (bec->nc == NULL) {
+    free(bec);
+    return;
+  }
+  struct http_backend *be = bec->be;
+  bec->nc->user_data = bec;
+  bec->nc->handler = idle_backend_handler;
+  if (conn->backend.flags.keep_alive) {
+    bec->idle_deadline = time(NULL) + CONN_IDLE_TIMEOUT;
+    STAILQ_INSERT_TAIL(&be->conns, bec, conns);
+#ifdef DEBUG
+    write_log("bec=%p becoming idle\n", bec);
+#endif
+    be->num_conns++;
+    while (be->num_conns > MAX_IDLE_CONNS) {
+      bec = STAILQ_FIRST(&be->conns);
+      STAILQ_REMOVE_HEAD(&be->conns, conns);
+      be->num_conns--;
+      bec->idle_deadline = 0;
+      bec->nc->flags = NSF_CLOSE_IMMEDIATELY;
+#ifdef DEBUG
+      write_log("bec=%p evicted\n", bec);
+#endif
+    }
+  } else {
+    bec->idle_deadline = 0;
+    bec->nc->flags |= NSF_CLOSE_IMMEDIATELY;
+  }
+  memset(&conn->backend, 0, sizeof(conn->backend));
+}
+
 static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct conn_data *conn = (struct conn_data *) nc->user_data;
+  const time_t now = time(NULL);
 #ifdef DEBUG
-  write_log("conn=%p nc=%p ev=%d data=%p data=%p\n", conn, nc, ev, ev_data);
+  write_log("%d conn=%p nc=%p ev=%d ev_data=%p bec=%p bec_nc=%p\n",
+            now, conn, nc, ev, ev_data,
+            conn != NULL ? conn->be_conn : NULL,
+            conn != NULL && conn->be_conn != NULL ? conn->be_conn->nc : NULL);
 #endif
 
   if (conn == NULL) {
@@ -262,8 +402,10 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       } else {
         memset(conn, 0, sizeof(*conn));
         nc->user_data = conn;
+        conn->client.nc = nc;
         conn->client.body_len = -1;
         conn->backend.body_len = -1;
+        conn->last_activity = now;
       }
       return;
     } else {
@@ -272,11 +414,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
     }
   }
 
+  if (ev != NS_POLL) conn->last_activity = now;
+
   switch (ev) {
-    case NS_HTTP_REQUEST: { /* From client */
+    case NS_HTTP_REQUEST: {  /* From client */
       assert(conn != NULL);
+      assert(conn->be_conn == NULL);
       struct http_message *hm = (struct http_message *) ev_data;
-      conn->client.nc = nc;
+      conn->client.flags.keep_alive = is_keep_alive(hm);
 
       if (!connect_backend(conn, hm)) {
         respond_with_error(conn, s_error_500);
@@ -289,26 +434,49 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
         break;
       }
 
-      forward(hm, &conn->client, &conn->backend);
+      forward(conn, hm, &conn->client, &conn->backend);
       break;
     }
 
-    case NS_CONNECT: { /* To backend */
+    case NS_CONNECT: {       /* To backend */
       assert(conn != NULL);
-      int status = *(int *) ev_data;
+      assert(conn->be_conn != NULL);
+      int status = * (int *) ev_data;
       if (status != 0) {
         /* TODO(lsm): mark backend as defunct, try it later on */
         respond_with_error(conn, s_error_500);
+        conn->be_conn->nc = 0;
+        release_backend(conn);
+        break;
       }
       break;
     }
 
-    case NS_HTTP_REPLY: { /* From backend */
+    case NS_HTTP_REPLY: {    /* From backend */
       assert(conn != NULL);
       struct http_message *hm = (struct http_message *) ev_data;
-      forward(hm, &conn->backend, &conn->client);
-      /* TODO(rojer): Keepalive. */
-      conn->client.nc->flags |= NSF_SEND_AND_CLOSE;
+      conn->backend.flags.keep_alive = s_backend_keepalive && is_keep_alive(hm);
+      forward(conn, hm, &conn->backend, &conn->client);
+      release_backend(conn);
+      if (!conn->client.flags.keep_alive) {
+        conn->client.nc->flags |= NSF_SEND_AND_CLOSE;
+      } else {
+#ifdef DEBUG
+        write_log("conn=%p remains open\n", conn);
+#endif
+      }
+      break;
+    }
+
+    case NS_POLL: {
+      assert(conn != NULL);
+      if (now - conn->last_activity > CONN_IDLE_TIMEOUT &&
+          conn->backend.nc == NULL /* not waiting for backend */) {
+#ifdef DEBUG
+        write_log("conn=%p has been idle for too long\n", conn);
+        conn->client.nc->flags |= NSF_SEND_AND_CLOSE;
+#endif
+      }
       break;
     }
 
@@ -316,18 +484,19 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       assert(conn != NULL);
       if (nc == conn->client.nc) {
 #ifdef DEBUG
-        write_log("conn=%p nc=%p client closed, body_sent=%d\n", conn, nc,
-                  conn->backend.body_sent);
+        write_log("conn=%p nc=%p client closed, body_sent=%d\n",
+                  conn, nc, conn->backend.body_sent);
 #endif
         conn->client.nc = NULL;
         if (conn->backend.nc != NULL) {
           conn->backend.nc->flags |= NSF_CLOSE_IMMEDIATELY;
         }
       } else if (nc == conn->backend.nc) {
+        write_log("conn=%p nc=%p backend closed\n", conn, nc);
         conn->backend.nc = NULL;
-        if (conn->client.nc != NULL &&
-            (conn->backend.body_len < 0 ||
-             conn->backend.body_sent < conn->backend.body_len)) {
+        if (conn->client.nc != NULL && (
+              conn->backend.body_len < 0 ||
+              conn->backend.body_sent <  conn->backend.body_len)) {
           respond_with_error(conn, s_error_500);
         }
       }
@@ -341,7 +510,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
 
 static void print_usage_and_exit(const char *prog_name) {
   fprintf(stderr,
-          "Usage: %s [-D debug_dump_file] [-p http_port] [-l log] "
+          "Usage: %s [-D debug_dump_file] [-p http_port] [-l log] [-k]"
 #if NS_ENABLE_SSL
           "[-s ssl_cert] "
 #endif
@@ -363,6 +532,8 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-D") == 0) {
       mgr.hexdump_file = argv[i + 1];
       i++;
+    } else if (strcmp(argv[i], "-k") == 0) {
+      s_backend_keepalive = 1;
     } else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc) {
       if (strcmp(argv[i + 1], "-") == 0) {
         s_log_file = stdout;
@@ -390,6 +561,7 @@ int main(int argc, char *argv[]) {
       struct http_backend *be =
           vhost != NULL ? &s_vhost_backends[s_num_vhost_backends++]
                         : &s_default_backends[s_num_default_backends++];
+      STAILQ_INIT(&be->conns);
       char *r = NULL;
       be->vhost = vhost;
       be->uri_prefix = argv[i + 1];

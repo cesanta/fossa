@@ -2335,6 +2335,7 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
 
     if (k->len == 0 || v->len == 0) {
       k->p = v->p = NULL;
+      k->len = v->len = 0;
       break;
     }
 

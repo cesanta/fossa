@@ -59,7 +59,9 @@
 #endif
 
 #include <assert.h>
+#ifndef NO_LIBC
 #include <ctype.h>
+#endif
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -125,7 +127,7 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
-#ifndef AVR_LIBC
+#ifndef NO_LIBC
 #include <dirent.h>
 #include <fcntl.h>
 #include <netdb.h>

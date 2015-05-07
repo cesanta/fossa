@@ -1,6 +1,14 @@
 #ifdef __AVR__
 #include "avrsupport.h"
 #endif
+#ifndef ONFLASH_HEADER_INCLUDED
+#define ONFLASH_HEADER_INCLUDED
+
+#ifndef ON_FLASH
+#define ON_FLASH
+#endif
+
+#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -80,7 +88,9 @@
 #endif
 
 #include <assert.h>
+#ifndef NO_LIBC
 #include <ctype.h>
+#endif
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -146,7 +156,7 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
-#ifndef AVR_LIBC
+#ifndef NO_LIBC
 #include <dirent.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -333,6 +343,7 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 
 #if !defined(BASE64_H_INCLUDED) && !defined(DISABLE_BASE64)
 #define BASE64_H_INCLUDED
+
 
 #ifdef __cplusplus
 extern "C" {

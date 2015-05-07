@@ -2195,8 +2195,8 @@ static const char *test_dns_server(void) {
   /* remove message length from tcp buffer before manually checking */
   mbuf_remove(&nc.send_mbuf, 2);
 
-  if ((err = check_www_cesanta_com_reply(nc.send_mbuf.buf,
-                                         nc.send_mbuf.len)) != NULL) {
+  if ((err = check_www_cesanta_com_reply(nc.send_mbuf.buf, nc.send_mbuf.len)) !=
+      NULL) {
     return err;
   }
 

@@ -4603,7 +4603,7 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   ns_sock_addr_to_str(&sa, buf, len, flags);
 }
 
-void ns_sock_addr_to_str(const union socket_address* sa, char *buf, size_t len,
+void ns_sock_addr_to_str(const union socket_address *sa, char *buf, size_t len,
                          int flags) {
   if (buf == NULL || len <= 0) return;
   buf[0] = '\0';
@@ -4614,7 +4614,7 @@ void ns_sock_addr_to_str(const union socket_address* sa, char *buf, size_t len,
 #endif
   if (flags & NS_SOCK_STRINGIFY_IP) {
 #if defined(NS_ENABLE_IPV6)
-    const void* addr = NULL;
+    const void *addr = NULL;
     char *start = buf;
     socklen_t capacity = len;
     if (!is_v6) {
@@ -5526,7 +5526,7 @@ int ns_dns_insert_header(struct mbuf *io, size_t pos,
 
 int ns_dns_copy_body(struct mbuf *io, struct ns_dns_message *msg) {
   return mbuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
-                      msg->pkt.len - sizeof(struct ns_dns_header));
+                     msg->pkt.len - sizeof(struct ns_dns_header));
 }
 
 static int ns_dns_encode_name(struct mbuf *io, const char *name, size_t len) {
@@ -5542,7 +5542,7 @@ static int ns_dns_encode_name(struct mbuf *io, const char *name, size_t len) {
     if (s - name > 127) {
       return -1; /* TODO(mkm) cover */
     }
-    n = s - name;            /* chunk length */
+    n = s - name;           /* chunk length */
     mbuf_append(io, &n, 1); /* send length */
     mbuf_append(io, name, n);
 

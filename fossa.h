@@ -512,9 +512,9 @@ struct ns_connection {
 
   sock_t sock;             /* Socket to the remote peer */
   union socket_address sa; /* Remote peer address */
-  size_t recv_mbuf_limit; /* Max size of recv buffer */
-  struct mbuf recv_mbuf; /* Received data */
-  struct mbuf send_mbuf; /* Data scheduled for sending */
+  size_t recv_mbuf_limit;  /* Max size of recv buffer */
+  struct mbuf recv_mbuf;   /* Received data */
+  struct mbuf send_mbuf;   /* Data scheduled for sending */
   SSL *ssl;
   SSL_CTX *ssl_ctx;
   time_t last_io_time;              /* Timestamp of the last socket IO */
@@ -865,7 +865,6 @@ int ns_vcmp(const struct ns_str *str2, const char *str1);
  */
 int ns_vcasecmp(const struct ns_str *str2, const char *str1);
 
-
 /*
  * Decode base64-encoded string `s`, `len` into the destination `dst`.
  * Destination has to have enough space to hold decoded buffer.
@@ -924,7 +923,6 @@ void *ns_start_thread(void *(*thread_func)(void *), void *thread_func_param);
 
 void ns_set_close_on_exec(sock_t);
 
-
 #define NS_SOCK_STRINGIFY_IP 1
 #define NS_SOCK_STRINGIFY_PORT 2
 #define NS_SOCK_STRINGIFY_REMOTE 4
@@ -948,8 +946,8 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags);
  *
  * `flags` is NS_SOCK_STRINGIFY_IP and/or NS_SOCK_STRINGIFY_PORT.
  */
-void ns_sock_addr_to_str(const union socket_address* sa,
-                         char *buf, size_t len, int flags);
+void ns_sock_addr_to_str(const union socket_address *sa, char *buf, size_t len,
+                         int flags);
 
 /*
  * Generates human-readable hexdump of memory chunk.
@@ -1454,8 +1452,8 @@ int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
  * `params_fmt` format string should conform to `json_emit()` API,
  * see https://github.com/cesanta/frozen
  */
- int ns_rpc_create_request(char *buf, int len, const char *method,
-                           const char *id, const char *params_fmt, ...);
+int ns_rpc_create_request(char *buf, int len, const char *method,
+                          const char *id, const char *params_fmt, ...);
 
 /*
  * Create JSON-RPC reply in a given buffer.
@@ -2024,8 +2022,7 @@ struct ns_dns_reply {
  * ns_dns_send_reply(nc, &reply);
  * -----
  */
-struct ns_dns_reply ns_dns_create_reply(struct mbuf *,
-                                        struct ns_dns_message *);
+struct ns_dns_reply ns_dns_create_reply(struct mbuf *, struct ns_dns_message *);
 
 /*
  * Append a DNS reply record to the IO buffer and to the DNS message.

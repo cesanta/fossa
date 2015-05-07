@@ -1,14 +1,6 @@
 #ifdef __AVR__
 #include "avrsupport.h"
 #endif
-#ifndef ONFLASH_HEADER_INCLUDED
-#define ONFLASH_HEADER_INCLUDED
-
-#ifndef ON_FLASH
-#define ON_FLASH
-#endif
-
-#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -88,9 +80,7 @@
 #endif
 
 #include <assert.h>
-#ifndef NO_LIBC
 #include <ctype.h>
-#endif
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -156,7 +146,7 @@ typedef struct _stati64 ns_stat_t;
 #endif
 #define DIRSEP '\\'
 #else /* not _WIN32 */
-#ifndef NO_LIBC
+#ifndef AVR_LIBC
 #include <dirent.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -343,7 +333,6 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 
 #if !defined(BASE64_H_INCLUDED) && !defined(DISABLE_BASE64)
 #define BASE64_H_INCLUDED
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -1080,10 +1069,13 @@ extern "C" {
 struct http_message {
   struct ns_str message; /* Whole message: request line + headers + body */
 
+  struct ns_str proto; /* "HTTP/1.1" -- for both request and response */
   /* HTTP Request line (or HTTP response line) */
   struct ns_str method; /* "GET" */
   struct ns_str uri;    /* "/my_file.html" */
-  struct ns_str proto;  /* "HTTP/1.1" */
+  /* For responses, code and response status message are set */
+  int resp_code;
+  struct ns_str resp_status_msg;
 
   /*
    * Query-string part of the URI. For example, for HTTP request
@@ -1216,10 +1208,12 @@ void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
 /*
  * Parse a HTTP message.
  *
+ * `is_req` should be set to 1 if parsing request, 0 if reply.
+ *
  * Return number of bytes parsed. If HTTP message is
  * incomplete, `0` is returned. On parse error, negative number is returned.
  */
-int ns_parse_http(const char *s, int n, struct http_message *req);
+int ns_parse_http(const char *s, int n, struct http_message *hm, int is_req);
 
 /*
  * Search and return header `name` in parsed HTTP message `hm`.

@@ -507,19 +507,25 @@ static const char *test_parse_http_message(void) {
   static const char *d = "a b c\nContent-Length: 21 \nb: t\nvvv\n\n";
   static const char *e = "GET /foo?a=b&c=d HTTP/1.0\n\n";
   static const char *f = "POST /x HTTP/1.0\n\n";
-  static const char *g = "HTTP/1.0 200 OK\n\n";
-  static const char *h = "WOHOO /x HTTP/1.0\n\n";
+  static const char *g = "WOHOO /x HTTP/1.0\n\n";
+  static const char *h = "HTTP/1.0 200 OK\n\n";
+  static const char *i = "HTTP/1.0 999 OMGWTFBBQ\n\n";
   struct ns_str *v;
   struct http_message req;
 
-  ASSERT(ns_parse_http("\b23", 3, &req) == -1);
-  ASSERT(ns_parse_http("get\n\n", 5, &req) == -1);
-  ASSERT(ns_parse_http(a, strlen(a) - 1, &req) == 0);
-  ASSERT(ns_parse_http(a, strlen(a), &req) == (int) strlen(a));
+  ASSERT(ns_parse_http("\b23", 3, &req, 1) == -1);
+  ASSERT(ns_parse_http("\b23", 3, &req, 0) == -1);
+  ASSERT(ns_parse_http("get\n\n", 5, &req, 1) == -1);
+  ASSERT(ns_parse_http("get\n\n", 5, &req, 0) == -1);
+  ASSERT(ns_parse_http(a, strlen(a) - 1, &req, 1) == 0);
+  ASSERT(ns_parse_http(a, strlen(a), &req, 0) == -1);
+
+  ASSERT(ns_parse_http(a, strlen(a), &req, 1) == (int) strlen(a));
   ASSERT(req.message.len == strlen(a));
   ASSERT(req.body.len == 0);
 
-  ASSERT(ns_parse_http(b, strlen(b), &req) == (int) strlen(b));
+  ASSERT(ns_parse_http(b, strlen(b), &req, 0) == -1);
+  ASSERT(ns_parse_http(b, strlen(b), &req, 1) == (int) strlen(b));
   ASSERT(req.header_names[0].len == 3);
   ASSERT(req.header_values[0].len == 3);
   ASSERT(req.header_names[1].p == NULL);
@@ -527,7 +533,7 @@ static const char *test_parse_http_message(void) {
   ASSERT(req.message.len == strlen(b));
   ASSERT(req.body.len == 0);
 
-  ASSERT(ns_parse_http(c, strlen(c), &req) == (int) strlen(c) - 3);
+  ASSERT(ns_parse_http(c, strlen(c), &req, 1) == (int) strlen(c) - 3);
   ASSERT(req.header_names[2].p == NULL);
   ASSERT(req.header_names[0].p != NULL);
   ASSERT(req.header_names[1].p != NULL);
@@ -535,23 +541,30 @@ static const char *test_parse_http_message(void) {
   ASSERT(req.header_names[1].len == 1);
   ASSERT(req.body.len == 0);
 
-  ASSERT(ns_parse_http(d, strlen(d), &req) == (int) strlen(d));
+  ASSERT(ns_parse_http(d, strlen(d), &req, 1) == (int) strlen(d));
   ASSERT(req.body.len == 21);
   ASSERT(req.message.len == 21 + strlen(d));
   ASSERT(ns_get_http_header(&req, "foo") == NULL);
   ASSERT((v = ns_get_http_header(&req, "contENT-Length")) != NULL);
   ASSERT(v->len == 2 && memcmp(v->p, "21", 2) == 0);
 
-  ASSERT(ns_parse_http(e, strlen(e), &req) == (int) strlen(e));
+  ASSERT(ns_parse_http(e, strlen(e), &req, 1) == (int) strlen(e));
   ASSERT(ns_vcmp(&req.uri, "/foo") == 0);
   ASSERT(ns_vcmp(&req.query_string, "a=b&c=d") == 0);
 
-  ASSERT(ns_parse_http(f, strlen(f), &req) == (int) strlen(f));
+  ASSERT(ns_parse_http(f, strlen(f), &req, 1) == (int) strlen(f));
   ASSERT(req.body.len == (size_t) ~0);
-  ASSERT(ns_parse_http(g, strlen(g), &req) == (int) strlen(g));
-  ASSERT(req.body.len == (size_t) ~0);
-  ASSERT(ns_parse_http(h, strlen(h), &req) == (int) strlen(h));
+
+  ASSERT(ns_parse_http(g, strlen(g), &req, 1) == (int) strlen(g));
   ASSERT(req.body.len == 0);
+
+  ASSERT(ns_parse_http(h, strlen(h), &req, 0) == (int) strlen(h));
+  ASSERT(ns_vcmp(&req.proto, "HTTP/1.0") == 0);
+  ASSERT(req.resp_code == 200);
+  ASSERT(ns_vcmp(&req.resp_status_msg, "OK") == 0);
+  ASSERT(req.body.len == (size_t) ~0);
+
+  ASSERT(ns_parse_http(i, strlen(i), &req, 0) == -1);
 
   return NULL;
 }
@@ -669,7 +682,7 @@ static void cb_auth_fail(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    sprintf((char *) nc->user_data, "%.*s", (int) hm->uri.len, hm->uri.p);
+    *((int *) nc->user_data) = hm->resp_code;
   }
 }
 
@@ -677,7 +690,7 @@ static void cb_auth_ok(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
   if (ev == NS_HTTP_REPLY) {
-    sprintf((char *) nc->user_data, "%.*s %.*s", (int) hm->uri.len, hm->uri.p,
+    sprintf((char *) nc->user_data, "%d %.*s", hm->resp_code,
             (int) hm->body.len, hm->body.p);
   }
 }
@@ -713,8 +726,8 @@ static const char *test_http(void) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   const char *this_binary, *local_addr = "127.0.0.1:7777";
-  char buf[20] = "", status[100] = "", mime1[20] = "", mime2[100] = "",
-       auth_fail[20] = "";
+  char buf[20] = "", status[100] = "", mime1[20] = "", mime2[100] = "";
+  int resp_code;
   char auth_ok[20] = "", auth_hdr[200] = "", url[1000];
 
   ns_mgr_init(&mgr, NULL);
@@ -758,7 +771,7 @@ static const char *test_http(void) {
   snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
   ASSERT((nc = ns_connect_http(&mgr, cb_auth_fail, url, NULL, NULL)) != NULL);
   ns_set_protocol_http_websocket(nc);
-  nc->user_data = auth_fail;
+  nc->user_data = &resp_code;
 
   /* Test digest authorization success */
   snprintf(url, sizeof(url), "http://%s/data/auth/a.txt", local_addr);
@@ -778,7 +791,7 @@ static const char *test_http(void) {
   ASSERT(strcmp(status, "success") == 0);
   ASSERT(strcmp(mime1, "text/xml") == 0);
   ASSERT(strcmp(mime2, "text/plain; charset=windows-1251") == 0);
-  ASSERT(strcmp(auth_fail, "401") == 0); /* Must be 401 Unauthorized */
+  ASSERT(resp_code == 401); /* Must be 401 Unauthorized */
   ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
 
   return NULL;

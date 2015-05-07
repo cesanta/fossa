@@ -63,20 +63,20 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #include <assert.h>
 #include <string.h>
 
-ON_FLASH void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
+void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
   mbuf->len = mbuf->size = 0;
   mbuf->buf = NULL;
   mbuf_resize(mbuf, initial_size);
 }
 
-ON_FLASH void mbuf_free(struct mbuf *mbuf) {
+void mbuf_free(struct mbuf *mbuf) {
   if (mbuf->buf != NULL) {
     free(mbuf->buf);
     mbuf_init(mbuf, 0);
   }
 }
 
-ON_FLASH void mbuf_resize(struct mbuf *a, size_t new_size) {
+void mbuf_resize(struct mbuf *a, size_t new_size) {
   char *p;
   if ((new_size > a->size || (new_size < a->size && new_size >= a->len)) &&
       (p = (char *) realloc(a->buf, new_size)) != NULL) {
@@ -85,18 +85,16 @@ ON_FLASH void mbuf_resize(struct mbuf *a, size_t new_size) {
   }
 }
 
-ON_FLASH void mbuf_trim(struct mbuf *mbuf) {
+void mbuf_trim(struct mbuf *mbuf) {
   mbuf_resize(mbuf, mbuf->len);
 }
 
-ON_FLASH size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
+size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
-#ifndef NO_LIBC
   assert(a != NULL);
   assert(a->len <= a->size);
   assert(off <= a->len);
-#endif
 
   /* check overflow */
   if (~(size_t) 0 - (size_t) a->buf < len) return 0;
@@ -123,11 +121,11 @@ ON_FLASH size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t 
   return len;
 }
 
-ON_FLASH size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
+size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
   return mbuf_insert(a, a->len, buf, len);
 }
 
-ON_FLASH void mbuf_remove(struct mbuf *mb, size_t n) {
+void mbuf_remove(struct mbuf *mb, size_t n) {
   if (n > 0 && n <= mb->len) {
     memmove(mb->buf, mb->buf + n, mb->len - n);
     mb->len -= n;
@@ -151,7 +149,7 @@ union char64long16 { unsigned char c[64]; uint32_t l[16]; };
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-ON_FLASH static uint32_t blk0(union char64long16 *block, int i) {
+static uint32_t blk0(union char64long16 *block, int i) {
   /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
 #if BYTE_ORDER == LITTLE_ENDIAN
     block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
@@ -176,7 +174,7 @@ ON_FLASH static uint32_t blk0(union char64long16 *block, int i) {
 #define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
 #define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
 
-ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
+void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   uint32_t a, b, c, d, e;
   union char64long16 block[1];
 
@@ -218,7 +216,7 @@ ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   (void) a; (void) b; (void) c; (void) d; (void) e;
 }
 
-ON_FLASH void SHA1Init(SHA1_CTX *context) {
+void SHA1Init(SHA1_CTX *context) {
   context->state[0] = 0x67452301;
   context->state[1] = 0xEFCDAB89;
   context->state[2] = 0x98BADCFE;
@@ -227,7 +225,7 @@ ON_FLASH void SHA1Init(SHA1_CTX *context) {
   context->count[0] = context->count[1] = 0;
 }
 
-ON_FLASH void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
+void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
   uint32_t i, j;
 
   j = context->count[0];
@@ -247,7 +245,7 @@ ON_FLASH void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t 
   memcpy(&context->buffer[j], &data[i], len - i);
 }
 
-ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
+void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   unsigned i;
   unsigned char finalcount[8], c;
 
@@ -294,7 +292,7 @@ ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
 #ifndef DISABLE_MD5
 
 
-ON_FLASH static void byteReverse(unsigned char *buf, unsigned longs) {
+static void byteReverse(unsigned char *buf, unsigned longs) {
 
   /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
 #if BYTE_ORDER == BIG_ENDIAN
@@ -322,7 +320,7 @@ ON_FLASH static void byteReverse(unsigned char *buf, unsigned longs) {
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-ON_FLASH void MD5_Init(MD5_CTX *ctx) {
+void MD5_Init(MD5_CTX *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -332,7 +330,7 @@ ON_FLASH void MD5_Init(MD5_CTX *ctx) {
   ctx->bits[1] = 0;
 }
 
-ON_FLASH static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
+static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -414,7 +412,7 @@ ON_FLASH static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-ON_FLASH void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
+void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
@@ -450,7 +448,7 @@ ON_FLASH void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
+void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -490,7 +488,7 @@ ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  */
 
 
-ON_FLASH void base64_encode(const unsigned char *src, int src_len, char *dst) {
+void base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
@@ -516,7 +514,7 @@ ON_FLASH void base64_encode(const unsigned char *src, int src_len, char *dst) {
 }
 
 /* Convert one byte of encoded base64 input stream to 6-bit chunk */
-ON_FLASH static unsigned char from_b64(unsigned char ch) {
+static unsigned char from_b64(unsigned char ch) {
   /* Inverse lookup map */
   static const unsigned char tab[128] = {
       255, 255, 255, 255,
@@ -555,7 +553,7 @@ ON_FLASH static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-ON_FLASH int base64_decode(const unsigned char *s, int len, char *dst) {
+int base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   int orig_len = len;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
@@ -2337,6 +2335,7 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
 
     if (k->len == 0 || v->len == 0) {
       k->p = v->p = NULL;
+      k->len = v->len = 0;
       break;
     }
 
@@ -2349,35 +2348,44 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
   return s;
 }
 
-int ns_parse_http(const char *s, int n, struct http_message *req) {
+int ns_parse_http(const char *s, int n, struct http_message *hm, int is_req) {
   const char *end, *qs;
   int len = get_request_len(s, n);
 
   if (len <= 0) return len;
 
-  memset(req, 0, sizeof(*req));
-  req->message.p = s;
-  req->body.p = s + len;
-  req->message.len = req->body.len = (size_t) ~0;
+  memset(hm, 0, sizeof(*hm));
+  hm->message.p = s;
+  hm->body.p = s + len;
+  hm->message.len = hm->body.len = (size_t) ~0;
   end = s + len;
 
   /* Request is fully buffered. Skip leading whitespaces. */
   while (s < end && isspace(*(unsigned char *) s)) s++;
 
-  /* Parse request line: method, URI, proto */
-  s = ns_skip(s, end, " ", &req->method);
-  s = ns_skip(s, end, " ", &req->uri);
-  s = ns_skip(s, end, "\r\n", &req->proto);
-  if (req->uri.p <= req->method.p || req->proto.p <= req->uri.p) return -1;
+  if (is_req) {
+    /* Parse request line: method, URI, proto */
+    s = ns_skip(s, end, " ", &hm->method);
+    s = ns_skip(s, end, " ", &hm->uri);
+    s = ns_skip(s, end, "\r\n", &hm->proto);
+    if (hm->uri.p <= hm->method.p || hm->proto.p <= hm->uri.p) return -1;
 
-  /* If URI contains '?' character, initialize query_string */
-  if ((qs = (char *) memchr(req->uri.p, '?', req->uri.len)) != NULL) {
-    req->query_string.p = qs + 1;
-    req->query_string.len = &req->uri.p[req->uri.len] - (qs + 1);
-    req->uri.len = qs - req->uri.p;
+    /* If URI contains '?' character, initialize query_string */
+    if ((qs = (char *) memchr(hm->uri.p, '?', hm->uri.len)) != NULL) {
+      hm->query_string.p = qs + 1;
+      hm->query_string.len = &hm->uri.p[hm->uri.len] - (qs + 1);
+      hm->uri.len = qs - hm->uri.p;
+    }
+  } else {
+    s = ns_skip(s, end, " ", &hm->proto);
+    if (end - s < 4 || s[3] != ' ') return -1;
+    hm->resp_code = atoi(s);
+    if (hm->resp_code < 100 || hm->resp_code >= 600) return -1;
+    s += 4;
+    s = ns_skip(s, end, "\r\n", &hm->resp_status_msg);
   }
 
-  s = parse_http_headers(s, end, len, req);
+  s = parse_http_headers(s, end, len, hm);
 
   /*
    * ns_parse_http() is used to parse both HTTP requests and HTTP
@@ -2394,12 +2402,11 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
    * if it is HTTP request, and Content-Length is not set,
    * and method is not (PUT or POST) then reset body length to zero.
    */
-  if (req->body.len == (size_t) ~0 &&
-      !(req->method.len > 5 && !memcmp(req->method.p, "HTTP/", 5)) &&
-      ns_vcasecmp(&req->method, "PUT") != 0 &&
-      ns_vcasecmp(&req->method, "POST") != 0) {
-    req->body.len = 0;
-    req->message.len = len;
+  if (hm->body.len == (size_t) ~0 && is_req &&
+      ns_vcasecmp(&hm->method, "PUT") != 0 &&
+      ns_vcasecmp(&hm->method, "POST") != 0) {
+    hm->body.len = 0;
+    hm->message.len = len;
   }
 
   return len;
@@ -2705,16 +2712,17 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
+  const int is_req = (nc->listener != NULL);
 
   /*
    * For HTTP messages without Content-Length, always send HTTP message
    * before NS_CLOSE message.
    */
   if (ev == NS_CLOSE && io->len > 0 &&
-      ns_parse_http(io->buf, io->len, &hm) > 0) {
+      ns_parse_http(io->buf, io->len, &hm, is_req) > 0) {
     hm.message.len = io->len;
     hm.body.len = io->buf + io->len - hm.body.p;
-    nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+    nc->handler(nc, is_req ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
     free_http_proto_data(nc);
   }
 
@@ -2725,7 +2733,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   nc->handler(nc, ev, ev_data);
 
   if (ev == NS_RECV) {
-    req_len = ns_parse_http(io->buf, io->len, &hm);
+    req_len = ns_parse_http(io->buf, io->len, &hm, is_req);
     if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
@@ -2973,8 +2981,20 @@ static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
   strftime(buf, buf_len, "%a, %d %b %Y %H:%M:%S GMT", gmtime(t));
 }
 
-static int parse_range_header(const char *header, int64_t *a, int64_t *b) {
-  return sscanf(header, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
+static int parse_range_header(const struct ns_str *header, int64_t *a,
+                              int64_t *b) {
+  /* 
+   * There is no snscanf. Headers are not guaranteed to be nul-terminated,
+   * so we have this. Ugh.
+   */
+  int result;
+  char *p = (char *) NS_MALLOC(header->len + 1);
+  if (p == NULL) return 0;
+  memcpy(p, header->p, header->len);
+  p[header->len] = '\0';
+  result = sscanf(p, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
+  NS_FREE(p);
+  return result;
 }
 
 static void ns_send_http_file2(struct ns_connection *nc, const char *path,
@@ -3003,7 +3023,7 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
     /* Handle Range header */
     range[0] = '\0';
     if (range_hdr != NULL &&
-        (n = parse_range_header(range_hdr->p, &r1, &r2)) > 0 && r1 >= 0 &&
+        (n = parse_range_header(range_hdr, &r1, &r2)) > 0 && r1 >= 0 &&
         r2 >= 0) {
       /* If range is specified like "400-", set second limit to content len */
       if (n == 1) {
@@ -3764,7 +3784,7 @@ static void handle_put(struct ns_connection *nc, const char *path,
     dp->type = DATA_PUT;
     ns_set_close_on_exec(fileno(dp->fp));
     dp->cl = to64(cl_hdr->p);
-    if (range_hdr != NULL && parse_range_header(range_hdr->p, &r1, &r2) > 0) {
+    if (range_hdr != NULL && parse_range_header(range_hdr, &r1, &r2) > 0) {
       status_code = 206;
       fseeko(dp->fp, r1, SEEK_SET);
       dp->cl = r2 > r1 ? r2 - r1 + 1 : dp->cl - r1;

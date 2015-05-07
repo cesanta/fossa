@@ -197,8 +197,9 @@ static void forward(struct conn_data *conn, struct http_message *hm,
               hm->uri.p + trim_len);
   } else {
     /* Reply line goes without modification */
-    ns_printf(dst, "%.*s %.*s %.*s\r\n", (int) hm->method.len, hm->method.p,
-              (int) hm->uri.len, hm->uri.p, (int) hm->proto.len, hm->proto.p);
+    ns_printf(dst, "%.*s %d %.*s\r\n", (int) hm->proto.len, hm->proto.p,
+              (int) hm->resp_code, (int) hm->resp_status_msg.len,
+              hm->resp_status_msg.p);
   }
 
   /* Headers. */

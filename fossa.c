@@ -2985,7 +2985,7 @@ static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
 
 static int parse_range_header(const struct ns_str *header, int64_t *a,
                               int64_t *b) {
-  /* 
+  /*
    * There is no snscanf. Headers are not guaranteed to be NUL-terminated,
    * so we have this. Ugh.
    */

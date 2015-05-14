@@ -465,6 +465,14 @@ typedef void *SSL;
 typedef void *SSL_CTX;
 #endif
 
+#ifdef NS_USE_READ_WRITE
+#define NS_RECV_FUNC(s, b, l, f) read(s, b, l)
+#define NS_SEND_FUNC(s, b, l, f) write(s, b, l)
+#else
+#define NS_RECV_FUNC(s, b, l, f) recv(s, b, l, f)
+#define NS_SEND_FUNC(s, b, l, f) send(s, b, l, f)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

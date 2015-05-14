@@ -1698,8 +1698,8 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = (int) recv(conn->sock, buf, recv_avail_size(conn, sizeof(buf)),
-                           0)) > 0) {
+    while ((n = (int) NS_RECV_FUNC(
+                conn->sock, buf, recv_avail_size(conn, sizeof(buf)), 0)) > 0) {
       DBG(("%p %lu <- %d bytes (PLAIN)", conn, conn->flags, n));
       mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
@@ -1732,7 +1732,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    n = (int) send(conn->sock, io->buf, io->len, 0);
+    n = (int) NS_SEND_FUNC(conn->sock, io->buf, io->len, 0);
   }
 
   DBG(("%p %lu -> %d bytes", conn, conn->flags, n));
@@ -1852,8 +1852,9 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     /* Read wakeup messages */
     if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
       struct ctl_msg ctl_msg;
-      int len = (int) recv(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
-      send(mgr->ctl[1], ctl_msg.message, 1, 0);
+      int len = (int) NS_RECV_FUNC(mgr->ctl[1], (char *) &ctl_msg,
+                                   sizeof(ctl_msg), 0);
+      NS_SEND_FUNC(mgr->ctl[1], ctl_msg.message, 1, 0);
       if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
         struct ns_connection *c;
         for (c = ns_next(mgr, NULL); c != NULL; c = ns_next(mgr, c)) {
@@ -2136,9 +2137,9 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
       len < sizeof(ctl_msg.message)) {
     ctl_msg.callback = cb;
     memcpy(ctl_msg.message, data, len);
-    send(mgr->ctl[0], (char *) &ctl_msg,
-         offsetof(struct ctl_msg, message) + len, 0);
-    recv(mgr->ctl[0], (char *) &len, 1, 0);
+    NS_SEND_FUNC(mgr->ctl[0], (char *) &ctl_msg,
+                 offsetof(struct ctl_msg, message) + len, 0);
+    NS_RECV_FUNC(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
 
@@ -4646,12 +4647,13 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
 
 void ns_sock_addr_to_str(const union socket_address *sa, char *buf, size_t len,
                          int flags) {
+  int is_v6;
   if (buf == NULL || len <= 0) return;
   buf[0] = '\0';
 #if defined(NS_ENABLE_IPV6)
-  int is_v6 = sa->sa.sa_family == AF_INET6;
+  is_v6 = sa->sa.sa_family == AF_INET6;
 #else
-  int is_v6 = 0;
+  is_v6 = 0;
 #endif
   if (flags & NS_SOCK_STRINGIFY_IP) {
 #if defined(NS_ENABLE_IPV6)

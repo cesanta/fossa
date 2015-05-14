@@ -359,6 +359,7 @@ void release_backend(struct conn_data *conn) {
   conn->be_conn = NULL;
   if (bec->nc == NULL) {
     free(bec);
+    memset(&conn->backend, 0, sizeof(conn->backend));
     return;
   }
   struct http_backend *be = bec->be;
@@ -446,9 +447,11 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
       assert(conn->be_conn != NULL);
       int status = *(int *) ev_data;
       if (status != 0) {
+        write_log("Error connecting to %s: %d (%s)\n",
+                  conn->be_conn->be->host_port, status, strerror(status));
         /* TODO(lsm): mark backend as defunct, try it later on */
         respond_with_error(conn, s_error_500);
-        conn->be_conn->nc = 0;
+        conn->be_conn->nc = NULL;
         release_backend(conn);
         break;
       }
@@ -495,11 +498,14 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
           conn->backend.nc->flags |= NSF_CLOSE_IMMEDIATELY;
         }
       } else if (nc == conn->backend.nc) {
+#ifdef DEBUG
         write_log("conn=%p nc=%p backend closed\n", conn, nc);
+#endif
         conn->backend.nc = NULL;
         if (conn->client.nc != NULL &&
             (conn->backend.body_len < 0 ||
              conn->backend.body_sent < conn->backend.body_len)) {
+          write_log("Backend %s disconnected.\n", conn->be_conn->be->host_port);
           respond_with_error(conn, s_error_500);
         }
       }

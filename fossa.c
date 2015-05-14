@@ -1122,6 +1122,16 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
 #define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
   memcpy(dst, src, sizeof(*dst));
 
+/* Which flags can be pre-set by the user at connection creation time. */
+#define _NS_ALLOWED_CONNECT_FLAGS_MASK                              \
+  (NSF_USER_1 | NSF_USER_2 | NSF_USER_3 | NSF_USER_4 | NSF_USER_5 | \
+   NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG)
+/* Which flags should be modifiable by user's callbacks. */
+#define _NS_CALLBACK_MODIFIABLE_FLAGS_MASK                                     \
+  (NSF_USER_1 | NSF_USER_2 | NSF_USER_3 | NSF_USER_4 | NSF_USER_5 |            \
+   NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG | NSF_SEND_AND_CLOSE | NSF_DONT_SEND | \
+   NSF_CLOSE_IMMEDIATELY)
+
 struct ctl_msg {
   ns_event_handler_t callback;
   char message[NS_CTL_MSG_MESSAGE_SIZE];
@@ -1141,7 +1151,10 @@ static void ns_remove_conn(struct ns_connection *conn) {
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+  unsigned long flags_before;
   ns_event_handler_t ev_handler;
+
+  DBG(("%p flags=%lu ev=%d ev_data=%p", nc, nc->flags, ev, ev_data));
 
 #ifndef NS_DISABLE_FILESYSTEM
   /* LCOV_EXCL_START */
@@ -1158,7 +1171,12 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
    */
   ev_handler = nc->proto_handler ? nc->proto_handler : nc->handler;
   if (ev_handler != NULL) {
+    flags_before = nc->flags;
     ev_handler(nc, ev, ev_data);
+    if (nc->flags != flags_before) {
+      nc->flags = (flags_before & ~_NS_CALLBACK_MODIFIABLE_FLAGS_MASK) |
+                  (nc->flags & _NS_CALLBACK_MODIFIABLE_FLAGS_MASK);
+    }
   }
 }
 
@@ -1200,7 +1218,9 @@ static void ns_destroy_conn(struct ns_connection *conn) {
 
 static void ns_close_conn(struct ns_connection *conn) {
   DBG(("%p %lu", conn, conn->flags));
-  ns_call(conn, NS_CLOSE, NULL);
+  if (!(conn->flags & NSF_CONNECTING)) {
+    ns_call(conn, NS_CLOSE, NULL);
+  }
   ns_remove_conn(conn);
   ns_destroy_conn(conn);
 }
@@ -1382,7 +1402,7 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
     conn->handler = callback;
     conn->mgr = mgr;
     conn->last_io_time = time(NULL);
-    conn->flags = opts.flags;
+    conn->flags = opts.flags & _NS_ALLOWED_CONNECT_FLAGS_MASK;
     conn->user_data = opts.user_data;
     /*
      * SIZE_MAX is defined as a long long constant in
@@ -1660,10 +1680,11 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     }
 #endif
     (void) ret;
-    conn->flags &= ~NSF_CONNECTING;
     DBG(("%p ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
+    } else {
+      conn->flags &= ~NSF_CONNECTING;
     }
     ns_call(conn, NS_CONNECT, &ok);
     return;
@@ -1891,7 +1912,8 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
       if (FD_ISSET(nc->sock, &write_set)) {
         nc->last_io_time = current_time;
-        if (nc->flags & NSF_CONNECTING) {
+        if (nc->flags & NSF_CONNECTING &&
+            !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
           ns_read_from_socket(nc);
         } else if (!(nc->flags & NSF_DONT_SEND) &&
                    !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
@@ -1931,8 +1953,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     int failure = errno;
     NS_SET_PTRPTR(o.error_string, "cannot create socket");
-    ns_call(nc, NS_CONNECT, &failure);
-    ns_call(nc, NS_CLOSE, NULL);
+    if (nc->flags & NSF_CONNECTING) {
+      ns_call(nc, NS_CONNECT, &failure);
+    }
     ns_destroy_conn(nc);
     return NULL;
   }
@@ -1942,8 +1965,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
   if (rc != 0 && ns_is_error(rc)) {
     NS_SET_PTRPTR(o.error_string, "cannot connect to socket");
-    ns_call(nc, NS_CONNECT, &rc);
-    ns_call(nc, NS_CLOSE, NULL);
+    if (nc->flags & NSF_CONNECTING) {
+      ns_call(nc, NS_CONNECT, &rc);
+    }
     ns_destroy_conn(nc);
     close(sock);
     return NULL;
@@ -1951,14 +1975,8 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
   /* No ns_destroy_conn() call after this! */
   ns_set_sock(nc, sock);
-
-  if (rc == 0) {
-    /* connect() succeeded. Trigger successful NS_CONNECT event */
-    ns_call(nc, NS_CONNECT, &rc);
-  } else {
-    nc->flags |= NSF_CONNECTING;
-  }
-
+  /* Fire NS_CONNECT on next poll. */
+  nc->flags |= NSF_CONNECTING;
   return nc;
 }
 
@@ -1987,7 +2005,8 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
          */
         ns_dns_parse_record_data(msg, &msg->answers[i], &nc->sa.sin.sin_addr,
                                  4);
-        /* ns_finish_connect() triggers NS_CONNECT on failure */
+        /* Make ns_finish_connect() trigger NS_CONNECT on failure */
+        nc->flags |= NSF_CONNECTING;
         ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
                           &nc->sa, opts);
         return;
@@ -1999,7 +2018,6 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
    * If we get there was no NS_DNS_A_RECORD in the answer
    */
   ns_call(nc, NS_CONNECT, &failure);
-  ns_call(nc, NS_CLOSE, NULL);
   ns_destroy_conn(nc);
 }
 #endif
@@ -2029,8 +2047,7 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
     ns_destroy_conn(nc);
     return NULL;
   }
-
-  nc->flags |= opts.flags;
+  nc->flags |= opts.flags & _NS_ALLOWED_CONNECT_FLAGS_MASK;
   nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : 0;
   nc->user_data = opts.user_data;
 
@@ -2040,7 +2057,6 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
      * DNS resolution is required for host.
      * ns_parse_address() fills port in nc->sa, which we pass to resolve_cb()
      */
-
     if (ns_resolve_async(nc->mgr, host, NS_DNS_A_RECORD, resolve_cb, nc) != 0) {
       NS_SET_PTRPTR(opts.error_string, "cannot schedule DNS lookup");
       ns_destroy_conn(nc);

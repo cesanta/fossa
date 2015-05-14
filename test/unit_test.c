@@ -318,10 +318,12 @@ static const char *test_connection_errors(void) {
   struct ns_connect_opts copts;
   struct ns_connection *nc;
   const char *error_string;
-  int data = 0;
+  int i, data = 0;
 
+  copts.flags = 0;
   ns_mgr_init(&mgr, NULL);
 
+  DBG(("now"));
   bopts.error_string = &error_string;
   ASSERT(ns_bind_opt(&mgr, "blah://12", NULL, bopts) == 0);
   ASSERT(strcmp(error_string, "cannot parse address") == 0);
@@ -338,18 +340,19 @@ static const char *test_connection_errors(void) {
                         copts) == NULL);
   ASSERT(strcmp(error_string, "cannot connect to socket") == 0);
   /* handler isn't invoked when it fails synchronously */
-  ASSERT(data == 6);
+  ASSERT(data == 0);
 
   data = 0;
   copts.user_data = &data;
   ASSERT((nc = ns_connect_opt(&mgr, "tcp://does.not.exist:8080",
                               connect_fail_cb, copts)) != NULL);
+  DBG(("now nc=%p", nc));
 
   /* handler is invoked when it fails asynchronously */
-  while (data != 6) {
-    poll_mgr(&mgr, 20);
+  for (i = 0; i < 100 && data != 4; i++) {
+    ns_mgr_poll(&mgr, 10);
   }
-  ASSERT(data == 6);
+  ASSERT(data == 4);
 
   /* ns_bind() does not use NS_CALLOC, but async resolver does */
   test_calloc = failing_calloc;
@@ -1622,9 +1625,10 @@ static const char *test_connect_fail(void) {
 }
 
 static void cb6(struct ns_connection *nc, int ev, void *ev_data) {
-  (void) nc;
   (void) ev;
   (void) ev_data;
+  nc->flags |= NSF_USER_4;
+  nc->flags |= NSF_WANT_READ; /* Should not be allowed. */
 }
 
 static const char *test_connect_opts(void) {
@@ -1634,12 +1638,17 @@ static const char *test_connect_opts(void) {
 
   opts.user_data = (void *) 0xdeadbeef;
   opts.flags = NSF_USER_6;
+  opts.flags |= NSF_WANT_READ; /* Should not be allowed. */
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:33211", cb6, opts)) != NULL);
   ASSERT(nc->user_data == (void *) 0xdeadbeef);
   ASSERT(nc->flags & NSF_USER_6);
+  ASSERT(!(nc->flags & NSF_WANT_READ));
   poll_mgr(&mgr, 50);
+  ASSERT(nc->flags & NSF_USER_4);
+  ASSERT(nc->flags & NSF_USER_6);
+  ASSERT(!(nc->flags & NSF_WANT_READ));
   ns_mgr_free(&mgr);
   return NULL;
 }

@@ -18,6 +18,7 @@
 #include "../fossa.h"
 #include "../src/internal.h"
 #include "unit_test.h"
+#include "test_util.h"
 
 #if __STDC_VERSION__ < 199901L && !defined(WIN32)
 #define __func__ ""
@@ -25,37 +26,10 @@
 
 #define FETCH_BUF_SIZE (1024 * 16)
 
-#ifdef NS_TEST_ABORT_ON_FAIL
-#define NS_TEST_ABORT abort()
-#else
-#define NS_TEST_ABORT
-#endif
-
-#define FAIL(str, line)                                              \
-  do {                                                               \
-    printf("%s:%d:1 [%s] (in %s)\n", __FILE__, line, str, __func__); \
-    NS_TEST_ABORT;                                                   \
-    return str;                                                      \
-  } while (0)
-
-#define ASSERT(expr)                    \
-  do {                                  \
-    static_num_tests++;                 \
-    if (!(expr)) FAIL(#expr, __LINE__); \
-  } while (0)
-
-#define RUN_TEST(test)                       \
-  do {                                       \
-    const char *msg = NULL;                  \
-    if (strstr(#test, filter)) msg = test(); \
-    if (msg) return msg;                     \
-  } while (0)
-
 #define HTTP_PORT "45772"
 #define LOOPBACK_IP "127.0.0.1"
 #define LISTENING_ADDR LOOPBACK_IP ":" HTTP_PORT
 
-static int static_num_tests = 0;
 static const char *s_argv_0 = NULL;
 static struct ns_serve_http_opts s_http_server_opts;
 
@@ -97,48 +71,55 @@ static const char *test_mbuf(void) {
   size_t old_size;
 
   mbuf_init(&io, 0);
-  ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
+  ASSERT(io.buf == NULL);
+  ASSERT_EQ(io.len, 0);
+  ASSERT_EQ(io.size, 0);
   mbuf_free(&io);
-  ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
+  ASSERT(io.buf == NULL);
+  ASSERT_EQ(io.len, 0);
+  ASSERT_EQ(io.size, 0);
 
   mbuf_init(&io, 10);
-  ASSERT(io.buf != NULL && io.len == 0 && io.size == 10);
+  ASSERT(io.buf != NULL);
+  ASSERT_EQ(io.len, 0);
+  ASSERT_EQ(io.size, 10);
   mbuf_free(&io);
-  ASSERT(io.buf == NULL && io.len == 0 && io.size == 0);
+  ASSERT(io.buf == NULL);
+  ASSERT_EQ(io.len, 0);
+  ASSERT_EQ(io.size, 0);
 
   mbuf_init(&io, 10);
-  ASSERT(mbuf_append(&io, NULL, 0) == 0);
+  ASSERT_EQ(mbuf_append(&io, NULL, 0), 0);
   /* test allocation failure */
-  ASSERT(mbuf_append(&io, NULL, 1125899906842624) == 0);
+  ASSERT_EQ(mbuf_append(&io, NULL, 1125899906842624), 0);
 
-  ASSERT(mbuf_append(&io, data, strlen(data)) == strlen(data));
+  ASSERT_EQ(mbuf_append(&io, data, strlen(data)), strlen(data));
 
   mbuf_resize(&io, 2);
-  ASSERT(io.size == 10);
-  ASSERT(io.len == strlen(data));
+  ASSERT_EQ(io.size, 10);
+  ASSERT_EQ(io.len, strlen(data));
 
-  ASSERT(mbuf_insert(&io, 0, prefix, strlen(prefix)) == strlen(prefix));
-  ASSERT(io.size == 10);
-  ASSERT(io.len == strlen(data) + strlen(prefix));
+  ASSERT_EQ(mbuf_insert(&io, 0, prefix, strlen(prefix)), strlen(prefix));
+  ASSERT_EQ(io.size, 10);
+  ASSERT_EQ(io.len, strlen(data) + strlen(prefix));
 
-  ASSERT(mbuf_insert(&io, 0, big_prefix, strlen(big_prefix)) ==
-         strlen(big_prefix));
-  ASSERT(io.size ==
-         MBUF_SIZE_MULTIPLIER *
-             (strlen(big_prefix) + strlen(prefix) + strlen(data)));
-  ASSERT(strncmp(io.buf, "Some long prefix: MYTEST", 24) == 0);
+  ASSERT_EQ(mbuf_insert(&io, 0, big_prefix, strlen(big_prefix)),
+            strlen(big_prefix));
+  ASSERT_EQ(io.size, MBUF_SIZE_MULTIPLIER *
+                         (strlen(big_prefix) + strlen(prefix) + strlen(data)));
+  ASSERT_STREQ_NZ(io.buf, "Some long prefix: MYTEST");
 
   old_size = io.size;
-  ASSERT(mbuf_insert(&io, strlen(big_prefix), data, strlen(data)) ==
-         strlen(data));
-  ASSERT(io.size == old_size);
-  ASSERT(strncmp(io.buf, "Some long prefix: TESTMYTEST", 28) == 0);
+  ASSERT_EQ(mbuf_insert(&io, strlen(big_prefix), data, strlen(data)),
+            strlen(data));
+  ASSERT_EQ(io.size, old_size);
+  ASSERT_STREQ_NZ(io.buf, "Some long prefix: TESTMYTEST");
 
   /* test allocation failure */
-  ASSERT(mbuf_insert(&io, 0, NULL, 1125899906842624) == 0);
+  ASSERT_EQ(mbuf_insert(&io, 0, NULL, 1125899906842624), 0);
 
   /* test overflow */
-  ASSERT(mbuf_insert(&io, 0, NULL, -1) == 0);
+  ASSERT_EQ(mbuf_insert(&io, 0, NULL, -1), 0);
   mbuf_free(&io);
   return NULL;
 }
@@ -196,9 +177,9 @@ static const char *test_mgr_with_ssl(int use_ssl) {
 #endif
 
   ns_sock_to_str(nc->sock, addr, sizeof(addr), 3);
-  ASSERT(sscanf(addr, "%[^:]:%d", ip, &port) == 2);
-  ASSERT(strcmp(ip, "127.0.0.1") == 0);
-  ASSERT(port == port2);
+  ASSERT_EQ(sscanf(addr, "%[^:]:%d", ip, &port), 2);
+  ASSERT_STREQ(ip, "127.0.0.1");
+  ASSERT_EQ(port, port2);
 
   ASSERT((nc = ns_connect(&mgr, addr, eh1)) != NULL);
 #ifdef NS_ENABLE_SSL
@@ -209,7 +190,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   nc->user_data = buf;
   poll_mgr(&mgr, 50);
 
-  ASSERT(strcmp(buf, "ok!") == 0);
+  ASSERT_STREQ(buf, "ok!");
 
   ns_mgr_free(&mgr);
   return NULL;
@@ -226,23 +207,23 @@ static const char *test_ssl(void) {
 #endif
 
 static const char *test_to64(void) {
-  ASSERT(to64("0") == 0);
-  ASSERT(to64("") == 0);
-  ASSERT(to64("123") == 123);
-  ASSERT(to64("-34") == -34);
-  ASSERT(to64("3566626116") == 3566626116U);
+  ASSERT_EQ(to64("0"), 0);
+  ASSERT_EQ(to64(""), 0);
+  ASSERT_EQ(to64("123"), 123);
+  ASSERT_EQ(to64("-34"), -34);
+  ASSERT_EQ(to64("3566626116"), 3566626116U);
   return NULL;
 }
 
 static const char *test_check_ip_acl(void) {
   uint32_t ip = 0x01020304;
-  ASSERT(ns_check_ip_acl(NULL, ip) == 1);
-  ASSERT(ns_check_ip_acl("", ip) == 1);
-  ASSERT(ns_check_ip_acl("invalid", ip) == -1);
-  ASSERT(ns_check_ip_acl("-0.0.0.0/0", ip) == 0);
-  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/8", ip) == 1);
-  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.2.3.4", ip) == 1);
-  ASSERT(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/16", ip) == 0);
+  ASSERT_EQ(ns_check_ip_acl(NULL, ip), 1);
+  ASSERT_EQ(ns_check_ip_acl("", ip), 1);
+  ASSERT_EQ(ns_check_ip_acl("invalid", ip), -1);
+  ASSERT_EQ(ns_check_ip_acl("-0.0.0.0/0", ip), 0);
+  ASSERT_EQ(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/8", ip), 1);
+  ASSERT_EQ(ns_check_ip_acl("-0.0.0.0/0,+1.2.3.4", ip), 1);
+  ASSERT_EQ(ns_check_ip_acl("-0.0.0.0/0,+1.0.0.0/16", ip), 0);
   return NULL;
 }
 
@@ -285,16 +266,17 @@ static const char *test_parse_address(void) {
 
   for (i = 0; valid[i] != NULL; i++) {
     ASSERT(ns_parse_address(valid[i], &sa, &proto, host, sizeof(host)) > 0);
-    ASSERT(proto == protos[i]);
+    ASSERT_EQ(proto, protos[i]);
   }
 
   for (i = 0; invalid[i] != NULL; i++) {
-    ASSERT(ns_parse_address(invalid[i], &sa, &proto, host, sizeof(host)) == -1);
+    ASSERT_EQ(ns_parse_address(invalid[i], &sa, &proto, host, sizeof(host)),
+              -1);
   }
 
   for (i = 0; need_lookup[i] != NULL; i++) {
-    ASSERT(ns_parse_address(need_lookup[i], &sa, &proto, host, sizeof(host)) ==
-           0);
+    ASSERT_EQ(ns_parse_address(need_lookup[i], &sa, &proto, host, sizeof(host)),
+              0);
   }
 
   return NULL;
@@ -325,22 +307,22 @@ static const char *test_connection_errors(void) {
 
   DBG(("now"));
   bopts.error_string = &error_string;
-  ASSERT(ns_bind_opt(&mgr, "blah://12", NULL, bopts) == 0);
-  ASSERT(strcmp(error_string, "cannot parse address") == 0);
+  ASSERT(ns_bind_opt(&mgr, "blah://12", NULL, bopts) == NULL);
+  ASSERT_STREQ(error_string, "cannot parse address");
 
-  ASSERT(ns_bind_opt(&mgr, "tcp://8.8.8.8:88", NULL, bopts) == 0);
-  ASSERT(strcmp(error_string, "failed to open listener") == 0);
+  ASSERT(ns_bind_opt(&mgr, "tcp://8.8.8.8:88", NULL, bopts) == NULL);
+  ASSERT_STREQ(error_string, "failed to open listener");
 
   copts.error_string = &error_string;
   ASSERT(ns_connect_opt(&mgr, "tcp://255.255.255.255:0", NULL, copts) == NULL);
-  ASSERT(strcmp(error_string, "cannot connect to socket") == 0);
+  ASSERT_STREQ(error_string, "cannot connect to socket");
 
   copts.user_data = &data;
   ASSERT(ns_connect_opt(&mgr, "tcp://255.255.255.255:0", connect_fail_cb,
                         copts) == NULL);
-  ASSERT(strcmp(error_string, "cannot connect to socket") == 0);
+  ASSERT_STREQ(error_string, "cannot connect to socket");
   /* handler isn't invoked when it fails synchronously */
-  ASSERT(data == 0);
+  ASSERT_EQ(data, 0);
 
   data = 0;
   copts.user_data = &data;
@@ -352,19 +334,19 @@ static const char *test_connection_errors(void) {
   for (i = 0; i < 100 && data != 4; i++) {
     ns_mgr_poll(&mgr, 10);
   }
-  ASSERT(data == 4);
+  ASSERT_EQ(data, 4);
 
   /* ns_bind() does not use NS_CALLOC, but async resolver does */
   test_calloc = failing_calloc;
 #ifndef _WIN32
-  ASSERT(ns_connect(&mgr, "some.domain.needs.async.resolv:777", NULL) == 0);
+  ASSERT(ns_connect(&mgr, "some.domain.needs.async.resolv:777", NULL) == NULL);
 #endif
   test_calloc = TEST_NS_CALLOC;
 
   /* ns_create_connection() uses NS_MALLOC */
   test_malloc = failing_malloc;
 #ifndef _WIN32
-  ASSERT(ns_bind(&mgr, ":4321", NULL) == 0);
+  ASSERT(ns_bind(&mgr, ":4321", NULL) == NULL);
 #endif
   test_malloc = TEST_NS_MALLOC;
 
@@ -384,13 +366,13 @@ static int avt(char **buf, size_t buf_size, const char *fmt, ...) {
 static const char *test_alloc_vprintf(void) {
   char buf[5], *p = buf;
 
-  ASSERT(avt(&p, sizeof(buf), "%d", 123) == 3);
+  ASSERT_EQ(avt(&p, sizeof(buf), "%d", 123), 3);
   ASSERT(p == buf);
-  ASSERT(strcmp(p, "123") == 0);
+  ASSERT_STREQ(p, "123");
 
-  ASSERT(avt(&p, sizeof(buf), "%d", 123456789) == 9);
+  ASSERT_EQ(avt(&p, sizeof(buf), "%d", 123456789), 9);
   ASSERT(p != buf);
-  ASSERT(strcmp(p, "123456789") == 0);
+  ASSERT_STREQ(p, "123456789");
   free(p);
 
   return NULL;
@@ -401,18 +383,18 @@ static const char *test_socketpair(void) {
   static const char foo[] = "hi there";
   char buf[20];
 
-  ASSERT(ns_socketpair(sp, SOCK_DGRAM) == 1);
+  ASSERT_EQ(ns_socketpair(sp, SOCK_DGRAM), 1);
   ASSERT(sizeof(foo) < sizeof(buf));
 
   /* Send string in one direction */
-  ASSERT(send(sp[0], foo, sizeof(foo), 0) == sizeof(foo));
-  ASSERT(recv(sp[1], buf, sizeof(buf), 0) == sizeof(foo));
-  ASSERT(strcmp(buf, "hi there") == 0);
+  ASSERT_EQ(send(sp[0], foo, sizeof(foo), 0), sizeof(foo));
+  ASSERT_EQ(recv(sp[1], buf, sizeof(buf), 0), sizeof(foo));
+  ASSERT_STREQ(buf, "hi there");
 
   /* Now in opposite direction */
-  ASSERT(send(sp[1], foo, sizeof(foo), 0) == sizeof(foo));
-  ASSERT(recv(sp[0], buf, sizeof(buf), 0) == sizeof(foo));
-  ASSERT(strcmp(buf, "hi there") == 0);
+  ASSERT_EQ(send(sp[1], foo, sizeof(foo), 0), sizeof(foo));
+  ASSERT_EQ(recv(sp[0], buf, sizeof(buf), 0), sizeof(foo));
+  ASSERT_STREQ(buf, "hi there");
 
   closesocket(sp[0]);
   closesocket(sp[1]);
@@ -443,14 +425,14 @@ static const char *test_thread(void) {
   sock_t sp[2];
   char buf[20];
 
-  ASSERT(ns_socketpair(sp, SOCK_STREAM) == 1);
+  ASSERT_EQ(ns_socketpair(sp, SOCK_STREAM), 1);
   ns_start_thread(thread_func, &sp[1]);
 
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
   poll_mgr(&mgr, 50);
-  ASSERT(strcmp(buf, ":-)") == 0);
+  ASSERT_STREQ(buf, ":-)");
   ns_mgr_free(&mgr);
   closesocket(sp[1]);
 
@@ -496,8 +478,8 @@ static const char *test_udp(void) {
     int i;
     for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
   }
-  ASSERT(memcmp(res.buf_srv, "boo!", 4) == 0);
-  ASSERT(memcmp(res.buf_clnt, "boo!", 4) == 0);
+  ASSERT_EQ(memcmp(res.buf_srv, "boo!", 4), 0);
+  ASSERT_EQ(memcmp(res.buf_clnt, "boo!", 4), 0);
   ns_mgr_free(&mgr);
 
   return NULL;
@@ -516,58 +498,59 @@ static const char *test_parse_http_message(void) {
   struct ns_str *v;
   struct http_message req;
 
-  ASSERT(ns_parse_http("\b23", 3, &req, 1) == -1);
-  ASSERT(ns_parse_http("\b23", 3, &req, 0) == -1);
-  ASSERT(ns_parse_http("get\n\n", 5, &req, 1) == -1);
-  ASSERT(ns_parse_http("get\n\n", 5, &req, 0) == -1);
-  ASSERT(ns_parse_http(a, strlen(a) - 1, &req, 1) == 0);
-  ASSERT(ns_parse_http(a, strlen(a), &req, 0) == -1);
+  ASSERT_EQ(ns_parse_http("\b23", 3, &req, 1), -1);
+  ASSERT_EQ(ns_parse_http("\b23", 3, &req, 0), -1);
+  ASSERT_EQ(ns_parse_http("get\n\n", 5, &req, 1), -1);
+  ASSERT_EQ(ns_parse_http("get\n\n", 5, &req, 0), -1);
+  ASSERT_EQ(ns_parse_http(a, strlen(a) - 1, &req, 1), 0);
+  ASSERT_EQ(ns_parse_http(a, strlen(a), &req, 0), -1);
 
-  ASSERT(ns_parse_http(a, strlen(a), &req, 1) == (int) strlen(a));
-  ASSERT(req.message.len == strlen(a));
-  ASSERT(req.body.len == 0);
+  ASSERT_EQ(ns_parse_http(a, strlen(a), &req, 1), (int) strlen(a));
+  ASSERT_EQ(req.message.len, strlen(a));
+  ASSERT_EQ(req.body.len, 0);
 
-  ASSERT(ns_parse_http(b, strlen(b), &req, 0) == -1);
-  ASSERT(ns_parse_http(b, strlen(b), &req, 1) == (int) strlen(b));
-  ASSERT(req.header_names[0].len == 3);
-  ASSERT(req.header_values[0].len == 3);
+  ASSERT_EQ(ns_parse_http(b, strlen(b), &req, 0), -1);
+  ASSERT_EQ(ns_parse_http(b, strlen(b), &req, 1), (int) strlen(b));
+  ASSERT_EQ(req.header_names[0].len, 3);
+  ASSERT_EQ(req.header_values[0].len, 3);
   ASSERT(req.header_names[1].p == NULL);
-  ASSERT(req.query_string.len == 0);
-  ASSERT(req.message.len == strlen(b));
-  ASSERT(req.body.len == 0);
+  ASSERT_EQ(req.query_string.len, 0);
+  ASSERT_EQ(req.message.len, strlen(b));
+  ASSERT_EQ(req.body.len, 0);
 
-  ASSERT(ns_parse_http(c, strlen(c), &req, 1) == (int) strlen(c) - 3);
+  ASSERT_EQ(ns_parse_http(c, strlen(c), &req, 1), (int) strlen(c) - 3);
   ASSERT(req.header_names[2].p == NULL);
   ASSERT(req.header_names[0].p != NULL);
   ASSERT(req.header_names[1].p != NULL);
-  ASSERT(memcmp(req.header_values[1].p, "t", 1) == 0);
-  ASSERT(req.header_names[1].len == 1);
-  ASSERT(req.body.len == 0);
+  ASSERT_EQ(memcmp(req.header_values[1].p, "t", 1), 0);
+  ASSERT_EQ(req.header_names[1].len, 1);
+  ASSERT_EQ(req.body.len, 0);
 
-  ASSERT(ns_parse_http(d, strlen(d), &req, 1) == (int) strlen(d));
-  ASSERT(req.body.len == 21);
-  ASSERT(req.message.len == 21 + strlen(d));
+  ASSERT_EQ(ns_parse_http(d, strlen(d), &req, 1), (int) strlen(d));
+  ASSERT_EQ(req.body.len, 21);
+  ASSERT_EQ(req.message.len, 21 + strlen(d));
   ASSERT(ns_get_http_header(&req, "foo") == NULL);
   ASSERT((v = ns_get_http_header(&req, "contENT-Length")) != NULL);
-  ASSERT(v->len == 2 && memcmp(v->p, "21", 2) == 0);
+  ASSERT_EQ(v->len, 2);
+  ASSERT_STREQ_NZ(v->p, "21");
 
-  ASSERT(ns_parse_http(e, strlen(e), &req, 1) == (int) strlen(e));
-  ASSERT(ns_vcmp(&req.uri, "/foo") == 0);
-  ASSERT(ns_vcmp(&req.query_string, "a=b&c=d") == 0);
+  ASSERT_EQ(ns_parse_http(e, strlen(e), &req, 1), (int) strlen(e));
+  ASSERT_EQ(ns_vcmp(&req.uri, "/foo"), 0);
+  ASSERT_EQ(ns_vcmp(&req.query_string, "a=b&c=d"), 0);
 
-  ASSERT(ns_parse_http(f, strlen(f), &req, 1) == (int) strlen(f));
-  ASSERT(req.body.len == (size_t) ~0);
+  ASSERT_EQ(ns_parse_http(f, strlen(f), &req, 1), (int) strlen(f));
+  ASSERT_EQ(req.body.len, (size_t) ~0);
 
-  ASSERT(ns_parse_http(g, strlen(g), &req, 1) == (int) strlen(g));
-  ASSERT(req.body.len == 0);
+  ASSERT_EQ(ns_parse_http(g, strlen(g), &req, 1), (int) strlen(g));
+  ASSERT_EQ(req.body.len, 0);
 
-  ASSERT(ns_parse_http(h, strlen(h), &req, 0) == (int) strlen(h));
-  ASSERT(ns_vcmp(&req.proto, "HTTP/1.0") == 0);
-  ASSERT(req.resp_code == 200);
-  ASSERT(ns_vcmp(&req.resp_status_msg, "OK") == 0);
-  ASSERT(req.body.len == (size_t) ~0);
+  ASSERT_EQ(ns_parse_http(h, strlen(h), &req, 0), (int) strlen(h));
+  ASSERT_EQ(ns_vcmp(&req.proto, "HTTP/1.0"), 0);
+  ASSERT_EQ(req.resp_code, 200);
+  ASSERT_EQ(ns_vcmp(&req.resp_status_msg, "OK"), 0);
+  ASSERT_EQ(req.body.len, (size_t) ~0);
 
-  ASSERT(ns_parse_http(i, strlen(i), &req, 0) == -1);
+  ASSERT_EQ(ns_parse_http(i, strlen(i), &req, 0), -1);
 
   return NULL;
 }
@@ -579,19 +562,19 @@ static const char *test_get_http_var(void) {
   body.len = strlen(body.p);
 
   ASSERT(ns_get_http_var(&body, "key1", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "value1") == 0);
+  ASSERT_STREQ(buf, "value1");
   ASSERT(ns_get_http_var(&body, "KEY1", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "value1") == 0);
+  ASSERT_STREQ(buf, "value1");
   ASSERT(ns_get_http_var(&body, "key2", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "value2") == 0);
+  ASSERT_STREQ(buf, "value2");
   ASSERT(ns_get_http_var(&body, "key3", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "value 3") == 0);
+  ASSERT_STREQ(buf, "value 3");
   ASSERT(ns_get_http_var(&body, "key4", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "value 4") == 0);
+  ASSERT_STREQ(buf, "value 4");
 
-  ASSERT(ns_get_http_var(&body, "key", NULL, sizeof(buf)) == -2);
-  ASSERT(ns_get_http_var(&body, "key", buf, 0) == -2);
-  ASSERT(ns_get_http_var(&body, NULL, buf, sizeof(buf)) == -1);
+  ASSERT_EQ(ns_get_http_var(&body, "key", NULL, sizeof(buf)), -2);
+  ASSERT_EQ(ns_get_http_var(&body, "key", buf, 0), -2);
+  ASSERT_EQ(ns_get_http_var(&body, NULL, buf, sizeof(buf)), -1);
 
   body.p = "key=broken%2";
   body.len = strlen(body.p);
@@ -790,12 +773,12 @@ static const char *test_http(void) {
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "[/foo 10] 26") == 0);
-  ASSERT(strcmp(status, "success") == 0);
-  ASSERT(strcmp(mime1, "text/xml") == 0);
-  ASSERT(strcmp(mime2, "text/plain; charset=windows-1251") == 0);
-  ASSERT(resp_code == 401); /* Must be 401 Unauthorized */
-  ASSERT(strcmp(auth_ok, "200 hi\n") == 0);
+  ASSERT_STREQ(buf, "[/foo 10] 26");
+  ASSERT_STREQ(status, "success");
+  ASSERT_STREQ(mime1, "text/xml");
+  ASSERT_STREQ(mime2, "text/plain; charset=windows-1251");
+  ASSERT_EQ(resp_code, 401); /* Must be 401 Unauthorized */
+  ASSERT_STREQ(auth_ok, "200 hi\n");
 
   return NULL;
 }
@@ -824,7 +807,7 @@ static const char *test_http_errors(void) {
   system("rm -f test_unreadable");
 
   /* Check that it failed */
-  ASSERT(strncmp(status, "HTTP/1.1 500", 12) == 0);
+  ASSERT_STREQ_NZ(status, "HTTP/1.1 500");
 #endif
 
   /* Test non existing file */
@@ -836,7 +819,7 @@ static const char *test_http_errors(void) {
   poll_mgr(&mgr, 20);
 
   /* Check that it failed */
-  ASSERT(strncmp(status, "HTTP/1.1 404", strlen("HTTP/1.1 404")) == 0);
+  ASSERT_STREQ_NZ(status, "HTTP/1.1 404");
 
   /* Test directory without index.html */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb8)) != NULL);
@@ -849,7 +832,7 @@ static const char *test_http_errors(void) {
   poll_mgr(&mgr, 20);
 
   /* Check that it failed */
-  ASSERT(strncmp(status, "HTTP/1.1 403", 12) == 0);
+  ASSERT_STREQ_NZ(status, "HTTP/1.1 403");
 
   /* Cleanup */
   ns_mgr_free(&mgr);
@@ -861,17 +844,16 @@ static const char *test_http_index(void) {
   char buf[FETCH_BUF_SIZE];
 
   fetch_http(buf, "%s", "GET /data/dir_with_index/ HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 200", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 200");
   ASSERT(strstr(buf, "Content-Length: 3\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 5, "\r\nfoo") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 5, "\r\nfoo");
 
   s_http_server_opts.enable_directory_listing = "yes";
 
   fetch_http(buf, "%s", "GET /data/dir_no_index/ HTTP/1.0\n\n");
-  ASSERT(strncmp(buf,
-                 "HTTP/1.1 200 OK\r\n"
-                 "Transfer-Encoding: chunked\r\n",
-                 45) == 0);
+  ASSERT_STREQ_NZ(buf,
+                  "HTTP/1.1 200 OK\r\n"
+                  "Transfer-Encoding: chunked\r\n");
   ASSERT(strstr(buf, "40A\r\n<html><head><title>") != NULL);
 
   return NULL;
@@ -895,7 +877,7 @@ static const char *test_cgi(void) {
 
 /* Needs perl interpreter to run the test */
 #ifndef _WIN32
-  ASSERT(strncmp(buf, "HTTP/1.1 201 Created\r\n", 20) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 201 Created\r\n");
   ASSERT(strstr(buf, "\nSCRIPT_NAME=/data/cgi/index.cgi\n") != NULL);
   ASSERT(strstr(buf, "\nREQUEST_URI=/data/cgi/\n") != NULL);
   ASSERT(strstr(buf, "\nHTTP_CONTENT_LENGTH=19\n") != NULL);
@@ -912,9 +894,9 @@ static const char *test_http_rewrites(void) {
 
   /* Test rewrite */
   fetch_http(buf, "%s", "GET /~joe/msg.txt HTTP/1.0\nHost: foo.co\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 200 OK");
   ASSERT(strstr(buf, "Content-Length: 6\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 8, "\r\nworks\n") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 8, "\r\nworks\n");
 
   /* Test rewrite that points to directory, expect redirect */
   fetch_http(buf, "%s", "GET /~joe HTTP/1.0\n\n");
@@ -924,9 +906,9 @@ static const char *test_http_rewrites(void) {
 
   /* Test domain-based rewrite */
   fetch_http(buf, "%s", "GET / HTTP/1.0\nHost: foo.com\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 200 OK");
   ASSERT(strstr(buf, "Content-Length: 9\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 11, "\r\nfoo_root\n") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 11, "\r\nfoo_root\n");
 
   return NULL;
 }
@@ -940,31 +922,31 @@ static const char *test_http_dav(void) {
 
   /* Test PROPFIND  */
   fetch_http(buf, "%s", "PROPFIND / HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 207", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 207");
   ASSERT(strstr(buf, "a.txt") != NULL);
   ASSERT(strstr(buf, "hidden_file.txt") == NULL);
 
   /* Test MKCOL */
   fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\nContent-Length:5\n\n12345");
-  ASSERT(strncmp(buf, "HTTP/1.1 415", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 415");
   fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 201", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 201");
   fetch_http(buf, "%s", "MKCOL /d HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 405", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 405");
   fetch_http(buf, "%s", "MKCOL /x/d HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 409", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 409");
 
   /* Test PUT */
   fetch_http(buf, "%s", "PUT /b.txt HTTP/1.0\nContent-Length: 5\n\n12345");
-  ASSERT(strncmp(buf, "HTTP/1.1 201", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 201");
   fetch_http(buf, "%s", "GET /data/dav/b.txt HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 200", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 200");
   ASSERT(strstr(buf, "Content-Length: 5\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 7, "\r\n12345") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 7, "\r\n12345");
 
   /* Test DELETE */
   fetch_http(buf, "%s", "DELETE /b.txt HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 204", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 204");
   ASSERT(ns_stat("./data/dav/b.txt", &st) != 0);
   fetch_http(buf, "%s", "DELETE /d HTTP/1.0\n\n");
   ASSERT(ns_stat("./data/dav/d", &st) != 0);
@@ -976,32 +958,32 @@ static const char *test_http_range(void) {
   char buf[FETCH_BUF_SIZE];
 
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 200 OK", 15) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 200 OK");
   ASSERT(strstr(buf, "Content-Length: 312\r\n") != 0);
 
   /* Fetch a piece from the middle of the file */
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=5-10\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 206 Partial Content", 28) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 206 Partial Content");
   ASSERT(strstr(buf, "Content-Length: 6\r\n") != 0);
   ASSERT(strstr(buf, "Content-Range: bytes 5-10/312\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 8, "\r\n of co") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 8, "\r\n of co");
 
   /* Fetch till EOF */
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=300-\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 206 Partial Content", 28) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 206 Partial Content");
   ASSERT(strstr(buf, "Content-Length: 12\r\n") != 0);
   ASSERT(strstr(buf, "Content-Range: bytes 300-311/312\r\n") != 0);
-  ASSERT(strcmp(buf + strlen(buf) - 14, "\r\nis disease.\n") == 0);
+  ASSERT_STREQ(buf + strlen(buf) - 14, "\r\nis disease.\n");
 
   /* Fetch past EOF, must trigger 416 response */
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=1000-\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 416", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 416");
   ASSERT(strstr(buf, "Content-Length: 0\r\n") != 0);
   ASSERT(strstr(buf, "Content-Range: bytes */312\r\n") != 0);
 
   /* Request range past EOF, must trigger 416 response */
   fetch_http(buf, "%s", "GET /data/range.txt HTTP/1.0\nRange: bytes=0-312\n\n");
-  ASSERT(strncmp(buf, "HTTP/1.1 416", 12) == 0);
+  ASSERT_STREQ_NZ(buf, "HTTP/1.1 416");
 
   return NULL;
 }
@@ -1052,7 +1034,7 @@ static const char *test_websocket(void) {
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "A") == 0);
+  ASSERT_STREQ(buf, "A");
 
   return NULL;
 }
@@ -1121,7 +1103,7 @@ static const char *test_websocket_big(void) {
   poll_mgr(&mgr, 50);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "success") == 0);
+  ASSERT_STREQ(buf, "success");
 
   /* Websocket request */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb4_big)) != NULL);
@@ -1133,7 +1115,7 @@ static const char *test_websocket_big(void) {
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
-  ASSERT(strcmp(buf, "success") == 0);
+  ASSERT_STREQ(buf, "success");
 
   return NULL;
 }
@@ -1147,16 +1129,19 @@ static const char *test_mqtt_handshake(void) {
   got = nc->send_mbuf.buf;
 
   /* handshake header + keepalive + client id len + client id */
-  ASSERT(nc->send_mbuf.len == 12 + 2 + 2 + strlen(client_id));
+  ASSERT_EQ(nc->send_mbuf.len, 12 + 2 + 2 + strlen(client_id));
 
-  ASSERT(got[2] == 0 && got[3] == 6);
-  ASSERT(strncmp(&got[4], "MQIsdp", 6) == 0);
-  ASSERT(got[10] == 3);
-  ASSERT(got[11] == 0); /* connect flags, TODO */
-  ASSERT(got[12] == 0 && got[13] == 60);
+  ASSERT_EQ(got[2], 0);
+  ASSERT_EQ(got[3], 6);
+  ASSERT_STREQ_NZ(&got[4], "MQIsdp");
+  ASSERT_EQ(got[10], 3);
+  ASSERT_EQ(got[11], 0); /* connect flags, TODO */
+  ASSERT_EQ(got[12], 0);
+  ASSERT_EQ(got[13], 60);
 
-  ASSERT(got[14] == 0 && got[15] == (char) strlen(client_id));
-  ASSERT(strncmp(&got[16], client_id, strlen(client_id)) == 0);
+  ASSERT_EQ(got[14], 0);
+  ASSERT_EQ(got[15], (char) strlen(client_id));
+  ASSERT_EQ(strncmp(&got[16], client_id, strlen(client_id)), 0);
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1171,21 +1156,21 @@ static const char *test_mqtt_publish(void) {
   ns_mqtt_publish(nc, "/test", 42, NS_MQTT_QOS(1) | NS_MQTT_RETAIN, data,
                   sizeof(data));
   got = nc->send_mbuf.buf;
-  ASSERT(nc->send_mbuf.len == 17);
+  ASSERT_EQ(nc->send_mbuf.len, 17);
 
   ASSERT(got[0] & NS_MQTT_RETAIN);
-  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_PUBLISH << 4));
-  ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
+  ASSERT_EQ((got[0] & 0xf0), (NS_MQTT_CMD_PUBLISH << 4));
+  ASSERT_EQ(NS_MQTT_GET_QOS(got[0]), 1);
+  ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
 
-  ASSERT(got[2] == 0);
-  ASSERT(got[3] == 5);
-  ASSERT(strncmp(&got[4], "/test", 5) == 0);
+  ASSERT_EQ(got[2], 0);
+  ASSERT_EQ(got[3], 5);
+  ASSERT_STREQ_NZ(&got[4], "/test");
 
-  ASSERT(got[9] == 0);
-  ASSERT(got[10] == 42);
+  ASSERT_EQ(got[9], 0);
+  ASSERT_EQ(got[10], 42);
 
-  ASSERT(strncmp(&got[11], data, sizeof(data)) == 0);
+  ASSERT_EQ(strncmp(&got[11], data, sizeof(data)), 0);
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1200,16 +1185,16 @@ static const char *test_mqtt_subscribe(void) {
 
   ns_mqtt_subscribe(nc, topic_expressions, 1, 42);
   got = nc->send_mbuf.buf;
-  ASSERT(nc->send_mbuf.len == 13);
-  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBSCRIBE << 4));
-  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
-  ASSERT(got[2] == 0);
-  ASSERT(got[3] == 42);
+  ASSERT_EQ(nc->send_mbuf.len, 13);
+  ASSERT_EQ((got[0] & 0xf0), (NS_MQTT_CMD_SUBSCRIBE << 4));
+  ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
+  ASSERT_EQ(got[2], 0);
+  ASSERT_EQ(got[3], 42);
 
-  ASSERT(got[4] == 0);
-  ASSERT(got[5] == 6);
-  ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
-  ASSERT(got[12] == qos);
+  ASSERT_EQ(got[4], 0);
+  ASSERT_EQ(got[5], 6);
+  ASSERT_STREQ_NZ(&got[6], "/stuff");
+  ASSERT_EQ(got[12], qos);
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1223,15 +1208,15 @@ static const char *test_mqtt_unsubscribe(void) {
 
   ns_mqtt_unsubscribe(nc, topics, 1, 42);
   got = nc->send_mbuf.buf;
-  ASSERT(nc->send_mbuf.len == 12);
-  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_UNSUBSCRIBE << 4));
-  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
-  ASSERT(got[2] == 0);
-  ASSERT(got[3] == 42);
+  ASSERT_EQ(nc->send_mbuf.len, 12);
+  ASSERT_EQ((got[0] & 0xf0), (NS_MQTT_CMD_UNSUBSCRIBE << 4));
+  ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
+  ASSERT_EQ(got[2], 0);
+  ASSERT_EQ(got[3], 42);
 
-  ASSERT(got[4] == 0);
-  ASSERT(got[5] == 6);
-  ASSERT(strncmp(&got[6], "/stuff", 6) == 0);
+  ASSERT_EQ(got[4], 0);
+  ASSERT_EQ(got[5], 6);
+  ASSERT_STREQ_NZ(&got[6], "/stuff");
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1244,9 +1229,9 @@ static const char *test_mqtt_connack(void) {
   ns_mqtt_connack(nc, 42);
   got = nc->send_mbuf.buf;
   ASSERT(nc->send_mbuf.len > 0);
-  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_CONNACK << 4));
-  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
-  ASSERT(got[3] == 42);
+  ASSERT_EQ((got[0] & 0xf0), (NS_MQTT_CMD_CONNACK << 4));
+  ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
+  ASSERT_EQ(got[3], 42);
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1262,13 +1247,13 @@ static const char *test_mqtt_suback(void) {
   ns_mqtt_suback(nc, qoss, 1, 42);
 
   got = nc->send_mbuf.buf;
-  ASSERT(nc->send_mbuf.len == 5);
-  ASSERT((got[0] & 0xf0) == (NS_MQTT_CMD_SUBACK << 4));
-  ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-  ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
-  ASSERT(got[2] == 0);
-  ASSERT(got[3] == 42);
-  ASSERT(got[4] == 1);
+  ASSERT_EQ(nc->send_mbuf.len, 5);
+  ASSERT_EQ((got[0] & 0xf0), (NS_MQTT_CMD_SUBACK << 4));
+  ASSERT_EQ(NS_MQTT_GET_QOS(got[0]), 1);
+  ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
+  ASSERT_EQ(got[2], 0);
+  ASSERT_EQ(got[3], 42);
+  ASSERT_EQ(got[4], 1);
 
   mbuf_free(&nc->send_mbuf);
   free(nc);
@@ -1295,12 +1280,12 @@ static const char *test_mqtt_simple_acks(void) {
     cases[i].f(nc, 42);
 
     got = nc->send_mbuf.buf;
-    ASSERT(nc->send_mbuf.len == 4);
-    ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
-    ASSERT(NS_MQTT_GET_QOS(got[0]) == 1);
-    ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
-    ASSERT(got[2] == 0);
-    ASSERT(got[3] == 42);
+    ASSERT_EQ(nc->send_mbuf.len, 4);
+    ASSERT_EQ((got[0] & 0xf0), (cases[i].cmd << 4));
+    ASSERT_EQ(NS_MQTT_GET_QOS(got[0]), 1);
+    ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
+    ASSERT_EQ(got[2], 0);
+    ASSERT_EQ(got[3], 42);
 
     mbuf_free(&nc->send_mbuf);
     free(nc);
@@ -1326,9 +1311,9 @@ static const char *test_mqtt_nullary(void) {
     cases[i].f(nc);
 
     got = nc->send_mbuf.buf;
-    ASSERT(nc->send_mbuf.len == 2);
-    ASSERT((got[0] & 0xf0) == (cases[i].cmd << 4));
-    ASSERT((size_t) got[1] == (nc->send_mbuf.len - 2));
+    ASSERT_EQ(nc->send_mbuf.len, 2);
+    ASSERT_EQ((got[0] & 0xf0), (cases[i].cmd << 4));
+    ASSERT_EQ((size_t) got[1], (nc->send_mbuf.len - 2));
 
     mbuf_free(&nc->send_mbuf);
     free(nc);
@@ -1383,7 +1368,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   mbuf_append(&nc->recv_mbuf, msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
-  ASSERT(check == 1);
+  ASSERT_EQ(check, 1);
   mbuf_free(&nc->recv_mbuf);
 
   /* test a payload whose length encodes as two bytes */
@@ -1399,7 +1384,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   mbuf_append(&nc->recv_mbuf, long_msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
-  ASSERT(check == 2);
+  ASSERT_EQ(check, 2);
   mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
@@ -1417,7 +1402,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   mbuf_append(&nc->recv_mbuf, long_msg, num_bytes);
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
-  ASSERT(check == 3);
+  ASSERT_EQ(check, 3);
   mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
@@ -1430,7 +1415,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   num_bytes = nc->recv_mbuf.len;
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
-  ASSERT(check == 3);
+  ASSERT_EQ(check, 3);
   mbuf_free(&nc->recv_mbuf);
   free(long_msg);
 
@@ -1441,7 +1426,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   num_bytes = 4;
   nc->proto_handler(nc, NS_RECV, &num_bytes);
 
-  ASSERT(check == 4);
+  ASSERT_EQ(check, 4);
   mbuf_free(&nc->recv_mbuf);
 
   free(nc);
@@ -1493,7 +1478,7 @@ static const char *test_mqtt_broker(void) {
   /* Run event loop. Use more cycles to let client and broker communicate. */
   poll_mgr(&mgr, 200);
 
-  ASSERT(cln_data == 1);
+  ASSERT_EQ(cln_data, 1);
 
   ns_mgr_free(&mgr);
 
@@ -1589,7 +1574,7 @@ static const char *test_rpc(void) {
   poll_mgr(&mgr, 50);
   ns_mgr_free(&mgr);
 
-  ASSERT(strcmp(buf, "1 1 16") == 0);
+  ASSERT_STREQ(buf, "1 1 16");
 
   return NULL;
 }
@@ -1664,7 +1649,7 @@ static const char *test_connect_opts_error_string(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
   ASSERT(error_string != NULL);
-  ASSERT(strcmp(error_string, "cannot parse address") == 0);
+  ASSERT_STREQ(error_string, "cannot parse address");
   return NULL;
 }
 
@@ -1673,9 +1658,10 @@ static const char *test_resolve(void) {
   char buf[20];
 
   ASSERT(ns_resolve("localhost", buf, sizeof(buf)) > 0);
-  ASSERT(strcmp(buf, "127.0.0.1") == 0);
+  ASSERT_STREQ(buf, "127.0.0.1");
 
-  ASSERT(ns_resolve("please_dont_name_a_host_like_ths", buf, sizeof(buf)) == 0);
+  ASSERT_EQ(ns_resolve("please_dont_name_a_host_like_ths", buf, sizeof(buf)),
+            0);
   return NULL;
 }
 #endif
@@ -1690,13 +1676,13 @@ static const char *test_base64(void) {
     ns_base64_encode((unsigned char *) cases[i], strlen(cases[i]), enc);
     ns_base64_decode((unsigned char *) enc, strlen(enc), dec);
 
-    ASSERT(strcmp(cases[i], dec) == 0);
+    ASSERT_EQ(strcmp(cases[i], dec), 0);
   }
 
-  ASSERT(ns_base64_decode((unsigned char *) "кю", 4, dec) == 0);
-  ASSERT(ns_base64_decode((unsigned char *) "AAAA----", 8, dec) == 4);
-  ASSERT(ns_base64_decode((unsigned char *) "Q2VzYW50YQ==", 12, dec) == 12);
-  ASSERT(strcmp(dec, "Cesanta") == 0);
+  ASSERT_EQ(ns_base64_decode((unsigned char *) "кю", 4, dec), 0);
+  ASSERT_EQ(ns_base64_decode((unsigned char *) "AAAA----", 8, dec), 4);
+  ASSERT_EQ(ns_base64_decode((unsigned char *) "Q2VzYW50YQ==", 12, dec), 12);
+  ASSERT_STREQ(dec, "Cesanta");
 
   return NULL;
 }
@@ -1711,31 +1697,31 @@ static const char *test_sock_addr_to_str(void) {
     a4.sin.sin_addr.s_addr = inet_addr("127.0.0.1");
     a4.sin.sin_port = htons(12345);
     ns_sock_addr_to_str(&a4, buf, sizeof(buf), 0);
-    ASSERT(strcmp(buf, "") == 0);
+    ASSERT_STREQ(buf, "");
     ns_sock_addr_to_str(&a4, buf, sizeof(buf), NS_SOCK_STRINGIFY_IP);
-    ASSERT(strcmp(buf, "127.0.0.1") == 0);
+    ASSERT_STREQ(buf, "127.0.0.1");
     ns_sock_addr_to_str(&a4, buf, sizeof(buf), NS_SOCK_STRINGIFY_PORT);
-    ASSERT(strcmp(buf, "12345") == 0);
+    ASSERT_STREQ(buf, "12345");
     ns_sock_addr_to_str(&a4, buf, sizeof(buf),
                         NS_SOCK_STRINGIFY_IP | NS_SOCK_STRINGIFY_PORT);
-    ASSERT(strcmp(buf, "127.0.0.1:12345") == 0);
+    ASSERT_STREQ(buf, "127.0.0.1:12345");
   }
 #if defined(NS_ENABLE_IPV6) && !defined(_WIN32)
   {
     union socket_address a6;
     memset(&a6, 0, sizeof(a6));
     a6.sa.sa_family = AF_INET6;
-    ASSERT(inet_pton(AF_INET6, "2001::123", &a6.sin6.sin6_addr) == 1);
+    ASSERT_EQ(inet_pton(AF_INET6, "2001::123", &a6.sin6.sin6_addr), 1);
     a6.sin6.sin6_port = htons(12345);
     ns_sock_addr_to_str(&a6, buf, sizeof(buf), 0);
-    ASSERT(strcmp(buf, "") == 0);
+    ASSERT_STREQ(buf, "");
     ns_sock_addr_to_str(&a6, buf, sizeof(buf), NS_SOCK_STRINGIFY_IP);
-    ASSERT(strcmp(buf, "2001::123") == 0);
+    ASSERT_STREQ(buf, "2001::123");
     ns_sock_addr_to_str(&a6, buf, sizeof(buf), NS_SOCK_STRINGIFY_PORT);
-    ASSERT(strcmp(buf, "12345") == 0);
+    ASSERT_STREQ(buf, "12345");
     ns_sock_addr_to_str(&a6, buf, sizeof(buf),
                         NS_SOCK_STRINGIFY_IP | NS_SOCK_STRINGIFY_PORT);
-    ASSERT(strcmp(buf, "[2001::123]:12345") == 0);
+    ASSERT_STREQ(buf, "[2001::123]:12345");
   }
 #endif
   return NULL;
@@ -1748,8 +1734,8 @@ static const char *test_hexdump(void) {
   const char *want =
       "0000  01 02 03 04 61 62 63 64"
       "                          ....abcd\n\n";
-  ASSERT(ns_hexdump(src, strlen(src), got, sizeof(got)) == (int) strlen(want));
-  ASSERT(strcmp(got, want) == 0);
+  ASSERT_EQ(ns_hexdump(src, strlen(src), got, sizeof(got)), (int) strlen(want));
+  ASSERT_EQ(strcmp(got, want), 0);
   return NULL;
 }
 
@@ -1792,7 +1778,7 @@ static const char *test_hexdump_file(void) {
                 "0000  66 6f 6f                "
                 "                         foo") != NULL);
 #else
-  ASSERT(strncmp(got, want, size) == 0);
+  ASSERT_EQ(strncmp(got, want, size), 0);
 #endif
 
   free(data);
@@ -1805,13 +1791,13 @@ static const char *test_http_chunk(void) {
   memset(&nc, 0, sizeof(nc));
 
   ns_printf_http_chunk(&nc, "%d %s", 123, ":-)");
-  ASSERT(nc.send_mbuf.len == 12);
-  ASSERT(memcmp(nc.send_mbuf.buf, "7\r\n123 :-)\r\n", 12) == 0);
+  ASSERT_EQ(nc.send_mbuf.len, 12);
+  ASSERT_EQ(memcmp(nc.send_mbuf.buf, "7\r\n123 :-)\r\n", 12), 0);
   mbuf_free(&nc.send_mbuf);
 
   ns_send_http_chunk(&nc, "", 0);
-  ASSERT(nc.send_mbuf.len == 5);
-  ASSERT(memcmp(nc.send_mbuf.buf, "0\r\n\r\n", 3) == 0);
+  ASSERT_EQ(nc.send_mbuf.len, 5);
+  ASSERT_EQ(memcmp(nc.send_mbuf.buf, "0\r\n\r\n", 3), 0);
   mbuf_free(&nc.send_mbuf);
 
   return NULL;
@@ -1832,16 +1818,18 @@ static const char *test_dns_encode(void) {
   for (i = 0; i < ARRAY_SIZE(query_types); i++) {
     ns_send_dns_query(&nc, "www.cesanta.com", query_types[i]);
     got = nc.send_mbuf.buf;
-    ASSERT(nc.send_mbuf.len == 12 + 4 + 13 + 4 + 2);
-    ASSERT(got[14] == 3);
-    ASSERT(strncmp(&got[15], "www", 3) == 0);
-    ASSERT(got[18] == 7);
-    ASSERT(strncmp(&got[19], "cesanta", 7) == 0);
-    ASSERT(got[26] == 3);
-    ASSERT(strncmp(&got[27], "com", 3) == 0);
-    ASSERT(got[30] == 0);
-    ASSERT(got[31] == 0 && got[32] == query_types[i]);
-    ASSERT(got[33] == 0 && got[34] == 1);
+    ASSERT_EQ(nc.send_mbuf.len, 12 + 4 + 13 + 4 + 2);
+    ASSERT_EQ(got[14], 3);
+    ASSERT_STREQ_NZ(&got[15], "www");
+    ASSERT_EQ(got[18], 7);
+    ASSERT_STREQ_NZ(&got[19], "cesanta");
+    ASSERT_EQ(got[26], 3);
+    ASSERT_STREQ_NZ(&got[27], "com");
+    ASSERT_EQ(got[30], 0);
+    ASSERT_EQ(got[31], 0);
+    ASSERT_EQ(got[32], query_types[i]);
+    ASSERT_EQ(got[33], 0);
+    ASSERT_EQ(got[34], 1);
 
     mbuf_free(&nc.send_mbuf);
   }
@@ -1869,26 +1857,26 @@ static const char *test_dns_uncompress(void) {
     size_t l = strlen(cases[i]);
     memset(dst, 'X', sizeof(dst));
     len = ns_dns_uncompress_name(&msg, &name, dst, l);
-    ASSERT(len == (int) l);
-    ASSERT(strncmp(dst, cases[i], l) == 0);
-    ASSERT(dst[l] == 'X');
+    ASSERT_EQ(len, (int) l);
+    ASSERT_EQ(strncmp(dst, cases[i], l), 0);
+    ASSERT_EQ(dst[l], 'X');
   }
 
   /* if dst has enough space, check the trailing '\0' */
   memset(dst, 'X', sizeof(dst));
   len = ns_dns_uncompress_name(&msg, &name, dst, sizeof(dst));
-  ASSERT(len == 15);
-  ASSERT(len == (int) strlen(dst));
-  ASSERT(strncmp(dst, "www.cesanta.com", 15) == 0);
-  ASSERT(dst[15] == 0);
+  ASSERT_EQ(len, 15);
+  ASSERT_EQ(len, (int) strlen(dst));
+  ASSERT_STREQ_NZ(dst, "www.cesanta.com");
+  ASSERT_EQ(dst[15], 0);
 
   /* check compressed name */
   memset(dst, 'X', sizeof(dst));
   len = ns_dns_uncompress_name(&msg, &comp_name, dst, sizeof(dst));
-  ASSERT(len == 15);
-  ASSERT(len == (int) strlen(dst));
-  ASSERT(strncmp(dst, "www.cesanta.com", 15) == 0);
-  ASSERT(dst[15] == 0);
+  ASSERT_EQ(len, 15);
+  ASSERT_EQ(len, (int) strlen(dst));
+  ASSERT_STREQ_NZ(dst, "www.cesanta.com");
+  ASSERT_EQ(dst[15], 0);
 
   return NULL;
 #endif
@@ -1922,31 +1910,31 @@ static const char *test_dns_decode(void) {
       0x64, 0xc0, 0x17, 0xc0, 0x2c, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01,
       0x2b, 0x00, 0x04, 0x4a, 0x7d, 0x88, 0x79};
 
-  ASSERT(ns_parse_dns((const char *) pkt, sizeof(pkt), &msg) == 0);
-  ASSERT(msg.num_questions == 1);
-  ASSERT(msg.num_answers == 2);
+  ASSERT_EQ(ns_parse_dns((const char *) pkt, sizeof(pkt), &msg), 0);
+  ASSERT_EQ(msg.num_questions, 1);
+  ASSERT_EQ(msg.num_answers, 2);
 
   r = &msg.questions[0];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
-         strlen(hostname));
-  ASSERT(strncmp(name, hostname, strlen(hostname)) == 0);
+  ASSERT_EQ(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)),
+            strlen(hostname));
+  ASSERT_EQ(strncmp(name, hostname, strlen(hostname)), 0);
 
   r = &msg.answers[0];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
-         strlen(hostname));
-  ASSERT(strncmp(name, hostname, strlen(hostname)) == 0);
+  ASSERT_EQ(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)),
+            strlen(hostname));
+  ASSERT_EQ(strncmp(name, hostname, strlen(hostname)), 0);
 
-  ASSERT(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name)) ==
-         strlen(cname));
-  ASSERT(strncmp(name, cname, strlen(cname)) == 0);
+  ASSERT_EQ(ns_dns_uncompress_name(&msg, &r->rdata, name, sizeof(name)),
+            strlen(cname));
+  ASSERT_EQ(strncmp(name, cname, strlen(cname)), 0);
 
   r = &msg.answers[1];
-  ASSERT(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)) ==
-         strlen(cname));
-  ASSERT(strncmp(name, cname, strlen(cname)) == 0);
-  ASSERT(ns_dns_parse_record_data(&msg, r, &tiny, sizeof(tiny)) == -1);
-  ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == 0);
-  ASSERT(ina.s_addr == inet_addr("74.125.136.121"));
+  ASSERT_EQ(ns_dns_uncompress_name(&msg, &r->name, name, sizeof(name)),
+            strlen(cname));
+  ASSERT_EQ(strncmp(name, cname, strlen(cname)), 0);
+  ASSERT_EQ(ns_dns_parse_record_data(&msg, r, &tiny, sizeof(tiny)), -1);
+  ASSERT_EQ(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)), 0);
+  ASSERT_EQ(ina.s_addr, inet_addr("74.125.136.121"));
 
   /* Test iteration */
   n = 0;
@@ -1954,19 +1942,19 @@ static const char *test_dns_decode(void) {
   while ((r = ns_dns_next_record(&msg, NS_DNS_A_RECORD, r))) {
     n++;
   }
-  ASSERT(n == 1);
+  ASSERT_EQ(n, 1);
 
   n = 0;
   r = NULL;
   while ((r = ns_dns_next_record(&msg, NS_DNS_CNAME_RECORD, r))) {
     n++;
   }
-  ASSERT(n == 1);
+  ASSERT_EQ(n, 1);
 
   /* Test unknown record type */
   r = ns_dns_next_record(&msg, NS_DNS_A_RECORD, r);
   r->rtype = 0xff;
-  ASSERT(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)) == -1);
+  ASSERT_EQ(ns_dns_parse_record_data(&msg, r, &ina, sizeof(ina)), -1);
 
   return NULL;
 }
@@ -2077,25 +2065,25 @@ static const char *check_www_cesanta_com_reply(const char *pkt, size_t len) {
   memset(name, 0, sizeof(name));
   ASSERT(ns_dns_uncompress_name(&msg, &msg.questions[0].name, name,
                                 sizeof(name)) > 0);
-  ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
+  ASSERT_STREQ_NZ(name, "www.cesanta.com");
   memset(name, 0, sizeof(name));
   ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[0].name, name,
                                 sizeof(name)) > 0);
-  ASSERT(strncmp(name, "www.cesanta.com", sizeof(name)) == 0);
-  ASSERT(msg.answers[0].rtype == NS_DNS_CNAME_RECORD);
+  ASSERT_STREQ_NZ(name, "www.cesanta.com");
+  ASSERT_EQ(msg.answers[0].rtype, NS_DNS_CNAME_RECORD);
   memset(name, 0, sizeof(name));
   ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[0], name, sizeof(name)) !=
          -1);
-  ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
+  ASSERT_STREQ_NZ(name, "cesanta.com");
   memset(name, 0, sizeof(name));
   ASSERT(ns_dns_uncompress_name(&msg, &msg.answers[1].name, name,
                                 sizeof(name)) > 0);
-  ASSERT(strncmp(name, "cesanta.com", sizeof(name)) == 0);
+  ASSERT_STREQ_NZ(name, "cesanta.com");
 
-  ASSERT(msg.answers[1].rtype == NS_DNS_A_RECORD);
+  ASSERT_EQ(msg.answers[1].rtype, NS_DNS_A_RECORD);
   ASSERT(ns_dns_parse_record_data(&msg, &msg.answers[1], &ina, sizeof(ina)) !=
          -1);
-  ASSERT(ina.s_addr == addr);
+  ASSERT_EQ(ina.s_addr, addr);
 
   return NULL;
 }
@@ -2236,8 +2224,8 @@ static const char *test_dns_server(void) {
   mbuf_remove(&nc.send_mbuf, 2);
 
   ASSERT(ns_parse_dns(nc.send_mbuf.buf, nc.send_mbuf.len, &msg) != -1);
-  ASSERT(msg.num_answers == 1);
-  ASSERT(msg.answers[0].rtype == NS_DNS_A_RECORD);
+  ASSERT_EQ(msg.num_answers, 1);
+  ASSERT_EQ(msg.answers[0].rtype, NS_DNS_A_RECORD);
   ASSERT(check_record_name(&msg, &msg.answers[0].name, "cesanta.com"));
 
   mbuf_free(&nc.send_mbuf);
@@ -2252,8 +2240,8 @@ static const char *test_dns_server(void) {
 
   ASSERT(ns_parse_dns(nc.send_mbuf.buf, nc.send_mbuf.len, &msg) != -1);
   ASSERT(msg.flags & 1);
-  ASSERT(msg.num_questions == 0);
-  ASSERT(msg.num_answers == 0);
+  ASSERT_EQ(msg.num_questions, 0);
+  ASSERT_EQ(msg.num_answers, 0);
 
   mbuf_free(&nc.send_mbuf);
   return NULL;
@@ -2289,7 +2277,7 @@ static const char *test_dns_resolve(void) {
     poll_mgr(&mgr, 20);
   }
 
-  ASSERT(data == 1);
+  ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
   return NULL;
@@ -2321,7 +2309,7 @@ static const char *test_dns_resolve_timeout(void) {
     poll_mgr(&mgr, 1);
   }
 
-  ASSERT(data == 1);
+  ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
   return NULL;
@@ -2332,9 +2320,9 @@ static const char *test_dns_resolve_hosts(void) {
   in_addr_t want_addr = inet_addr("127.0.0.1");
 
   memset(&sa, 0, sizeof(sa));
-  ASSERT(ns_resolve_from_hosts_file("localhost", &sa) == 0);
-  ASSERT(sa.sin.sin_addr.s_addr == want_addr);
-  ASSERT(ns_resolve_from_hosts_file("does_not,exist!in_host*file", &sa) == -1);
+  ASSERT_EQ(ns_resolve_from_hosts_file("localhost", &sa), 0);
+  ASSERT_EQ(sa.sin.sin_addr.s_addr, want_addr);
+  ASSERT_EQ(ns_resolve_from_hosts_file("does_not,exist!in_host*file", &sa), -1);
 
   return NULL;
 }
@@ -2368,7 +2356,7 @@ static const char *test_buffer_limit(void) {
   }
 
   /* expect four single byte read events */
-  ASSERT(res == 4);
+  ASSERT_EQ(res, 4);
 
   ns_mgr_free(&mgr);
   return NULL;
@@ -2380,27 +2368,27 @@ static const char *test_http_parse_header(void) {
       "uri=\"/?naii=x,y\", ii=\"12\\\"34\" zz='aa bb',tt=2,gf=\"xx d=1234");
   char buf[20];
 
-  ASSERT(ns_http_parse_header(&h, "ert", buf, sizeof(buf)) == 3);
-  ASSERT(strcmp(buf, "234") == 0);
-  ASSERT(ns_http_parse_header(&h, "ert", buf, 2) == 0);
-  ASSERT(ns_http_parse_header(&h, "ert", buf, 3) == 0);
-  ASSERT(ns_http_parse_header(&h, "ert", buf, 4) == 3);
-  ASSERT(ns_http_parse_header(&h, "gf", buf, sizeof(buf)) == 0);
-  ASSERT(ns_http_parse_header(&h, "zz", buf, sizeof(buf)) == 5);
-  ASSERT(strcmp(buf, "aa bb") == 0);
-  ASSERT(ns_http_parse_header(&h, "d", buf, sizeof(buf)) == 4);
-  ASSERT(strcmp(buf, "1234") == 0);
+  ASSERT_EQ(ns_http_parse_header(&h, "ert", buf, sizeof(buf)), 3);
+  ASSERT_STREQ(buf, "234");
+  ASSERT_EQ(ns_http_parse_header(&h, "ert", buf, 2), 0);
+  ASSERT_EQ(ns_http_parse_header(&h, "ert", buf, 3), 0);
+  ASSERT_EQ(ns_http_parse_header(&h, "ert", buf, 4), 3);
+  ASSERT_EQ(ns_http_parse_header(&h, "gf", buf, sizeof(buf)), 0);
+  ASSERT_EQ(ns_http_parse_header(&h, "zz", buf, sizeof(buf)), 5);
+  ASSERT_STREQ(buf, "aa bb");
+  ASSERT_EQ(ns_http_parse_header(&h, "d", buf, sizeof(buf)), 4);
+  ASSERT_STREQ(buf, "1234");
   buf[0] = 'x';
-  ASSERT(ns_http_parse_header(&h, "MMM", buf, sizeof(buf)) == 0);
-  ASSERT(buf[0] == '\0');
-  ASSERT(ns_http_parse_header(&h, "kl", buf, sizeof(buf)) == 3);
-  ASSERT(strcmp(buf, "123") == 0);
-  ASSERT(ns_http_parse_header(&h, "xx", buf, sizeof(buf)) == 1);
-  ASSERT(strcmp(buf, "1") == 0);
-  ASSERT(ns_http_parse_header(&h, "ii", buf, sizeof(buf)) == 5);
-  ASSERT(strcmp(buf, "12\"34") == 0);
-  ASSERT(ns_http_parse_header(&h, "tt", buf, sizeof(buf)) == 1);
-  ASSERT(strcmp(buf, "2") == 0);
+  ASSERT_EQ(ns_http_parse_header(&h, "MMM", buf, sizeof(buf)), 0);
+  ASSERT_EQ(buf[0], '\0');
+  ASSERT_EQ(ns_http_parse_header(&h, "kl", buf, sizeof(buf)), 3);
+  ASSERT_STREQ(buf, "123");
+  ASSERT_EQ(ns_http_parse_header(&h, "xx", buf, sizeof(buf)), 1);
+  ASSERT_STREQ(buf, "1");
+  ASSERT_EQ(ns_http_parse_header(&h, "ii", buf, sizeof(buf)), 5);
+  ASSERT_STREQ(buf, "12\"34");
+  ASSERT_EQ(ns_http_parse_header(&h, "tt", buf, sizeof(buf)), 1);
+  ASSERT_STREQ(buf, "2");
   ASSERT(ns_http_parse_header(&h, "uri", buf, sizeof(buf)) > 0);
 
   return NULL;
@@ -2480,20 +2468,20 @@ static const char *test_coap(void) {
   packet_in.buf = (char *) coap_packet_2;
   packet_in.len = sizeof(coap_packet_2);
   res = ns_coap_parse(&packet_in, &cm);
-  ASSERT((res & NS_COAP_ERROR) == 0);
-  ASSERT(cm.code_class == 0);
-  ASSERT(cm.code_detail == 0);
-  ASSERT(cm.msg_id == 59675);
-  ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
-  ASSERT(cm.options == 0);
-  ASSERT(cm.payload.len == 0);
+  ASSERT_EQ((res & NS_COAP_ERROR), 0);
+  ASSERT_EQ(cm.code_class, 0);
+  ASSERT_EQ(cm.code_detail, 0);
+  ASSERT_EQ(cm.msg_id, 59675);
+  ASSERT_EQ(cm.msg_type, NS_COAP_MSG_ACK);
+  ASSERT(cm.options == NULL);
+  ASSERT_EQ(cm.payload.len, 0);
   ASSERT(cm.payload.p == NULL);
-  ASSERT(cm.token.len == 0);
+  ASSERT_EQ(cm.token.len, 0);
   ASSERT(cm.token.p == NULL);
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT(res == 0);
-  ASSERT(packet_out.len == sizeof(coap_packet_2));
-  ASSERT(memcmp(packet_out.buf, coap_packet_2, packet_out.len) == 0);
+  ASSERT_EQ(res, 0);
+  ASSERT_EQ(packet_out.len, sizeof(coap_packet_2));
+  ASSERT_EQ(memcmp(packet_out.buf, coap_packet_2, packet_out.len), 0);
   ns_coap_free_options(&cm);
   mbuf_free(&packet_out);
 
@@ -2501,20 +2489,20 @@ static const char *test_coap(void) {
   packet_in.buf = (char *) coap_packet_4;
   packet_in.len = sizeof(coap_packet_4);
   res = ns_coap_parse(&packet_in, &cm);
-  ASSERT((res & NS_COAP_ERROR) == 0);
-  ASSERT(cm.code_class == 0);
-  ASSERT(cm.code_detail == 0);
-  ASSERT(cm.msg_id == 22287);
-  ASSERT(cm.msg_type == NS_COAP_MSG_ACK);
-  ASSERT(cm.options == 0);
-  ASSERT(cm.payload.len == 0);
+  ASSERT_EQ((res & NS_COAP_ERROR), 0);
+  ASSERT_EQ(cm.code_class, 0);
+  ASSERT_EQ(cm.code_detail, 0);
+  ASSERT_EQ(cm.msg_id, 22287);
+  ASSERT_EQ(cm.msg_type, NS_COAP_MSG_ACK);
+  ASSERT(cm.options == NULL);
+  ASSERT_EQ(cm.payload.len, 0);
   ASSERT(cm.payload.p == NULL);
-  ASSERT(cm.token.len == 0);
+  ASSERT_EQ(cm.token.len, 0);
   ASSERT(cm.token.p == NULL);
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT(res == 0);
-  ASSERT(packet_out.len == sizeof(coap_packet_4));
-  ASSERT(memcmp(packet_out.buf, coap_packet_4, packet_out.len) == 0);
+  ASSERT_EQ(res, 0);
+  ASSERT_EQ(packet_out.len, sizeof(coap_packet_4));
+  ASSERT_EQ(memcmp(packet_out.buf, coap_packet_4, packet_out.len), 0);
   ns_coap_free_options(&cm);
   mbuf_free(&packet_out);
 
@@ -2522,32 +2510,32 @@ static const char *test_coap(void) {
   packet_in.buf = (char *) coap_packet_1;
   packet_in.len = sizeof(coap_packet_1);
   res = ns_coap_parse(&packet_in, &cm);
-  ASSERT((res & NS_COAP_ERROR) == 0);
-  ASSERT(cm.code_class == 0);
-  ASSERT(cm.code_detail == 1);
-  ASSERT(cm.msg_id == 59675);
-  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
+  ASSERT_EQ((res & NS_COAP_ERROR), 0);
+  ASSERT_EQ(cm.code_class, 0);
+  ASSERT_EQ(cm.code_detail, 1);
+  ASSERT_EQ(cm.msg_id, 59675);
+  ASSERT_EQ(cm.msg_type, NS_COAP_MSG_CON);
   ASSERT(cm.options != 0);
-  ASSERT(cm.options->number == 11);
-  ASSERT(cm.options->value.len == 8);
-  ASSERT(strncmp(cm.options->value.p, "separate", 8) == 0);
+  ASSERT_EQ(cm.options->number, 11);
+  ASSERT_EQ(cm.options->value.len, 8);
+  ASSERT_STREQ_NZ(cm.options->value.p, "separate");
   ASSERT(cm.options->next != 0);
-  ASSERT(cm.options->next->number == 12);
-  ASSERT(cm.options->next->value.len == 0);
+  ASSERT_EQ(cm.options->next->number, 12);
+  ASSERT_EQ(cm.options->next->value.len, 0);
   ASSERT(cm.options->next->next != 0);
-  ASSERT(cm.options->next->next->number == 60);
-  ASSERT(cm.options->next->next->value.len == 1);
-  ASSERT(*cm.options->next->next->value.p == 0x11);
-  ASSERT(cm.options->next->next->next == 0);
-  ASSERT(cm.payload.len == 0);
+  ASSERT_EQ(cm.options->next->next->number, 60);
+  ASSERT_EQ(cm.options->next->next->value.len, 1);
+  ASSERT_EQ(*cm.options->next->next->value.p, 0x11);
+  ASSERT(cm.options->next->next->next == NULL);
+  ASSERT_EQ(cm.payload.len, 0);
   ASSERT(cm.payload.p == NULL);
-  ASSERT(cm.token.len == 2);
-  ASSERT(*cm.token.p == 0x07);
-  ASSERT((unsigned char) *(cm.token.p + 1) == 0x90);
+  ASSERT_EQ(cm.token.len, 2);
+  ASSERT_EQ(*cm.token.p, 0x07);
+  ASSERT_EQ((unsigned char) *(cm.token.p + 1), 0x90);
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT(res == 0);
-  ASSERT(packet_out.len == sizeof(coap_packet_1));
-  ASSERT(memcmp(packet_out.buf, coap_packet_1, packet_out.len) == 0);
+  ASSERT_EQ(res, 0);
+  ASSERT_EQ(packet_out.len, sizeof(coap_packet_1));
+  ASSERT_EQ(memcmp(packet_out.buf, coap_packet_1, packet_out.len), 0);
   ns_coap_free_options(&cm);
   mbuf_free(&packet_out);
 
@@ -2555,52 +2543,52 @@ static const char *test_coap(void) {
   packet_in.buf = (char *) coap_packet_3;
   packet_in.len = sizeof(coap_packet_3);
   res = ns_coap_parse(&packet_in, &cm);
-  ASSERT((res & NS_COAP_ERROR) == 0);
-  ASSERT(cm.code_class == 2);
-  ASSERT(cm.code_detail == 5);
-  ASSERT(cm.msg_id == 22287);
-  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
-  ASSERT(cm.options == 0);
-  ASSERT(cm.token.len == 2);
-  ASSERT(*cm.token.p == 0x07);
-  ASSERT((unsigned char) *(cm.token.p + 1) == 0x90);
-  ASSERT(cm.payload.len == 122);
+  ASSERT_EQ((res & NS_COAP_ERROR), 0);
+  ASSERT_EQ(cm.code_class, 2);
+  ASSERT_EQ(cm.code_detail, 5);
+  ASSERT_EQ(cm.msg_id, 22287);
+  ASSERT_EQ(cm.msg_type, NS_COAP_MSG_CON);
+  ASSERT(cm.options == NULL);
+  ASSERT_EQ(cm.token.len, 2);
+  ASSERT_EQ(*cm.token.p, 0x07);
+  ASSERT_EQ((unsigned char) *(cm.token.p + 1), 0x90);
+  ASSERT_EQ(cm.payload.len, 122);
   ASSERT(strncmp(cm.payload.p,
                  "This message was sent by a separate response.\n"
                  "Your client will need to acknowledge it,"
                  " otherwise it will be retransmitted.",
                  122) == 0);
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT(res == 0);
-  ASSERT(packet_out.len == sizeof(coap_packet_3));
-  ASSERT(memcmp(packet_out.buf, coap_packet_3, packet_out.len) == 0);
+  ASSERT_EQ(res, 0);
+  ASSERT_EQ(packet_out.len, sizeof(coap_packet_3));
+  ASSERT_EQ(memcmp(packet_out.buf, coap_packet_3, packet_out.len), 0);
   ns_coap_free_options(&cm);
   mbuf_free(&packet_out);
 
   packet_in.buf = (char *) coap_packet_5;
   packet_in.len = sizeof(coap_packet_5);
   res = ns_coap_parse(&packet_in, &cm);
-  ASSERT((res & NS_COAP_ERROR) == 0);
-  ASSERT(cm.code_class == 0);
-  ASSERT(cm.code_detail == 3);
-  ASSERT(cm.msg_id == 38178);
-  ASSERT(cm.msg_type == NS_COAP_MSG_CON);
+  ASSERT_EQ((res & NS_COAP_ERROR), 0);
+  ASSERT_EQ(cm.code_class, 0);
+  ASSERT_EQ(cm.code_detail, 3);
+  ASSERT_EQ(cm.msg_id, 38178);
+  ASSERT_EQ(cm.msg_type, NS_COAP_MSG_CON);
   ASSERT(cm.options != 0);
-  ASSERT(cm.options->number == 11);
-  ASSERT(cm.options->value.len == 7);
-  ASSERT(strncmp(cm.options->value.p, "storage", 7) == 0);
+  ASSERT_EQ(cm.options->number, 11);
+  ASSERT_EQ(cm.options->value.len, 7);
+  ASSERT_STREQ_NZ(cm.options->value.p, "storage");
   ASSERT(cm.options->next != 0);
-  ASSERT(cm.options->next->number == 11);
-  ASSERT(cm.options->next->value.len == 10);
-  ASSERT(strncmp(cm.options->next->value.p, "myresource", 10) == 0);
-  ASSERT(cm.options->next->next == 0);
-  ASSERT(cm.token.len == 0);
-  ASSERT(cm.payload.len == 6);
-  ASSERT(strncmp(cm.payload.p, "mydata", 6) == 0);
+  ASSERT_EQ(cm.options->next->number, 11);
+  ASSERT_EQ(cm.options->next->value.len, 10);
+  ASSERT_STREQ_NZ(cm.options->next->value.p, "myresource");
+  ASSERT(cm.options->next->next == NULL);
+  ASSERT_EQ(cm.token.len, 0);
+  ASSERT_EQ(cm.payload.len, 6);
+  ASSERT_STREQ_NZ(cm.payload.p, "mydata");
   res = ns_coap_compose(&cm, &packet_out);
-  ASSERT(res == 0);
-  ASSERT(packet_out.len == sizeof(coap_packet_5));
-  ASSERT(memcmp(packet_out.buf, coap_packet_5, packet_out.len) == 0);
+  ASSERT_EQ(res, 0);
+  ASSERT_EQ(packet_out.len, sizeof(coap_packet_5));
+  ASSERT_EQ(memcmp(packet_out.buf, coap_packet_5, packet_out.len), 0);
   ns_coap_free_options(&cm);
   mbuf_free(&packet_out);
 
@@ -2634,22 +2622,22 @@ static const char *test_coap(void) {
 
   memset(&cm, 0, sizeof(cm));
   ns_coap_add_option(&cm, 10, 0, 0);
-  ASSERT(cm.options->number == 10);
+  ASSERT_EQ(cm.options->number, 10);
   ASSERT(cm.options->next == NULL);
   ns_coap_add_option(&cm, 5, 0, 0);
-  ASSERT(cm.options->number == 5);
-  ASSERT(cm.options->next->number == 10);
+  ASSERT_EQ(cm.options->number, 5);
+  ASSERT_EQ(cm.options->next->number, 10);
   ASSERT(cm.options->next->next == NULL);
   ns_coap_add_option(&cm, 7, 0, 0);
-  ASSERT(cm.options->number == 5);
-  ASSERT(cm.options->next->number == 7);
-  ASSERT(cm.options->next->next->number == 10);
+  ASSERT_EQ(cm.options->number, 5);
+  ASSERT_EQ(cm.options->next->number, 7);
+  ASSERT_EQ(cm.options->next->next->number, 10);
   ASSERT(cm.options->next->next->next == NULL);
   ns_coap_add_option(&cm, 1, 0, 0);
-  ASSERT(cm.options->number == 1);
-  ASSERT(cm.options->next->number == 5);
-  ASSERT(cm.options->next->next->number == 7);
-  ASSERT(cm.options->next->next->next->number == 10);
+  ASSERT_EQ(cm.options->number, 1);
+  ASSERT_EQ(cm.options->next->number, 5);
+  ASSERT_EQ(cm.options->next->next->number, 7);
+  ASSERT_EQ(cm.options->next->next->next->number, 10);
   ASSERT(cm.options->next->next->next->next == NULL);
 
   {
@@ -2657,16 +2645,16 @@ static const char *test_coap(void) {
     packet_in.buf = (char *) coap_packet_4;
     packet_in.len = sizeof(coap_packet_4);
     res = ns_coap_parse(&packet_in, &cm);
-    ASSERT((res & NS_COAP_ERROR) == 0);
+    ASSERT_EQ((res & NS_COAP_ERROR), 0);
     ns_coap_add_option(&cm, 0xAABB, (char *) value16, sizeof(value16));
     res = ns_coap_compose(&cm, &packet_out);
     ns_coap_free_options(&cm);
-    ASSERT(res == 0);
+    ASSERT_EQ(res, 0);
     res = ns_coap_parse(&packet_out, &cm);
-    ASSERT((res & NS_COAP_ERROR) == 0);
-    ASSERT(cm.options->number == 0xAABB);
-    ASSERT(cm.options->value.len == 2);
-    ASSERT(memcmp(cm.options->value.p, value16, cm.options->value.len) == 0);
+    ASSERT_EQ((res & NS_COAP_ERROR), 0);
+    ASSERT_EQ(cm.options->number, 0xAABB);
+    ASSERT_EQ(cm.options->value.len, 2);
+    ASSERT_EQ(memcmp(cm.options->value.p, value16, cm.options->value.len), 0);
     ns_coap_free_options(&cm);
     mbuf_free(&packet_out);
   }
@@ -2707,7 +2695,7 @@ static const char *test_coap(void) {
 
     nc = ns_bind(&mgr, address, coap_handler_1);
     ASSERT(nc != NULL);
-    ASSERT(ns_set_protocol_coap(nc) == -1);
+    ASSERT_EQ(ns_set_protocol_coap(nc), -1);
 
     ns_mgr_free(&mgr);
   }
@@ -2735,8 +2723,8 @@ static const char *test_coap(void) {
 
     ns_mgr_free(&mgr);
 
-    ASSERT(res.server == 1);
-    ASSERT(res.client == 3);
+    ASSERT_EQ(res.server, 1);
+    ASSERT_EQ(res.client, 3);
   }
 
   return NULL;
@@ -2748,8 +2736,8 @@ static const char *test_strcmp(void) {
 
   s1.p = "aa";
   s1.len = strlen(s1.p);
-  ASSERT(ns_vcasecmp(&s1, "aa") == 0);
-  ASSERT(ns_vcmp(&s1, "aa") == 0);
+  ASSERT_EQ(ns_vcasecmp(&s1, "aa"), 0);
+  ASSERT_EQ(ns_vcmp(&s1, "aa"), 0);
   ASSERT(ns_vcasecmp(&s1, "ab") < 0);
   ASSERT(ns_vcmp(&s1, "ab") < 0);
   ASSERT(ns_vcasecmp(&s1, "abb") < 0);
@@ -2831,7 +2819,7 @@ int __cdecl main(int argc, char *argv[]) {
 
   s_argv_0 = argv[0];
   fail_msg = run_tests(filter);
-  printf("%s, tests run: %d\n", fail_msg ? "FAIL" : "PASS", static_num_tests);
+  printf("%s, tests run: %d\n", fail_msg ? "FAIL" : "PASS", num_tests);
 
   return fail_msg == NULL ? EXIT_SUCCESS : EXIT_FAILURE;
 }

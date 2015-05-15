@@ -474,10 +474,7 @@ static const char *test_udp(void) {
   ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
   ns_printf(nc2, "%s", "boo!");
 
-  {
-    int i;
-    for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
-  }
+  poll_mgr(&mgr, 50);
   ASSERT_EQ(memcmp(res.buf_srv, "boo!", 4), 0);
   ASSERT_EQ(memcmp(res.buf_clnt, "boo!", 4), 0);
   ns_mgr_free(&mgr);
@@ -769,7 +766,7 @@ static const char *test_http(void) {
   nc->user_data = auth_ok;
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 250);
+  poll_mgr(&mgr, 500);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -2350,10 +2347,7 @@ static const char *test_buffer_limit(void) {
   ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(clnt, "abcd");
 
-  {
-    int i;
-    for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
-  }
+  poll_mgr(&mgr, 50);
 
   /* expect four single byte read events */
   ASSERT_EQ(res, 4);
@@ -2716,10 +2710,7 @@ static const char *test_coap(void) {
     ns_set_protocol_coap(nc2);
     nc2->user_data = &res;
 
-    {
-      int i;
-      for (i = 0; i < 50; i++) ns_mgr_poll(&mgr, 1);
-    }
+    poll_mgr(&mgr, 50);
 
     ns_mgr_free(&mgr);
 

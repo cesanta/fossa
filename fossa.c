@@ -1256,6 +1256,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     }
   }
 #endif
+  DBG(("init mgr=%p", s));
 }
 
 void ns_mgr_free(struct ns_mgr *s) {
@@ -1680,7 +1681,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     }
 #endif
     (void) ret;
-    DBG(("%p ok=%d", conn, ok));
+    DBG(("%p connect ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
     } else {
@@ -1813,12 +1814,72 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   }
 }
 
+#define _NSF_FD_CAN_READ 1
+#define _NSF_FD_CAN_WRITE 1 << 1
+#define _NSF_FD_ERROR 1 << 2
+
+static void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
+                                     time_t now) {
+  if (!(fd_flags & (_NSF_FD_CAN_READ | _NSF_FD_CAN_WRITE | _NSF_FD_ERROR))) {
+    if (!(nc->flags & (NSF_LISTENING | NSF_CONNECTING))) {
+      ns_call(nc, NS_POLL, &now);
+    }
+    return;
+  }
+
+  /* Windows reports failed connect() requests in err_set */
+  if ((fd_flags & _NSF_FD_ERROR) && (nc->flags & NSF_CONNECTING)) {
+    nc->last_io_time = now;
+    ns_read_from_socket(nc);
+  }
+
+  if (fd_flags & _NSF_FD_CAN_READ) {
+    nc->last_io_time = now;
+    if (nc->flags & NSF_UDP) {
+      ns_handle_udp(nc);
+    } else if (nc->flags & NSF_LISTENING) {
+      /*
+       * We're not looping here, and accepting just one connection at
+       * a time. The reason is that eCos does not respect non-blocking
+       * flag on a listening socket and hangs in a loop.
+       */
+      accept_conn(nc);
+    } else {
+      ns_read_from_socket(nc);
+    }
+  }
+
+  if (fd_flags & _NSF_FD_CAN_WRITE) {
+    nc->last_io_time = now;
+    if (nc->flags & NSF_CONNECTING && !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
+      ns_read_from_socket(nc);
+    } else if (!(nc->flags & NSF_DONT_SEND) &&
+               !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
+      ns_write_to_socket(nc);
+    }
+  }
+}
+
+static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
+  struct ctl_msg ctl_msg;
+  int len =
+      (int) NS_RECV_FUNC(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
+  NS_SEND_FUNC(mgr->ctl[1], ctl_msg.message, 1, 0);
+  if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
+    struct ns_connection *nc;
+    for (nc = ns_next(mgr, NULL); nc != NULL; nc = ns_next(mgr, nc)) {
+      ctl_msg.callback(nc, NS_POLL, ctl_msg.message);
+    }
+  }
+}
+
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
+  time_t now;
   struct ns_connection *nc, *tmp;
   struct timeval tv;
   fd_set read_set, write_set, err_set;
   sock_t max_fd = INVALID_SOCKET;
-  time_t current_time = time(NULL);
+  int num_selected, fd_flags;
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
@@ -1827,20 +1888,6 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
-    if (!(nc->flags & (NSF_LISTENING | NSF_CONNECTING))) {
-      ns_call(nc, NS_POLL, &current_time);
-    }
-
-    /*
-     * NS_POLL handler could have signaled us to close the connection
-     * by setting NSF_CLOSE_IMMEDIATELY flag. In this case, we don't want to
-     * trigger any other events on that connection, but close it right away.
-     */
-    if (nc->flags & NSF_CLOSE_IMMEDIATELY) {
-      /* NOTE(lsm): this call removes nc from the mgr->active_connections */
-      ns_close_conn(nc);
-      continue;
-    }
 
     if (!(nc->flags & NSF_WANT_WRITE) &&
         nc->recv_mbuf.len < nc->recv_mbuf_limit) {
@@ -1858,69 +1905,23 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   tv.tv_sec = milli / 1000;
   tv.tv_usec = (milli % 1000) * 1000;
 
-  if (select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv) > 0) {
-    /* select() might have been waiting for a long time, reset current_time
-     *  now to prevent last_io_time being set to the past. */
-    current_time = time(NULL);
+  num_selected = select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv);
+  now = time(NULL);
 
-#ifndef __AVR__
-    /*
-     * Note: it seems, avr-gcc breaks on long functions
-     * As workaround unused (on AVR) part just excluded
-     * TODO(alashkin): investigate this
-     */
+  if (num_selected > 0 && mgr->ctl[1] != INVALID_SOCKET &&
+      FD_ISSET(mgr->ctl[1], &read_set)) {
+    ns_mgr_handle_ctl_sock(mgr);
+  }
 
-    /* Read wakeup messages */
-    if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
-      struct ctl_msg ctl_msg;
-      int len = (int) NS_RECV_FUNC(mgr->ctl[1], (char *) &ctl_msg,
-                                   sizeof(ctl_msg), 0);
-      NS_SEND_FUNC(mgr->ctl[1], ctl_msg.message, 1, 0);
-      if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
-        struct ns_connection *c;
-        for (c = ns_next(mgr, NULL); c != NULL; c = ns_next(mgr, c)) {
-          ctl_msg.callback(c, NS_POLL, ctl_msg.message);
-        }
-      }
+  fd_flags = 0;
+  for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+    if (num_selected > 0) {
+      fd_flags = (FD_ISSET(nc->sock, &read_set) ? _NSF_FD_CAN_READ : 0) |
+                 (FD_ISSET(nc->sock, &write_set) ? _NSF_FD_CAN_WRITE : 0) |
+                 (FD_ISSET(nc->sock, &err_set) ? _NSF_FD_ERROR : 0);
     }
-#endif
-
-    for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
-      tmp = nc->next;
-
-      /* Windows reports failed connect() requests in err_set */
-      if (FD_ISSET(nc->sock, &err_set) && (nc->flags & NSF_CONNECTING)) {
-        nc->last_io_time = current_time;
-        ns_read_from_socket(nc);
-      }
-
-      if (FD_ISSET(nc->sock, &read_set)) {
-        nc->last_io_time = current_time;
-        if (nc->flags & NSF_UDP) {
-          ns_handle_udp(nc);
-        } else if (nc->flags & NSF_LISTENING) {
-          /*
-           * We're not looping here, and accepting just one connection at
-           * a time. The reason is that eCos does not respect non-blocking
-           * flag on a listening socket and hangs in a loop.
-           */
-          accept_conn(nc);
-        } else {
-          ns_read_from_socket(nc);
-        }
-      }
-
-      if (FD_ISSET(nc->sock, &write_set)) {
-        nc->last_io_time = current_time;
-        if (nc->flags & NSF_CONNECTING &&
-            !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-          ns_read_from_socket(nc);
-        } else if (!(nc->flags & NSF_DONT_SEND) &&
-                   !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-          ns_write_to_socket(nc);
-        }
-      }
-    }
+    tmp = nc->next;
+    ns_mgr_handle_connection(nc, fd_flags, now);
   }
 
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
@@ -1931,7 +1932,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     }
   }
 
-  return current_time;
+  return now;
 }
 
 /*

@@ -126,7 +126,7 @@ static const char *test_mbuf(void) {
 
 static void poll_mgr(struct ns_mgr *mgr, int num_iterations) {
   while (num_iterations-- > 0) {
-    ns_mgr_poll(mgr, 1);
+    ns_mgr_poll(mgr, 2);
   }
 }
 
@@ -188,7 +188,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   }
 #endif
   nc->user_data = buf;
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
 
   ASSERT_STREQ(buf, "ok!");
 
@@ -431,7 +431,7 @@ static const char *test_thread(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ASSERT_STREQ(buf, ":-)");
   ns_mgr_free(&mgr);
   closesocket(sp[1]);
@@ -474,7 +474,7 @@ static const char *test_udp(void) {
   ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
   ns_printf(nc2, "%s", "boo!");
 
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ASSERT_EQ(memcmp(res.buf_srv, "boo!", 4), 0);
   ASSERT_EQ(memcmp(res.buf_clnt, "boo!", 4), 0);
   ns_mgr_free(&mgr);
@@ -701,7 +701,7 @@ static void fetch_http(char *buf, const char *request_fmt, ...) {
 
   /* Run event loop, destroy server */
   buf[0] = '\0';
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ns_mgr_free(&mgr);
 }
 
@@ -714,9 +714,9 @@ static const char *test_http(void) {
   char auth_ok[20] = "", auth_hdr[200] = "", url[1000];
 
   ns_mgr_init(&mgr, NULL);
+  /* mgr.hexdump_file = "/dev/stdout"; */
   ASSERT((nc = ns_bind(&mgr, local_addr, cb1)) != NULL);
   ns_set_protocol_http_websocket(nc);
-
   /* Valid HTTP request. Pass test buffer to the callback. */
   ASSERT((nc = ns_connect_http(&mgr, cb2, "http://127.0.0.1:7777/foo", NULL,
                                "0123456789")) != NULL);
@@ -725,21 +725,22 @@ static const char *test_http(void) {
   /* Invalid HTTP request */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb2)) != NULL);
   ns_set_protocol_http_websocket(nc);
-  ns_printf(nc, "%s", "bl\x03\n\n");
 
+  ns_printf(nc, "%s", "bl\x03\n\n");
   /* Test static file download by downloading this executable, argv[0] */
   ASSERT((nc = ns_connect(&mgr, local_addr, cb7)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = status;
 
-  /* Wine sets argv0 to full path: strip the dir component */
+  /* Wine and GDB set argv0 to full path: strip the dir component */
   if ((this_binary = strrchr(s_argv_0, '\\')) != NULL) {
+    this_binary++;
+  } else if ((this_binary = strrchr(s_argv_0, '/')) != NULL) {
     this_binary++;
   } else {
     this_binary = s_argv_0;
   }
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", this_binary);
-
   /* Test mime type for static file */
   snprintf(url, sizeof(url), "http://%s/data/dummy.xml", local_addr);
   ASSERT((nc = ns_connect_http(&mgr, cb10, url, NULL, NULL)) != NULL);
@@ -764,7 +765,6 @@ static const char *test_http(void) {
   ASSERT((nc = ns_connect_http(&mgr, cb_auth_ok, url, auth_hdr, NULL)) != NULL);
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_ok;
-
   /* Run event loop. Use more cycles to let file download complete. */
   poll_mgr(&mgr, 500);
   ns_mgr_free(&mgr);
@@ -800,7 +800,7 @@ static const char *test_http_errors(void) {
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "../test_unreadable");
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_mgr(&mgr, 20);
+  poll_mgr(&mgr, 10);
   system("rm -f test_unreadable");
 
   /* Check that it failed */
@@ -813,7 +813,7 @@ static const char *test_http_errors(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/please_dont_create_this_file_srsly");
 
-  poll_mgr(&mgr, 20);
+  poll_mgr(&mgr, 10);
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 404");
@@ -826,7 +826,7 @@ static const char *test_http_errors(void) {
 
   s_http_server_opts.enable_directory_listing = "no";
 
-  poll_mgr(&mgr, 20);
+  poll_mgr(&mgr, 10);
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 403");
@@ -1027,7 +1027,7 @@ static const char *test_websocket(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1097,7 +1097,7 @@ static const char *test_websocket_big(void) {
   params.size = 8192;
   nc->user_data = &params;
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT_STREQ(buf, "success");
@@ -1108,7 +1108,7 @@ static const char *test_websocket_big(void) {
   params.size = 65535;
   nc->user_data = &params;
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1568,7 +1568,7 @@ static const char *test_rpc(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
 
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ns_mgr_free(&mgr);
 
   ASSERT_STREQ(buf, "1 1 16");
@@ -1594,7 +1594,7 @@ static const char *test_connect_fail(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33211", cb5)) != NULL);
   nc->user_data = buf;
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
   ns_mgr_free(&mgr);
 
 /* printf("failed connect status: [%s]\n", buf); */
@@ -1627,10 +1627,12 @@ static const char *test_connect_opts(void) {
   ASSERT(nc->user_data == (void *) 0xdeadbeef);
   ASSERT(nc->flags & NSF_USER_6);
   ASSERT(!(nc->flags & NSF_WANT_READ));
-  poll_mgr(&mgr, 50);
-  ASSERT(nc->flags & NSF_USER_4);
-  ASSERT(nc->flags & NSF_USER_6);
-  ASSERT(!(nc->flags & NSF_WANT_READ));
+  poll_mgr(&mgr, 25);
+  /* TODO(rojer): find a way to test this w/o touching nc (already freed).
+    ASSERT(nc->flags & NSF_USER_4);
+    ASSERT(nc->flags & NSF_USER_6);
+    ASSERT(!(nc->flags & NSF_WANT_READ));
+  */
   ns_mgr_free(&mgr);
   return NULL;
 }
@@ -1647,6 +1649,7 @@ static const char *test_connect_opts_error_string(void) {
   ASSERT((nc = ns_connect_opt(&mgr, "127.0.0.1:65537", cb6, opts)) == NULL);
   ASSERT(error_string != NULL);
   ASSERT_STREQ(error_string, "cannot parse address");
+  ns_mgr_free(&mgr);
   return NULL;
 }
 
@@ -2270,8 +2273,8 @@ static const char *test_dns_resolve(void) {
                    &data);
 
   /* TODO(lsm): do not depend on external name server */
-  for (i = 0; i < 500 && data == 0; i++) {
-    poll_mgr(&mgr, 20);
+  for (i = 0; i < 50 && data == 0; i++) {
+    poll_mgr(&mgr, 10);
   }
 
   ASSERT_EQ(data, 1);
@@ -2347,7 +2350,7 @@ static const char *test_buffer_limit(void) {
   ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(clnt, "abcd");
 
-  poll_mgr(&mgr, 50);
+  poll_mgr(&mgr, 25);
 
   /* expect four single byte read events */
   ASSERT_EQ(res, 4);
@@ -2710,7 +2713,7 @@ static const char *test_coap(void) {
     ns_set_protocol_coap(nc2);
     nc2->user_data = &res;
 
-    poll_mgr(&mgr, 50);
+    poll_mgr(&mgr, 25);
 
     ns_mgr_free(&mgr);
 

@@ -138,6 +138,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   req = (struct ns_resolve_async_request *) nc->user_data;
 
   switch (ev) {
+    case NS_CONNECT:
     case NS_POLL:
       if (req->retries > req->max_retries) {
         req->callback(NULL, req->data);

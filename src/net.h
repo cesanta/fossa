@@ -95,6 +95,7 @@ struct ns_mgr {
   const char *hexdump_file; /* Debug hexdump file path */
   sock_t ctl[2];            /* Socketpair for mg_wakeup() */
   void *user_data;          /* User data */
+  void *mgr_data;           /* Implementation-specific event manager's data. */
 };
 
 /*
@@ -117,6 +118,7 @@ struct ns_connection {
   void *proto_data;                 /* Protocol-specific data */
   ns_event_handler_t handler;       /* Event handler function */
   void *user_data;                  /* User-specific data */
+  void *mgr_data; /* Implementation-specific event manager's data. */
 
   unsigned long flags;
 /* Flags set by Fossa */

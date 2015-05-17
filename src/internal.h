@@ -39,7 +39,7 @@
 #define NS_INTERNAL static
 #endif
 
-#if !defined(NS_MGR_EV_MGR) && defined (__linux__)
+#if !defined(NS_MGR_EV_MGR) && defined(__linux__)
 #define NS_MGR_EV_MGR 1 /* epoll() */
 #endif
 #if !defined(NS_MGR_EV_MGR)

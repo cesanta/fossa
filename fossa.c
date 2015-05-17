@@ -44,7 +44,7 @@
 #define NS_INTERNAL static
 #endif
 
-#if !defined(NS_MGR_EV_MGR) && defined (__linux__)
+#if !defined(NS_MGR_EV_MGR) && defined(__linux__)
 #define NS_MGR_EV_MGR 1 /* epoll() */
 #endif
 #if !defined(NS_MGR_EV_MGR)
@@ -1900,8 +1900,8 @@ static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
 
 static uint32_t ns_epf_to_evflags(unsigned int epf) {
   uint32_t result = 0;
-  if (epf &_NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
-  if (epf &_NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
+  if (epf & _NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
+  if (epf & _NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
   return result;
 }
 

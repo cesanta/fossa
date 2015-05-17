@@ -18,6 +18,9 @@
 #ifndef NS_TEST_UTIL_HEADER_INCLUDED
 #define NS_TEST_UTIL_HEADER_INCLUDED
 
+#include <string.h>
+#include <stdio.h>
+
 extern int num_tests;
 
 #ifdef NS_TEST_ABORT_ON_FAIL

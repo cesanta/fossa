@@ -798,8 +798,8 @@ static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
 
 static uint32_t ns_epf_to_evflags(unsigned int epf) {
   uint32_t result = 0;
-  if (epf &_NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
-  if (epf &_NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
+  if (epf & _NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
+  if (epf & _NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
   return result;
 }
 

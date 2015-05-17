@@ -42,13 +42,12 @@ struct ctl_msg {
   char message[NS_CTL_MSG_MESSAGE_SIZE];
 };
 
-NS_INTERNAL void ns_ev_mgr_init(struct ns_mgr *mgr);
-NS_INTERNAL void ns_ev_mgr_free(struct ns_mgr *mgr);
-NS_INTERNAL void ns_ev_mgr_add_conn(struct ns_connection *nc);
-NS_INTERNAL void ns_ev_mgr_remove_conn(struct ns_connection *nc);
+static void ns_ev_mgr_init(struct ns_mgr *mgr);
+static void ns_ev_mgr_free(struct ns_mgr *mgr);
+static void ns_ev_mgr_add_conn(struct ns_connection *nc);
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc);
 
-NS_INTERNAL
-void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
   mgr->active_connections = c;
   c->prev = NULL;
@@ -56,16 +55,14 @@ void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   ns_ev_mgr_add_conn(c);
 }
 
-NS_INTERNAL
-void ns_remove_conn(struct ns_connection *conn) {
+static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->prev == NULL) conn->mgr->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
   ns_ev_mgr_remove_conn(conn);
 }
 
-NS_INTERNAL
-void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   unsigned long flags_before;
   ns_event_handler_t ev_handler;
 
@@ -95,8 +92,7 @@ void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-NS_INTERNAL
-size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
+static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   if (nc->flags & NSF_UDP) {
     int n = sendto(nc->sock, buf, len, 0, &nc->sa.sa, sizeof(nc->sa.sin));
     DBG(("%p %d %d %d %s:%hu", nc, nc->sock, n, errno,
@@ -107,8 +103,7 @@ size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
   }
 }
 
-NS_INTERNAL
-void ns_destroy_conn(struct ns_connection *conn) {
+static void ns_destroy_conn(struct ns_connection *conn) {
   if (conn->sock != INVALID_SOCKET) {
     closesocket(conn->sock);
     /*
@@ -133,8 +128,7 @@ void ns_destroy_conn(struct ns_connection *conn) {
   NS_FREE(conn);
 }
 
-NS_INTERNAL
-void ns_close_conn(struct ns_connection *conn) {
+static void ns_close_conn(struct ns_connection *conn) {
   DBG(("%p %lu", conn, conn->flags));
   if (!(conn->flags & NSF_CONNECTING)) {
     ns_call(conn, NS_CLOSE, NULL);
@@ -222,8 +216,7 @@ int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   return len;
 }
 
-NS_INTERNAL
-void ns_set_non_blocking_mode(sock_t sock) {
+static void ns_set_non_blocking_mode(sock_t sock) {
 #ifdef _WIN32
   unsigned long on = 1;
   ioctlsocket(sock, FIONBIO, &on);
@@ -278,8 +271,7 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
 #endif /* NS_DISABLE_SOCKETPAIR */
 
 /* TODO(lsm): use non-blocking resolver */
-NS_INTERNAL
-int ns_resolve2(const char *host, struct in_addr *ina) {
+static int ns_resolve2(const char *host, struct in_addr *ina) {
 #ifdef NS_ENABLE_GETADDRINFO
   int rv = 0;
   struct addrinfo hints, *servinfo, *p;
@@ -316,10 +308,9 @@ int ns_resolve(const char *host, char *buf, size_t n) {
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
 }
 
-NS_INTERNAL
-struct ns_connection *ns_create_connection(struct ns_mgr *mgr,
-                                           ns_event_handler_t callback,
-                                           struct ns_add_sock_opts opts) {
+NS_INTERNAL struct ns_connection *ns_create_connection(
+    struct ns_mgr *mgr, ns_event_handler_t callback,
+    struct ns_add_sock_opts opts) {
   struct ns_connection *conn;
 
   if ((conn = (struct ns_connection *) NS_MALLOC(sizeof(*conn))) != NULL) {
@@ -342,8 +333,7 @@ struct ns_connection *ns_create_connection(struct ns_mgr *mgr,
 }
 
 /* Associate a socket to a connection and and add to the manager. */
-NS_INTERNAL
-void ns_set_sock(struct ns_connection *nc, sock_t sock) {
+NS_INTERNAL void ns_set_sock(struct ns_connection *nc, sock_t sock) {
   ns_set_non_blocking_mode(sock);
   ns_set_close_on_exec(sock);
   nc->sock = sock;
@@ -364,9 +354,8 @@ void ns_set_sock(struct ns_connection *nc, sock_t sock) {
  *    0   if HOST needs DNS lookup
  *   >0   length of the address string
  */
-NS_INTERNAL
-int ns_parse_address(const char *str, union socket_address *sa, int *proto,
-                     char *host, size_t host_len) {
+NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
+                                 int *proto, char *host, size_t host_len) {
   unsigned int a, b, c, d, port = 0;
   int len = 0;
 #ifdef NS_ENABLE_IPV6
@@ -422,8 +411,7 @@ int ns_parse_address(const char *str, union socket_address *sa, int *proto,
 }
 
 /* 'sa' must be an initialized address to bind to */
-NS_INTERNAL
-sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
+static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len =
       (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
@@ -466,8 +454,7 @@ sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 /* Certificate generation script is at */
 /* https://github.com/cesanta/fossa/blob/master/scripts/gen_certs.sh */
 
-NS_INTERNAL
-int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
+static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
     return -1;
   } else if (cert == NULL || cert[0] == '\0') {
@@ -477,8 +464,7 @@ int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   return SSL_CTX_load_verify_locations(ctx, cert, NULL) == 1 ? 0 : -2;
 }
 
-NS_INTERNAL
-int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
+static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
   if (ctx == NULL) {
     return -1;
   } else if (pem_file == NULL || pem_file[0] == '\0') {
@@ -531,8 +517,7 @@ const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
   return result;
 }
 
-NS_INTERNAL
-int ns_ssl_err(struct ns_connection *conn, int res) {
+static int ns_ssl_err(struct ns_connection *conn, int res) {
   int ssl_err = SSL_get_error(conn->ssl, res);
   if (ssl_err == SSL_ERROR_WANT_READ) conn->flags |= NSF_WANT_READ;
   if (ssl_err == SSL_ERROR_WANT_WRITE) conn->flags |= NSF_WANT_WRITE;
@@ -540,8 +525,7 @@ int ns_ssl_err(struct ns_connection *conn, int res) {
 }
 #endif /* NS_ENABLE_SSL */
 
-NS_INTERNAL
-struct ns_connection *accept_conn(struct ns_connection *ls) {
+static struct ns_connection *accept_conn(struct ns_connection *ls) {
   struct ns_connection *c = NULL;
   union socket_address sa;
   socklen_t len = sizeof(sa);
@@ -571,8 +555,7 @@ struct ns_connection *accept_conn(struct ns_connection *ls) {
   return c;
 }
 
-NS_INTERNAL
-int ns_is_error(int n) {
+static int ns_is_error(int n) {
   return n == 0 || (n < 0 && errno != EINTR && errno != EINPROGRESS &&
                     errno != EAGAIN && errno != EWOULDBLOCK
 #ifdef _WIN32
@@ -582,16 +565,14 @@ int ns_is_error(int n) {
                     );
 }
 
-NS_INTERNAL
-size_t recv_avail_size(struct ns_connection *conn, size_t max) {
+static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
   size_t avail;
   if (conn->recv_mbuf_limit < conn->recv_mbuf.len) return 0;
   avail = conn->recv_mbuf_limit - conn->recv_mbuf.len;
   return avail > max ? max : avail;
 }
 
-NS_INTERNAL
-void ns_read_from_socket(struct ns_connection *conn) {
+static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[NS_READ_BUFFER_SIZE];
   int n = 0;
 
@@ -668,8 +649,7 @@ void ns_read_from_socket(struct ns_connection *conn) {
   }
 }
 
-NS_INTERNAL
-void ns_write_to_socket(struct ns_connection *conn) {
+static void ns_write_to_socket(struct ns_connection *conn) {
   struct mbuf *io = &conn->send_mbuf;
   int n = 0;
 
@@ -709,8 +689,7 @@ int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return (int) ns_out(conn, buf, len);
 }
 
-NS_INTERNAL
-void ns_handle_udp(struct ns_connection *ls) {
+static void ns_handle_udp(struct ns_connection *ls) {
   struct ns_connection nc;
   char buf[NS_UDP_RECEIVE_BUFFER_SIZE];
   int n;
@@ -748,9 +727,8 @@ void ns_handle_udp(struct ns_connection *ls) {
 #define _NSF_FD_CAN_WRITE 1 << 1
 #define _NSF_FD_ERROR 1 << 2
 
-NS_INTERNAL
-void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
-                              time_t now) {
+static void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
+                                     time_t now) {
   DBG(("%p fd=%d fd_flags=%d nc_flags=%lu", nc, nc->sock, fd_flags, nc->flags));
   if (fd_flags != 0) nc->last_io_time = now;
 
@@ -790,8 +768,7 @@ void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
   }
 }
 
-NS_INTERNAL
-void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
+static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
   struct ctl_msg ctl_msg;
   int len =
       (int) NS_RECV_FUNC(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
@@ -804,29 +781,24 @@ void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
   }
 }
 
-NS_INTERNAL
-void ns_ev_mgr_init(struct ns_mgr *mgr) {
+static void ns_ev_mgr_init(struct ns_mgr *mgr) {
   (void) mgr;
   DBG(("%p using select()", mgr));
 }
 
-NS_INTERNAL
-void ns_ev_mgr_free(struct ns_mgr *mgr) {
+static void ns_ev_mgr_free(struct ns_mgr *mgr) {
   (void) mgr;
 }
 
-NS_INTERNAL
-void ns_ev_mgr_add_conn(struct ns_connection *nc) {
+static void ns_ev_mgr_add_conn(struct ns_connection *nc) {
   (void) nc;
 }
 
-NS_INTERNAL
-void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
   (void) nc;
 }
 
-NS_INTERNAL
-void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
+static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   if (sock != INVALID_SOCKET) {
     FD_SET(sock, set);
     if (*max_fd == INVALID_SOCKET || sock > *max_fd) {
@@ -903,10 +875,10 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
  * When called from the async resolver, it must trigger `NS_CONNECT` event
  * with a failure flag to indicate connection failure.
  */
-NS_INTERNAL
-struct ns_connection *ns_finish_connect(struct ns_connection *nc, int proto,
-                                        union socket_address *sa,
-                                        struct ns_add_sock_opts o) {
+NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
+                                                    int proto,
+                                                    union socket_address *sa,
+                                                    struct ns_add_sock_opts o) {
   sock_t sock = INVALID_SOCKET;
   int rc;
 
@@ -951,8 +923,7 @@ struct ns_connection *ns_finish_connect(struct ns_connection *nc, int proto,
  *    either failure (and dealloc the connection)
  *    or success (and proceed with connect()
  */
-NS_INTERNAL
-void resolve_cb(struct ns_dns_message *msg, void *data) {
+static void resolve_cb(struct ns_dns_message *msg, void *data) {
   struct ns_connection *nc = (struct ns_connection *) data;
   int i;
   int failure = -1;
@@ -1125,13 +1096,11 @@ void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
   }
 }
 
-NS_INTERNAL
-int isbyte(int n) {
+static int isbyte(int n) {
   return n >= 0 && n <= 255;
 }
 
-NS_INTERNAL
-int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
+static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
   int n, a, b, c, d, slash = 32, len = 0;
 
   if ((sscanf(spec, "%d.%d.%d.%d/%d%n", &a, &b, &c, &d, &slash, &n) == 5 ||

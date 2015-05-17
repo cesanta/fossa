@@ -70,7 +70,8 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   unsigned long flags_before;
   ns_event_handler_t ev_handler;
 
-  DBG(("%p flags=%lu ev=%d ev_data=%p", nc, nc->flags, ev, ev_data));
+  DBG(("%p flags=%lu ev=%d ev_data=%p rmbl=%d", nc, nc->flags, ev, ev_data,
+       (int) nc->recv_mbuf.len));
 
 #ifndef NS_DISABLE_FILESYSTEM
   /* LCOV_EXCL_START */

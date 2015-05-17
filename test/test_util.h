@@ -32,6 +32,7 @@ extern int num_tests;
 int _assert_streq(const char *actual, const char *expected);
 int _assert_streq_nz(const char *actual, const char *expected);
 void _strfail(const char *a, const char *e, int len);
+double _now();
 
 #define FAIL(str, line)                                              \
   do {                                                               \
@@ -46,11 +47,17 @@ void _strfail(const char *a, const char *e, int len);
     if (!(expr)) FAIL(#expr, __LINE__); \
   } while (0)
 
-#define RUN_TEST(test)                       \
-  do {                                       \
-    const char *msg = NULL;                  \
-    if (strstr(#test, filter)) msg = test(); \
-    if (msg) return msg;                     \
+#define RUN_TEST(test)                          \
+  do {                                          \
+    const char *msg = NULL;                     \
+    if (strstr(#test, filter)) {                \
+      double elapsed = _now();                  \
+      msg = test();                             \
+      elapsed = _now() - elapsed;               \
+      printf("  [%.3lf] %s\n", elapsed, #test); \
+      *total_elapsed += elapsed;                \
+    }                                           \
+    if (msg) return msg;                        \
   } while (0)
 
 /* Numeric equality assertion. Compariosn is made in native types but for

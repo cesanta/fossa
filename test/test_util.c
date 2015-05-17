@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <sys/time.h>
+#endif
 
 int num_tests = 0;
 
@@ -32,6 +35,18 @@ void _strfail(const char *a, const char *e, int len) {
   printf("Expected: %s\nActual  : %s\n", ee, ae);
   free(ae);
   free(ee);
+}
+
+double _now() {
+  double now;
+#ifndef _WIN32
+  struct timeval tv;
+  if (gettimeofday(&tv, NULL /* tz */) != 0) return 0;
+  now = (double) tv.tv_sec + (((double) tv.tv_usec) / 1000000.0);
+#else
+  now = GetTickCount() / 1000.0;
+#endif
+  return now;
 }
 
 int _assert_streq(const char *actual, const char *expected) {

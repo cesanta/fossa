@@ -1456,6 +1456,8 @@ static void send_directory_listing(struct ns_connection *nc, const char *dir,
   scan_directory(nc, dir, opts, print_dir_entry);
   ns_printf_http_chunk(nc, "%s", "</tbody></body></html>");
   ns_send_http_chunk(nc, "", 0);
+  /* TODO(rojer): Remove when cesanta/dev/issues/197 is fixed. */
+  nc->flags |= NSF_SEND_AND_CLOSE;
 }
 #endif /* NS_DISABLE_DIRECTORY_LISTING */
 

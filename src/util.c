@@ -5,6 +5,36 @@
 
 #include "internal.h"
 
+ns_user_data_t ns_ud_null() {
+  ns_user_data_t ud;
+  ud.p = NULL;
+  return ud;
+}
+
+ns_user_data_t ns_ud_p(void *p) {
+  ns_user_data_t ud;
+  ud.p = p;
+  return ud;
+}
+
+ns_user_data_t ns_ud_cp(const void *cp) {
+  ns_user_data_t ud;
+  ud.p = (void *) cp;
+  return ud;
+}
+
+ns_user_data_t ns_ud_i(int i) {
+  ns_user_data_t ud;
+  ud.i = i;
+  return ud;
+}
+
+ns_user_data_t ns_ud_u(unsigned int u) {
+  ns_user_data_t ud;
+  ud.u = u;
+  return ud;
+}
+
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {
   v->p = s;

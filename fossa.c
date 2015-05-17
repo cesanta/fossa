@@ -1172,7 +1172,8 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   unsigned long flags_before;
   ns_event_handler_t ev_handler;
 
-  DBG(("%p flags=%lu ev=%d ev_data=%p", nc, nc->flags, ev, ev_data));
+  DBG(("%p flags=%lu ev=%d ev_data=%p rmbl=%d", nc, nc->flags, ev, ev_data,
+       (int) nc->recv_mbuf.len));
 
 #ifndef NS_DISABLE_FILESYSTEM
   /* LCOV_EXCL_START */
@@ -3833,6 +3834,8 @@ static void send_directory_listing(struct ns_connection *nc, const char *dir,
   scan_directory(nc, dir, opts, print_dir_entry);
   ns_printf_http_chunk(nc, "%s", "</tbody></body></html>");
   ns_send_http_chunk(nc, "", 0);
+  /* TODO(rojer): Remove when cesanta/dev/issues/197 is fixed. */
+  nc->flags |= NSF_SEND_AND_CLOSE;
 }
 #endif /* NS_DISABLE_DIRECTORY_LISTING */
 
@@ -4673,6 +4676,36 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
  * All rights reserved
  */
 
+
+ns_user_data_t ns_ud_null() {
+  ns_user_data_t ud;
+  ud.p = NULL;
+  return ud;
+}
+
+ns_user_data_t ns_ud_p(void *p) {
+  ns_user_data_t ud;
+  ud.p = p;
+  return ud;
+}
+
+ns_user_data_t ns_ud_cp(const void *cp) {
+  ns_user_data_t ud;
+  ud.p = (void *) cp;
+  return ud;
+}
+
+ns_user_data_t ns_ud_i(int i) {
+  ns_user_data_t ud;
+  ud.i = i;
+  return ud;
+}
+
+ns_user_data_t ns_ud_u(unsigned int u) {
+  ns_user_data_t ud;
+  ud.u = u;
+  return ud;
+}
 
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {

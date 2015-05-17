@@ -39,6 +39,13 @@
 #define NS_INTERNAL static
 #endif
 
+#if !defined(NS_MGR_EV_MGR) && defined (__linux__)
+#define NS_MGR_EV_MGR 1 /* epoll() */
+#endif
+#if !defined(NS_MGR_EV_MGR)
+#define NS_MGR_EV_MGR 0 /* select() */
+#endif
+
 #include "../fossa.h"
 
 /* internals that need to be accessible in unit tests */

@@ -18,6 +18,10 @@
 
 #include "internal.h"
 
+#if NS_MGR_EV_MGR == 1 /* epoll() */
+#include <sys/epoll.h>
+#endif
+
 #define NS_CTL_MSG_MESSAGE_SIZE 8192
 #define NS_READ_BUFFER_SIZE 2048
 #define NS_UDP_RECEIVE_BUFFER_SIZE 2000
@@ -729,7 +733,8 @@ static void ns_handle_udp(struct ns_connection *ls) {
 
 static void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
                                      time_t now) {
-  DBG(("%p fd=%d fd_flags=%d nc_flags=%lu", nc, nc->sock, fd_flags, nc->flags));
+  DBG(("%p fd=%d fd_flags=%d nc_flags=%lu rmbl=%d smbl=%d", nc, nc->sock,
+       fd_flags, nc->flags, (int) nc->recv_mbuf.len, (int) nc->send_mbuf.len));
   if (fd_flags != 0) nc->last_io_time = now;
 
   if (nc->flags & NSF_CONNECTING) {
@@ -780,6 +785,131 @@ static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
     }
   }
 }
+
+#if NS_MGR_EV_MGR == 1 /* epoll() */
+
+#ifndef NS_EPOLL_MAX_EVENTS
+#define NS_EPOLL_MAX_EVENTS 100
+#endif
+
+#define _NS_EPF_EV_EPOLLIN (1 << 0)
+#define _NS_EPF_EV_EPOLLOUT (1 << 1)
+#define _NS_EPF_NO_POLL (1 << 2)
+
+static uint32_t ns_epf_to_evflags(unsigned int epf) {
+  uint32_t result = 0;
+  if (epf &_NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
+  if (epf &_NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
+  return result;
+}
+
+static void ns_ev_mgr_epoll_set_flags(const struct ns_connection *nc,
+                                      struct epoll_event *ev) {
+  /* NOTE: EPOLLERR and EPOLLHUP are always enabled. */
+  ev->events = 0;
+  if (nc->recv_mbuf.len < nc->recv_mbuf_limit) {
+    ev->events |= EPOLLIN;
+  }
+  if ((nc->flags & NSF_CONNECTING) ||
+      (nc->send_mbuf.len > 0 && !(nc->flags & NSF_DONT_SEND))) {
+    ev->events |= EPOLLOUT;
+  }
+}
+
+static void ns_ev_mgr_epoll_ctl(struct ns_connection *nc, int op) {
+  int epoll_fd = nc->mgr->mgr_data.i;
+  struct epoll_event ev;
+  assert(op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || EPOLL_CTL_DEL);
+  if (op != EPOLL_CTL_DEL) {
+    ns_ev_mgr_epoll_set_flags(nc, &ev);
+    if (op == EPOLL_CTL_MOD) {
+      uint32_t old_ev_flags = ns_epf_to_evflags(nc->mgr_data.u);
+      if (ev.events == old_ev_flags) return;
+    }
+    ev.data.ptr = nc;
+  }
+  if (epoll_ctl(epoll_fd, op, nc->sock, &ev) != 0) {
+    perror("epoll_ctl");
+    abort();
+  }
+}
+
+static void ns_ev_mgr_init(struct ns_mgr *mgr) {
+  int epoll_fd;
+  DBG(("%p using epoll()", mgr));
+  epoll_fd = epoll_create(NS_EPOLL_MAX_EVENTS /* unused but required */);
+  if (epoll_fd < 0) {
+    perror("epoll_ctl");
+    abort();
+  }
+  mgr->mgr_data.i = epoll_fd;
+  if (mgr->ctl[1] != INVALID_SOCKET) {
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.ptr = NULL;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mgr->ctl[1], &ev) != 0) {
+      perror("epoll_ctl");
+      abort();
+    }
+  }
+}
+
+static void ns_ev_mgr_free(struct ns_mgr *mgr) {
+  int epoll_fd = mgr->mgr_data.i;
+  close(epoll_fd);
+}
+
+static void ns_ev_mgr_add_conn(struct ns_connection *nc) {
+  ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_ADD);
+}
+
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
+  ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_DEL);
+}
+
+time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
+  int epoll_fd = mgr->mgr_data.i, num_ev, fd_flags;
+  struct epoll_event events[NS_EPOLL_MAX_EVENTS];
+  struct ns_connection *nc, *next;
+  time_t now;
+
+  num_ev = epoll_wait(epoll_fd, events, NS_EPOLL_MAX_EVENTS, timeout_ms);
+  now = time(NULL);
+  DBG(("epoll_wait @ %ld num_ev=%d", now, num_ev));
+
+  while (num_ev-- > 0) {
+    struct epoll_event *ev = events + num_ev;
+    nc = (struct ns_connection *) ev->data.ptr;
+    if (nc == NULL) {
+      ns_mgr_handle_ctl_sock(mgr);
+      continue;
+    }
+    fd_flags = ((ev->events & (EPOLLIN | EPOLLHUP)) ? _NSF_FD_CAN_READ : 0) |
+               ((ev->events & (EPOLLOUT)) ? _NSF_FD_CAN_WRITE : 0) |
+               ((ev->events & (EPOLLERR)) ? _NSF_FD_ERROR : 0);
+    ns_mgr_handle_connection(nc, fd_flags, now);
+    nc->mgr_data.u |= _NS_EPF_NO_POLL;
+  }
+
+  for (nc = mgr->active_connections; nc != NULL; nc = next) {
+    next = nc->next;
+    if (!(nc->mgr_data.u & _NS_EPF_NO_POLL)) {
+      ns_mgr_handle_connection(nc, 0, now);
+    } else {
+      nc->mgr_data.u ^= _NS_EPF_NO_POLL;
+    }
+    if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
+        (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
+      ns_close_conn(nc);
+    } else {
+      ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_MOD);
+    }
+  }
+
+  return now;
+}
+
+#else /* select() */
 
 static void ns_ev_mgr_init(struct ns_mgr *mgr) {
   (void) mgr;
@@ -868,6 +998,8 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   return now;
 }
+
+#endif
 
 /*
  * Schedules an async connect for a resolved address and proto.

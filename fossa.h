@@ -949,8 +949,9 @@ FILE *ns_fopen(const char *path, const char *mode);
  * Return value is the same as for the `open()` syscall.
  */
 int ns_open(const char *path, int flag, int mode);
-#endif
-#ifndef AVR_LIBC
+#endif /* NS_DISABLE_FILESYSTEM */
+
+#ifdef NS_ENABLE_THREADS
 /*
  * Start a new detached thread.
  * Arguments and semantic is the same as pthead's `pthread_create()`.

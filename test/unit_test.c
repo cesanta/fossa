@@ -254,7 +254,9 @@ static const char *test_parse_address(void) {
     "1.2.3.4:1",
     "tcp://123",
     "udp://0.0.0.0:99",
+#ifndef _WIN32 /* No /etc/hosts on Windows. */
     "tcp://localhost:99",
+#endif
     ":8080",
 #if defined(NS_ENABLE_IPV6)
     "udp://[::1]:123",
@@ -419,6 +421,7 @@ static const char *test_socketpair(void) {
   return NULL;
 }
 
+#ifdef NS_ENABLE_THREADS
 static void eh2(struct ns_connection *nc, int ev, void *p) {
   (void) p;
   switch (ev) {
@@ -455,6 +458,7 @@ static const char *test_thread(void) {
 
   return NULL;
 }
+#endif /* NS_ENABLE_THREADS */
 
 struct udp_res {
   char buf_srv[20];
@@ -1454,6 +1458,7 @@ static const char *test_mqtt_parse_mqtt(void) {
   return NULL;
 }
 
+#ifdef NS_ENABLE_MQTT_BROKER
 struct ns_mqtt_topic_expression brk_test_te[] = {{"/dummy", 0}, {"/unit/#", 0}};
 
 static void brk_cln_cb1(struct ns_connection *nc, int ev, void *p) {
@@ -1505,6 +1510,7 @@ static const char *test_mqtt_broker(void) {
 
   return NULL;
 }
+#endif /* NS_ENABLE_MQTT_BROKER */
 
 static int rpc_sum(char *buf, int len, struct ns_rpc_request *req) {
   double sum = 0;
@@ -2067,15 +2073,6 @@ static const char *test_dns_decode_truncated(void) {
   return NULL;
 }
 
-static int check_record_name(struct ns_dns_message *msg, struct ns_str *n,
-                             const char *want) {
-  char name[512];
-  if (ns_dns_uncompress_name(msg, n, name, sizeof(name)) == 0) {
-    return 0;
-  }
-  return strncmp(name, want, sizeof(name)) == 0;
-}
-
 static const char *check_www_cesanta_com_reply(const char *pkt, size_t len) {
   char name[256];
 
@@ -2163,6 +2160,7 @@ static const char *test_dns_reply_encode(void) {
   return NULL;
 }
 
+#ifdef NS_ENABLE_DNS_SERVER
 static void dns_server_eh(struct ns_connection *nc, int ev, void *ev_data) {
   struct ns_dns_message *msg;
   struct ns_dns_resource_record *rr;
@@ -2204,6 +2202,15 @@ static void dns_server_eh(struct ns_connection *nc, int ev, void *ev_data) {
       ns_dns_send_reply(nc, &reply);
       break;
   }
+}
+
+static int check_record_name(struct ns_dns_message *msg, struct ns_str *n,
+                             const char *want) {
+  char name[512];
+  if (ns_dns_uncompress_name(msg, n, name, sizeof(name)) == 0) {
+    return 0;
+  }
+  return strncmp(name, want, sizeof(name)) == 0;
 }
 
 static const char *test_dns_server(void) {
@@ -2270,6 +2277,7 @@ static const char *test_dns_server(void) {
   mbuf_free(&nc.send_mbuf);
   return NULL;
 }
+#endif /* NS_ENABLE_DNS_SERVER */
 
 static void dns_resolve_cb(struct ns_dns_message *msg, void *data) {
   struct ns_dns_resource_record *rr;
@@ -2766,7 +2774,9 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_to64);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);
+#ifdef NS_ENABLE_THREADS
   RUN_TEST(test_thread);
+#endif
   RUN_TEST(test_mgr);
   RUN_TEST(test_parse_http_message);
   RUN_TEST(test_get_http_var);
@@ -2792,13 +2802,17 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_mqtt_simple_acks);
   RUN_TEST(test_mqtt_nullary);
   RUN_TEST(test_mqtt_parse_mqtt);
+#ifdef NS_ENABLE_MQTT_BROKER
   RUN_TEST(test_mqtt_broker);
+#endif
   RUN_TEST(test_dns_encode);
   RUN_TEST(test_dns_uncompress);
   RUN_TEST(test_dns_decode);
   RUN_TEST(test_dns_decode_truncated);
   RUN_TEST(test_dns_reply_encode);
+#ifdef NS_ENABLE_DNS_SERVER
   RUN_TEST(test_dns_server);
+#endif
   RUN_TEST(test_dns_resolve);
   RUN_TEST(test_dns_resolve_timeout);
   RUN_TEST(test_dns_resolve_hosts);

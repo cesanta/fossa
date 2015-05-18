@@ -61,4 +61,8 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
 
+/* Forward declarations for testing. */
+extern void *(*test_malloc)(size_t);
+extern void *(*test_calloc)(size_t, size_t);
+
 #endif /* NS_INTERNAL_HEADER_INCLUDED */

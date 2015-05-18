@@ -60,10 +60,15 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
+NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
 
 #ifdef _WIN32
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
+
+/* Forward declarations for testing. */
+extern void *(*test_malloc)(size_t);
+extern void *(*test_calloc)(size_t, size_t);
 
 #endif /* NS_INTERNAL_HEADER_INCLUDED */
 #ifdef NS_MODULE_LINES
@@ -4013,8 +4018,15 @@ static int is_dav_request(const struct ns_str *s) {
          !ns_vcmp(s, "PROPFIND");
 }
 
-static int find_index_file(char *path, size_t path_len, const char *list,
-                           ns_stat_t *stp) {
+/*
+ * Given a directory path, find one of the files specified in the
+ * comma-separated list of index files `list`.
+ * First found index file wins. If an index file is found, then gets
+ * appended to the `path`, stat-ed, and result of `stat()` passed to `stp`.
+ * If index file is not found, then `path` and `stp` remain unchanged.
+ */
+NS_INTERNAL int find_index_file(char *path, size_t path_len, const char *list,
+                                ns_stat_t *stp) {
   ns_stat_t st;
   size_t n = strlen(path);
   struct ns_str vec;
@@ -4043,9 +4055,10 @@ static int find_index_file(char *path, size_t path_len, const char *list,
     }
   }
 
-  /* If no index file exists, restore directory path */
+  /* If no index file exists, restore directory path, keep trailing slash. */
   if (!found) {
     path[n] = '\0';
+    strncat(path + n, "/", path_len - n);
   }
 
   return found;

@@ -6,6 +6,8 @@
 #include <string.h>
 #ifndef _WIN32
 #include <sys/time.h>
+#else
+#include <windows.h>
 #endif
 
 int num_tests = 0;

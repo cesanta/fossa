@@ -1635,8 +1635,15 @@ static int is_dav_request(const struct ns_str *s) {
          !ns_vcmp(s, "PROPFIND");
 }
 
-static int find_index_file(char *path, size_t path_len, const char *list,
-                           ns_stat_t *stp) {
+/*
+ * Given a directory path, find one of the files specified in the
+ * comma-separated list of index files `list`.
+ * First found index file wins. If an index file is found, then gets
+ * appended to the `path`, stat-ed, and result of `stat()` passed to `stp`.
+ * If index file is not found, then `path` and `stp` remain unchanged.
+ */
+NS_INTERNAL int find_index_file(char *path, size_t path_len, const char *list,
+                                ns_stat_t *stp) {
   ns_stat_t st;
   size_t n = strlen(path);
   struct ns_str vec;
@@ -1665,9 +1672,10 @@ static int find_index_file(char *path, size_t path_len, const char *list,
     }
   }
 
-  /* If no index file exists, restore directory path */
+  /* If no index file exists, restore directory path, keep trailing slash. */
   if (!found) {
     path[n] = '\0';
+    strncat(path + n, "/", path_len - n);
   }
 
   return found;

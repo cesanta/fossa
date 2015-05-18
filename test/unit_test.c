@@ -879,6 +879,11 @@ static const char *test_http_index(void) {
                   "Transfer-Encoding: chunked\r\n");
   ASSERT(strstr(buf, "40A\r\n<html><head><title>") != NULL);
 
+  /* Test that trailing slash in directory does not get truncated */
+  snprintf(buf, sizeof(buf), "%s", "/foo/bar/");
+  find_index_file(buf, sizeof(buf), "", NULL);
+  ASSERT_STREQ(buf, "/foo/bar/");
+
   return NULL;
 }
 

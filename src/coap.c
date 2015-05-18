@@ -15,33 +15,10 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-/*
- * == CoAP
- */
-
 #include "internal.h"
 
 #ifdef NS_ENABLE_COAP
 
-/*
- * CoAP implementation.
- *
- * General CoAP message format:
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- * |Ver| T | TKL | Code | Message ID | Token (if any, TKL bytes) ...
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- * | Options (if any) ...            |1 1 1 1 1 1 1 1| Payload (if any) ...
- * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
- */
-
-#include "internal.h"
-#include "iobuf.h"
-#include "coap.h"
-
-/*
- * Frees the memory allocated for options,
- * if cm paramater doesn't contain any option does nothing.
- */
 void ns_coap_free_options(struct ns_coap_message *cm) {
   while (cm->options != NULL) {
     struct ns_coap_option *next = cm->options->next;
@@ -50,10 +27,6 @@ void ns_coap_free_options(struct ns_coap_message *cm) {
   }
 }
 
-/*
- * Adds new option to ns_coap_message structure.
- * Returns pointer to the newly created option.
- */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                           uint32_t number, char *value,
                                           size_t len) {
@@ -107,7 +80,7 @@ struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
  *
  * Helper function.
  */
-static char *coap_parse_header(char *ptr, struct iobuf *io,
+static char *coap_parse_header(char *ptr, struct mbuf *io,
                                struct ns_coap_message *cm) {
   if (io->len < sizeof(uint32_t)) {
     cm->flags |= NS_COAP_NOT_ENOUGH_DATA;
@@ -171,7 +144,7 @@ static char *coap_parse_header(char *ptr, struct iobuf *io,
  *
  * Helper function.
  */
-static char *coap_get_token(char *ptr, struct iobuf *io,
+static char *coap_get_token(char *ptr, struct mbuf *io,
                             struct ns_coap_message *cm) {
   if (cm->token.len != 0) {
     if (ptr + cm->token.len > io->buf + io->len) {
@@ -192,7 +165,7 @@ static char *coap_get_token(char *ptr, struct iobuf *io,
  *
  * Helper function.
  */
-static int coap_get_ext_opt(char *ptr, struct iobuf *io, uint16_t *opt_info) {
+static int coap_get_ext_opt(char *ptr, struct mbuf *io, uint16_t *opt_info) {
   int ret = 0;
 
   if (*opt_info == 13) {
@@ -238,7 +211,7 @@ static int coap_get_ext_opt(char *ptr, struct iobuf *io, uint16_t *opt_info) {
  * \         Option Value          \  0 or more bytes
  * +-------------------------------+
  */
-static char *coap_get_options(char *ptr, struct iobuf *io,
+static char *coap_get_options(char *ptr, struct mbuf *io,
                               struct ns_coap_message *cm) {
   uint16_t prev_opt = 0;
 
@@ -322,22 +295,7 @@ static char *coap_get_options(char *ptr, struct iobuf *io,
   return ptr;
 }
 
-/*
- * Parses COAP message and fills ns_coap_message and returns cm->flags.
- *
- * Note: usually CoAP work over UDP, so
- * lack of data means format error,
- * but in theory it is possible to use CoAP over TCP
- * (behind its RFC)
- * Caller have to check results and
- * threat COAP_NOT_ENOUGH_DATA according to
- * underlying protocol:
- * in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR,
- * in case of TCP client can try to recieve more data
- *
- * Helper function.
- */
-uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm) {
+uint32_t ns_coap_parse(struct mbuf *io, struct ns_coap_message *cm) {
   char *ptr;
 
   memset(cm, 0, sizeof(*cm));
@@ -486,13 +444,7 @@ static uint32_t coap_calculate_packet_size(struct ns_coap_message *cm,
   return 0;
 }
 
-/*
- * Composes CoAP message from ns_coap_message structure.
- * Returns 0 on success or bit mask with wrong field.
- *
- * Helper function.
- */
-uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
+uint32_t ns_coap_compose(struct ns_coap_message *cm, struct mbuf *io) {
   struct ns_coap_option *opt;
   uint32_t res, prev_opt_number;
   size_t prev_io_len, packet_size;
@@ -503,9 +455,9 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
     return res;
   }
 
-  /* saving previous lenght to handle non-empty iobuf */
+  /* saving previous lenght to handle non-empty mbuf */
   prev_io_len = io->len;
-  iobuf_append(io, NULL, packet_size);
+  mbuf_append(io, NULL, packet_size);
   ptr = io->buf + prev_io_len;
 
   /*
@@ -563,24 +515,20 @@ uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io) {
   return 0;
 }
 
-/*
- * Composes CoAP message from ns_coap_message
- * and sends it into 'nc' connection.
- */
 uint32_t ns_coap_send_message(struct ns_connection *nc,
                               struct ns_coap_message *cm) {
-  struct iobuf packet_out;
+  struct mbuf packet_out;
   int send_res;
   uint32_t compose_res;
 
-  iobuf_init(&packet_out, 0);
+  mbuf_init(&packet_out, 0);
   compose_res = ns_coap_compose(cm, &packet_out);
   if (compose_res != 0) {
     return compose_res; /* LCOV_EXCL_LINE */
   }
 
   send_res = ns_send(nc, packet_out.buf, (int) packet_out.len);
-  iobuf_free(&packet_out);
+  mbuf_free(&packet_out);
 
   if (send_res == 0) {
     /*
@@ -593,10 +541,6 @@ uint32_t ns_coap_send_message(struct ns_connection *nc,
   return 0;
 }
 
-/*
- * Composes CoAP acknolegement from ns_coap_message
- * and sends it into 'nc' connection.
- */
 uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id) {
   struct ns_coap_message cm;
   memset(&cm, 0, sizeof(cm));
@@ -607,7 +551,7 @@ uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id) {
 }
 
 static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_coap_message cm;
   uint32_t parse_res;
 
@@ -630,7 +574,7 @@ static void coap_handler(struct ns_connection *nc, int ev, void *ev_data) {
       }
 
       ns_coap_free_options(&cm);
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
       break;
   }
 }

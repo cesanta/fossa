@@ -3,10 +3,6 @@
  * All rights reserved
  */
 
-/*
- * == DNS API
- */
-
 #ifndef NS_DISABLE_DNS
 
 #include "internal.h"
@@ -38,17 +34,6 @@ struct ns_dns_resource_record *ns_dns_next_record(
   return NULL;
 }
 
-/*
- * Parses the record data from a DNS resource record.
- *
- *  - A:     struct in_addr *ina
- *  - AAAA:  struct in6_addr *ina
- *  - CNAME: char buffer
- *
- * Returns -1 on error.
- *
- * TODO(mkm): MX
- */
 int ns_dns_parse_record_data(struct ns_dns_message *msg,
                              struct ns_dns_resource_record *rr, void *data,
                              size_t data_len) {
@@ -78,12 +63,7 @@ int ns_dns_parse_record_data(struct ns_dns_message *msg,
   return -1;
 }
 
-/*
- * Insert a DNS header to an IO buffer.
- *
- * Returns number of bytes inserted.
- */
-int ns_dns_insert_header(struct iobuf *io, size_t pos,
+int ns_dns_insert_header(struct mbuf *io, size_t pos,
                          struct ns_dns_message *msg) {
   struct ns_dns_header header;
 
@@ -93,23 +73,15 @@ int ns_dns_insert_header(struct iobuf *io, size_t pos,
   header.num_questions = htons(msg->num_questions);
   header.num_answers = htons(msg->num_answers);
 
-  return iobuf_insert(io, pos, &header, sizeof(header));
+  return mbuf_insert(io, pos, &header, sizeof(header));
 }
 
-/*
- * Append already encoded body from an existing message.
- *
- * This is useful when generating a DNS reply message which includes
- * all question records.
- *
- * Returns number of appened bytes.
- */
-int ns_dns_copy_body(struct iobuf *io, struct ns_dns_message *msg) {
-  return iobuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
-                      msg->pkt.len - sizeof(struct ns_dns_header));
+int ns_dns_copy_body(struct mbuf *io, struct ns_dns_message *msg) {
+  return mbuf_append(io, msg->pkt.p + sizeof(struct ns_dns_header),
+                     msg->pkt.len - sizeof(struct ns_dns_header));
 }
 
-static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
+static int ns_dns_encode_name(struct mbuf *io, const char *name, size_t len) {
   const char *s;
   unsigned char n;
   size_t pos = io->len;
@@ -122,9 +94,9 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
     if (s - name > 127) {
       return -1; /* TODO(mkm) cover */
     }
-    n = s - name;            /* chunk length */
-    iobuf_append(io, &n, 1); /* send length */
-    iobuf_append(io, name, n);
+    n = s - name;           /* chunk length */
+    mbuf_append(io, &n, 1); /* send length */
+    mbuf_append(io, name, n);
 
     if (*s == '.') {
       n++;
@@ -133,28 +105,12 @@ static int ns_dns_encode_name(struct iobuf *io, const char *name, size_t len) {
     name += n;
     len -= n;
   } while (*s != '\0');
-  iobuf_append(io, "\0", 1); /* Mark end of host name */
+  mbuf_append(io, "\0", 1); /* Mark end of host name */
 
   return io->len - pos;
 }
 
-/*
- * Encode and append a DNS resource record to an IO buffer.
- *
- * The record metadata is taken from the `rr` parameter, while the name and data
- * are taken from the parameters, encoded in the appropriate format depending on
- * record type, and stored in the IO buffer. The encoded values might contain
- * offsets within the IO buffer. It's thus important that the IO buffer doesn't
- * get trimmed while a sequence of records are encoded while preparing a DNS
- *reply.
- *
- * This function doesn't update the `name` and `rdata` pointers in the `rr`
- *struct
- * because they might be invalidated as soon as the IO buffer grows again.
- *
- * Returns the number of bytes appened or -1 in case of error.
- */
-int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
+int ns_dns_encode_record(struct mbuf *io, struct ns_dns_resource_record *rr,
                          const char *name, size_t nlen, const void *rdata,
                          size_t rlen) {
   size_t pos = io->len;
@@ -170,19 +126,19 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
   }
 
   u16 = htons(rr->rtype);
-  iobuf_append(io, &u16, 2);
+  mbuf_append(io, &u16, 2);
   u16 = htons(rr->rclass);
-  iobuf_append(io, &u16, 2);
+  mbuf_append(io, &u16, 2);
 
   if (rr->kind == NS_DNS_ANSWER) {
     u32 = htonl(rr->ttl);
-    iobuf_append(io, &u32, 4);
+    mbuf_append(io, &u32, 4);
 
     if (rr->rtype == NS_DNS_CNAME_RECORD) {
       int clen;
       /* fill size after encoding */
       size_t off = io->len;
-      iobuf_append(io, &u16, 2);
+      mbuf_append(io, &u16, 2);
       if ((clen = ns_dns_encode_name(io, (const char *) rdata, rlen)) == -1) {
         return -1;
       }
@@ -191,24 +147,21 @@ int ns_dns_encode_record(struct iobuf *io, struct ns_dns_resource_record *rr,
       io->buf[off + 1] = u16 & 0xff;
     } else {
       u16 = htons(rlen);
-      iobuf_append(io, &u16, 2);
-      iobuf_append(io, rdata, rlen);
+      mbuf_append(io, &u16, 2);
+      mbuf_append(io, rdata, rlen);
     }
   }
 
   return io->len - pos;
 }
 
-/*
- * Send a DNS query to the remote end.
- */
 void ns_send_dns_query(struct ns_connection *nc, const char *name,
                        int query_type) {
   struct ns_dns_message msg;
-  struct iobuf pkt;
+  struct mbuf pkt;
   struct ns_dns_resource_record *rr = &msg.questions[0];
 
-  iobuf_init(&pkt, MAX_DNS_PACKET_LEN);
+  mbuf_init(&pkt, MAX_DNS_PACKET_LEN);
   memset(&msg, 0, sizeof(msg));
 
   msg.transaction_id = ++ns_dns_tid;
@@ -229,11 +182,11 @@ void ns_send_dns_query(struct ns_connection *nc, const char *name,
   /* TCP DNS requires messages to be prefixed with len */
   if (!(nc->flags & NSF_UDP)) {
     uint16_t len = htons(pkt.len);
-    iobuf_insert(&pkt, 0, &len, 2);
+    mbuf_insert(&pkt, 0, &len, 2);
   }
 
   ns_send(nc, pkt.buf, pkt.len);
-  iobuf_free(&pkt);
+  mbuf_free(&pkt);
 }
 
 static unsigned char *ns_parse_dns_resource_record(
@@ -284,7 +237,6 @@ static unsigned char *ns_parse_dns_resource_record(
   return data;
 }
 
-/* Low-level: parses a DNS response. */
 int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   struct ns_dns_header *header = (struct ns_dns_header *) buf;
   unsigned char *data = (unsigned char *) buf + sizeof(*header);
@@ -314,19 +266,6 @@ int ns_parse_dns(const char *buf, int len, struct ns_dns_message *msg) {
   return 0;
 }
 
-/*
- * Uncompress a DNS compressed name.
- *
- * The containing dns message is required because the compressed encoding
- * and reference suffixes present elsewhere in the packet.
- *
- * If name is less than `dst_len` characters long, the remainder
- * of `dst` is terminated with `\0' characters. Otherwise, `dst` is not
- *terminated.
- *
- * If `dst_len` is 0 `dst` can be NULL.
- * Returns the uncompressed name length.
- */
 size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
                               char *dst, int dst_len) {
   int chunk_len;
@@ -377,7 +316,7 @@ size_t ns_dns_uncompress_name(struct ns_dns_message *msg, struct ns_str *name,
 }
 
 static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_dns_message msg;
 
   /* Pass low-level events to the user handler */
@@ -386,39 +325,27 @@ static void dns_handler(struct ns_connection *nc, int ev, void *ev_data) {
   switch (ev) {
     case NS_RECV:
       if (!(nc->flags & NSF_UDP)) {
-        iobuf_remove(&nc->recv_iobuf, 2);
+        mbuf_remove(&nc->recv_mbuf, 2);
       }
-      if (ns_parse_dns(nc->recv_iobuf.buf, nc->recv_iobuf.len, &msg) == -1) {
+      if (ns_parse_dns(nc->recv_mbuf.buf, nc->recv_mbuf.len, &msg) == -1) {
         /* reply + recursion allowed + format error */
         memset(&msg, 0, sizeof(msg));
         msg.flags = 0x8081;
         ns_dns_insert_header(io, 0, &msg);
         if (!(nc->flags & NSF_UDP)) {
           uint16_t len = htons(io->len);
-          iobuf_insert(io, 0, &len, 2);
+          mbuf_insert(io, 0, &len, 2);
         }
         ns_send(nc, io->buf, io->len);
       } else {
         /* Call user handler with parsed message */
         nc->handler(nc, NS_DNS_MESSAGE, &msg);
       }
-      iobuf_remove(io, io->len);
+      mbuf_remove(io, io->len);
       break;
   }
 }
 
-/*
- * Attach built-in DNS event handler to the given listening connection.
- *
- * DNS event handler parses incoming UDP packets, treating them as DNS
- * requests. If incoming packet gets successfully parsed by the DNS event
- * handler, a user event handler will receive `NS_DNS_REQUEST` event, with
- * `ev_data` pointing to the parsed `struct ns_dns_message`.
- *
- * See
- *https://github.com/cesanta/fossa/tree/master/examples/captive_dns_server[captive_dns_server]
- * example on how to handle DNS request and send DNS reply.
- */
 void ns_set_protocol_dns(struct ns_connection *nc) {
   nc->proto_handler = dns_handler;
 }

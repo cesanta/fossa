@@ -15,6 +15,10 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * === MQTT Broker
+ */
+
 #ifndef NS_MQTT_BROKER_HEADER_INCLUDED
 #define NS_MQTT_BROKER_HEADER_INCLUDED
 
@@ -46,8 +50,45 @@ struct ns_mqtt_broker {
   void *user_data;                  /* User data */
 };
 
+/* Initialize a MQTT broker. */
 void ns_mqtt_broker_init(struct ns_mqtt_broker *, void *);
+
+/*
+ * Process a MQTT broker message.
+ *
+ * Listening connection expects a pointer to an initialized `ns_mqtt_broker`
+ * structure in the `user_data` field.
+ *
+ * Basic usage:
+ *
+ * [source,c]
+ * -----
+ * ns_mqtt_broker_init(&brk, NULL);
+ *
+ * if ((nc = ns_bind(&mgr, address, ns_mqtt_broker)) == NULL) {
+ *   // fail;
+ * }
+ * nc->user_data = &brk;
+ * -----
+ *
+ * New incoming connections will receive a `ns_mqtt_session` structure
+ * in the connection `user_data`. The original `user_data` will be stored
+ * in the `user_data` field of the session structure. This allows the user
+ * handler to store user data before `ns_mqtt_broker` creates the session.
+ *
+ * Since only the NS_ACCEPT message is processed by the listening socket,
+ * for most events the `user_data` will thus point to a `ns_mqtt_session`.
+ */
 void ns_mqtt_broker(struct ns_connection *, int, void *);
+
+/*
+ * Iterate over all mqtt sessions connections. Example:
+ *
+ *    struct ns_mqtt_session *s;
+ *    for (s = ns_mqtt_next(brk, NULL); s != NULL; s = ns_mqtt_next(brk, s)) {
+ *       // Do something
+ *    }
+ */
 struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *,
                                      struct ns_mqtt_session *);
 

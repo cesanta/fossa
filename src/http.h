@@ -3,6 +3,10 @@
  * All rights reserved
  */
 
+/*
+ * === HTTP + Websocket
+ */
+
 #ifndef NS_HTTP_HEADER_DEFINED
 #define NS_HTTP_HEADER_DEFINED
 
@@ -48,10 +52,13 @@ extern "C" {
 struct http_message {
   struct ns_str message; /* Whole message: request line + headers + body */
 
+  struct ns_str proto; /* "HTTP/1.1" -- for both request and response */
   /* HTTP Request line (or HTTP response line) */
   struct ns_str method; /* "GET" */
   struct ns_str uri;    /* "/my_file.html" */
-  struct ns_str proto;  /* "HTTP/1.1" */
+  /* For responses, code and response status message are set */
+  int resp_code;
+  struct ns_str resp_status_msg;
 
   /*
    * Query-string part of the URI. For example, for HTTP request
@@ -86,14 +93,91 @@ struct websocket_message {
 #define NS_WEBSOCKET_FRAME 113             /* struct websocket_message * */
 #define NS_WEBSOCKET_CONTROL_FRAME 114     /* struct websocket_message * */
 
-void ns_set_protocol_http_websocket(struct ns_connection *);
-void ns_send_websocket_handshake(struct ns_connection *, const char *,
-                                 const char *);
-void ns_send_websocket_frame(struct ns_connection *, int, const void *, size_t);
-void ns_send_websocket_framev(struct ns_connection *, int,
-                              const struct ns_str *, int);
-void ns_printf_websocket_frame(struct ns_connection *, int, const char *, ...);
-void ns_send_http_chunk(struct ns_connection *, const char *, size_t);
+/*
+ * Attach built-in HTTP event handler to the given connection.
+ * User-defined event handler will receive following extra events:
+ *
+ * - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
+ *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
+ *   request. `ev_data` contains parsed HTTP request.
+ * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
+ *   `ev_data` is `NULL`.
+ * - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
+ *   `struct websocket_message *`
+ */
+void ns_set_protocol_http_websocket(struct ns_connection *nc);
+
+/*
+ * Send websocket handshake to the server.
+ *
+ * `nc` must be a valid connection, connected to a server. `uri` is an URI
+ * to fetch, extra_headers` is extra HTTP headers to send or `NULL`.
+ *
+ * This function is intended to be used by websocket client.
+ */
+void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
+                                 const char *extra_headers);
+
+/*
+ * Send websocket frame to the remote end.
+ *
+ * `op` specifies frame's type , one of:
+ *
+ * - WEBSOCKET_OP_CONTINUE
+ * - WEBSOCKET_OP_TEXT
+ * - WEBSOCKET_OP_BINARY
+ * - WEBSOCKET_OP_CLOSE
+ * - WEBSOCKET_OP_PING
+ * - WEBSOCKET_OP_PONG
+ * `data` and `data_len` contain frame data.
+ */
+void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
+                             size_t data_len);
+
+/*
+ * Send multiple websocket frames.
+ *
+ * Like `ns_send_websocket_frame()`, but composes a frame from multiple buffers.
+ */
+void ns_send_websocket_framev(struct ns_connection *nc, int op,
+                              const struct ns_str *strings, int num_strings);
+
+/*
+ * Send websocket frame to the remote end.
+ *
+ * Like `ns_send_websocket_frame()`, but allows to create formatted message
+ * with `printf()`-like semantics.
+ */
+void ns_printf_websocket_frame(struct ns_connection *nc, int op,
+                               const char *fmt, ...);
+
+/*
+ * Send buffer `buf` of size `len` to the client using chunked HTTP encoding.
+ * This function first sends buffer size as hex number + newline, then
+ * buffer itself, then newline. For example,
+ *   `ns_send_http_chunk(nc, "foo", 3)` whill append `3\r\nfoo\r\n` string to
+ * the `nc->send_mbuf` output IO buffer.
+ *
+ * NOTE: HTTP header "Transfer-Encoding: chunked" should be sent prior to
+ * using this function.
+ *
+ * NOTE: do not forget to send empty chunk at the end of the response,
+ * to tell the client that everything was sent. Example:
+ *
+ * ```
+ *   ns_printf_http_chunk(nc, "%s", "my response!");
+ *   ns_send_http_chunk(nc, "", 0); // Tell the client we're finished
+ * ```
+ */
+void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len);
+
+/*
+ * Send printf-formatted HTTP chunk.
+ * Functionality is similar to `ns_send_http_chunk()`.
+ */
 void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
 
 /* Websocket opcodes, from http://tools.ietf.org/html/rfc6455 */
@@ -104,17 +188,81 @@ void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
 #define WEBSOCKET_OP_PING 9
 #define WEBSOCKET_OP_PONG 10
 
-/* Utility functions */
-struct ns_str *ns_get_http_header(struct http_message *, const char *);
-int ns_http_parse_header(struct ns_str *, const char *, char *, size_t);
-int ns_parse_http(const char *s, int n, struct http_message *req);
+/*
+ * Parse a HTTP message.
+ *
+ * `is_req` should be set to 1 if parsing request, 0 if reply.
+ *
+ * Return number of bytes parsed. If HTTP message is
+ * incomplete, `0` is returned. On parse error, negative number is returned.
+ */
+int ns_parse_http(const char *s, int n, struct http_message *hm, int is_req);
+
+/*
+ * Search and return header `name` in parsed HTTP message `hm`.
+ * If header is not found, NULL is returned. Example:
+ *
+ *     struct ns_str *host_hdr = ns_get_http_header(hm, "Host");
+ */
+struct ns_str *ns_get_http_header(struct http_message *hm, const char *name);
+
+/*
+ * Parse HTTP header `hdr`. Find variable `var_name` and store it's value
+ * in the buffer `buf`, `buf_size`. Return 0 if variable not found, non-zero
+ * otherwise.
+ *
+ * This function is supposed to parse
+ * cookies, authentication headers, etcetera. Example (error handling omitted):
+ *
+ *     char user[20];
+ *     struct ns_str *hdr = ns_get_http_header(hm, "Authorization");
+ *     ns_http_parse_header(hdr, "username", user, sizeof(user));
+ *
+ * Return length of the variable's value. If buffer is not large enough,
+ * or variable not found, 0 is returned.
+ */
+int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
+                         size_t buf_size);
+
+/*
+ * Fetch an HTTP form variable.
+ *
+ * Fetch a variable `name` from a `buf` into a buffer specified by
+ * `dst`, `dst_len`. Destination is always zero-terminated. Return length
+ * of a fetched variable. If not found, 0 is returned. `buf` must be
+ * valid url-encoded buffer. If destination is too small, `-1` is returned.
+ */
 int ns_get_http_var(const struct ns_str *, const char *, char *dst, size_t);
+
+/* Create Digest authentication header for client request. */
 int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *method, const char *uri,
                                       const char *auth_domain, const char *user,
                                       const char *passwd);
-struct ns_connection *ns_connect_http(struct ns_mgr *, ns_event_handler_t,
-                                      const char *, const char *, const char *);
+/*
+ * Helper function that creates outbound HTTP connection.
+ *
+ * `url` is a URL to fetch. It must be properly URL-encoded, e.g. have
+ * no spaces, etc. By default, `ns_connect_http()` sends Connection and
+ * Host headers. `extra_headers` is an extra HTTP headers to send, e.g.
+ * `"User-Agent: my-app\r\n"`.
+ * If `post_data` is NULL, then GET request is created. Otherwise, POST request
+ * is created with the specified POST data. Examples:
+ *
+ * [source,c]
+ * ----
+ *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL,
+ *                         NULL);
+ *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL, NULL);
+ *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
+ *                         NULL, "var_1=value_1&var_2=value_2");
+ * ----
+ */
+struct ns_connection *ns_connect_http(struct ns_mgr *,
+                                      ns_event_handler_t event_handler,
+                                      const char *url,
+                                      const char *extra_headers,
+                                      const char *post_data);
 
 /*
  * This structure defines how `ns_serve_http()` works.
@@ -195,6 +343,29 @@ struct ns_serve_http_opts {
    */
   const char *custom_mime_types;
 };
+
+/*
+ * Serve given HTTP request according to the `options`.
+ *
+ * Example code snippet:
+ *
+ * [source,c]
+ * .web_server.c
+ * ----
+ * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+ *   struct http_message *hm = (struct http_message *) ev_data;
+ *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99
+ *
+ *   switch (ev) {
+ *     case NS_HTTP_REQUEST:
+ *       ns_serve_http(nc, hm, opts);
+ *       break;
+ *     default:
+ *       break;
+ *   }
+ * }
+ * ----
+ */
 void ns_serve_http(struct ns_connection *, struct http_message *,
                    struct ns_serve_http_opts);
 

@@ -3,15 +3,11 @@
  * All rights reserved
  */
 
-/*
- * == MQTT
- */
-
 #ifndef NS_DISABLE_MQTT
 
 #include "internal.h"
 
-static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
+static int parse_mqtt(struct mbuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
   int cmd;
   size_t len = 0;
@@ -30,7 +26,7 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
 
   if (io->len < (size_t)(len - 1)) return -1;
 
-  iobuf_remove(io, 1 + (vlen - &io->buf[1]));
+  mbuf_remove(io, 1 + (vlen - &io->buf[1]));
   mm->cmd = cmd;
   mm->qos = NS_MQTT_GET_QOS(header);
 
@@ -75,13 +71,13 @@ static int parse_mqtt(struct iobuf *io, struct ns_mqtt_message *mm) {
       break;
   }
 
-  iobuf_remove(io, var_len);
+  mbuf_remove(io, var_len);
   return len - var_len;
 }
 
 static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
   int len;
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct ns_mqtt_message mm;
   memset(&mm, 0, sizeof(mm));
 
@@ -99,29 +95,15 @@ static void mqtt_handler(struct ns_connection *nc, int ev, void *ev_data) {
       if (mm.topic) {
         NS_FREE(mm.topic);
       }
-      iobuf_remove(io, mm.payload.len);
+      mbuf_remove(io, mm.payload.len);
       break;
   }
 }
 
-/*
- * Attach built-in MQTT event handler to the given connection.
- *
- * The user-defined event handler will receive following extra events:
- *
- * - NS_MQTT_CONNACK
- * - NS_MQTT_PUBLISH
- * - NS_MQTT_PUBACK
- * - NS_MQTT_PUBREC
- * - NS_MQTT_PUBREL
- * - NS_MQTT_PUBCOMP
- * - NS_MQTT_SUBACK
- */
 void ns_set_protocol_mqtt(struct ns_connection *nc) {
   nc->proto_handler = mqtt_handler;
 }
 
-/* Send MQTT handshake. */
 void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id) {
   static struct ns_send_mqtt_handshake_opts opts;
   ns_send_mqtt_handshake_opt(nc, client_id, opts);
@@ -159,13 +141,13 @@ void ns_send_mqtt_handshake_opt(struct ns_connection *nc, const char *client_id,
 
 static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
                                    uint8_t flags, size_t len) {
-  size_t off = nc->send_iobuf.len - len;
+  size_t off = nc->send_mbuf.len - len;
   uint8_t header = cmd << 4 | (uint8_t) flags;
 
   uint8_t buf[1 + sizeof(size_t)];
   uint8_t *vlen = &buf[1];
 
-  assert(nc->send_iobuf.len >= len);
+  assert(nc->send_mbuf.len >= len);
 
   buf[0] = header;
 
@@ -177,14 +159,13 @@ static void ns_mqtt_prepend_header(struct ns_connection *nc, uint8_t cmd,
     vlen++;
   } while (len > 0);
 
-  iobuf_insert(&nc->send_iobuf, off, buf, vlen - buf);
+  mbuf_insert(&nc->send_mbuf, off, buf, vlen - buf);
 }
 
-/* Publish a message to a given topic. */
 void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
                      uint16_t message_id, int flags, const void *data,
                      size_t len) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t topic_len = htons(strlen(topic));
   uint16_t message_id_net = htons(message_id);
@@ -197,14 +178,13 @@ void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
   ns_send(nc, data, len);
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PUBLISH, flags,
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
-/* Subscribe to a bunch of topics. */
 void ns_mqtt_subscribe(struct ns_connection *nc,
                        const struct ns_mqtt_topic_expression *topics,
                        size_t topics_len, uint16_t message_id) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t message_id_n = htons(message_id);
   size_t i;
@@ -218,16 +198,9 @@ void ns_mqtt_subscribe(struct ns_connection *nc,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBSCRIBE, NS_MQTT_QOS(1),
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
-/*
- * Extract the next topic expression from a SUBSCRIBE command payload.
- *
- * Topic expression name will point to a string in the payload buffer.
- * Return the pos of the next topic expression or -1 when the list
- * of topics is exhausted.
- */
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
                                  struct ns_str *topic, uint8_t *qos, int pos) {
   unsigned char *buf = (unsigned char *) msg->payload.p + pos;
@@ -241,10 +214,9 @@ int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *msg,
   return pos + 2 + topic->len + 1;
 }
 
-/* Unsubscribe from a bunch of topics. */
 void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
                          size_t topics_len, uint16_t message_id) {
-  size_t old_len = nc->send_iobuf.len;
+  size_t old_len = nc->send_mbuf.len;
 
   uint16_t message_id_n = htons(message_id);
   size_t i;
@@ -257,10 +229,9 @@ void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
   }
 
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_UNSUBSCRIBE, NS_MQTT_QOS(1),
-                         nc->send_iobuf.len - old_len);
+                         nc->send_mbuf.len - old_len);
 }
 
-/* Send a CONNACK command with a given `return_code`. */
 void ns_mqtt_connack(struct ns_connection *nc, uint8_t return_code) {
   uint8_t unused = 0;
   ns_send(nc, &unused, 1);
@@ -280,30 +251,22 @@ static void ns_send_mqtt_short_command(struct ns_connection *nc, uint8_t cmd,
   ns_mqtt_prepend_header(nc, cmd, NS_MQTT_QOS(1), 2);
 }
 
-/* Send a PUBACK command with a given `message_id`. */
 void ns_mqtt_puback(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBACK, message_id);
 }
 
-/* Send a PUBREC command with a given `message_id`. */
 void ns_mqtt_pubrec(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREC, message_id);
 }
 
-/* Send a PUBREL command with a given `message_id`. */
 void ns_mqtt_pubrel(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBREL, message_id);
 }
 
-/* Send a PUBCOMP command with a given `message_id`. */
 void ns_mqtt_pubcomp(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_PUBCOMP, message_id);
 }
 
-/*
- * Send a SUBACK command with a given `message_id`
- * and a sequence of granted QoSs.
- */
 void ns_mqtt_suback(struct ns_connection *nc, uint8_t *qoss, size_t qoss_len,
                     uint16_t message_id) {
   size_t i;
@@ -315,22 +278,18 @@ void ns_mqtt_suback(struct ns_connection *nc, uint8_t *qoss, size_t qoss_len,
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_SUBACK, NS_MQTT_QOS(1), 2 + qoss_len);
 }
 
-/* Send a UNSUBACK command with a given `message_id`. */
 void ns_mqtt_unsuback(struct ns_connection *nc, uint16_t message_id) {
   ns_send_mqtt_short_command(nc, NS_MQTT_CMD_UNSUBACK, message_id);
 }
 
-/* Send a PINGREQ command. */
 void ns_mqtt_ping(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGREQ, 0, 0);
 }
 
-/* Send a PINGRESP command. */
 void ns_mqtt_pong(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_PINGRESP, 0, 0);
 }
 
-/* Send a DISCONNECT command. */
 void ns_mqtt_disconnect(struct ns_connection *nc) {
   ns_mqtt_prepend_header(nc, NS_MQTT_CMD_DISCONNECT, 0, 0);
 }

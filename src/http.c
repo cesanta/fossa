@@ -3,10 +3,6 @@
  * All rights reserved
  */
 
-/*
- * == HTTP/Websocket API
- */
-
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 #include "internal.h"
@@ -169,6 +165,7 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
 
     if (k->len == 0 || v->len == 0) {
       k->p = v->p = NULL;
+      k->len = v->len = 0;
       break;
     }
 
@@ -181,40 +178,44 @@ static const char *parse_http_headers(const char *s, const char *end, int len,
   return s;
 }
 
-/* Parses a HTTP message.
- *
- * Return number of bytes parsed. If HTTP message is
- * incomplete, `0` is returned. On parse error, negative number is returned.
- */
-int ns_parse_http(const char *s, int n, struct http_message *req) {
+int ns_parse_http(const char *s, int n, struct http_message *hm, int is_req) {
   const char *end, *qs;
   int len = get_request_len(s, n);
 
   if (len <= 0) return len;
 
-  memset(req, 0, sizeof(*req));
-  req->message.p = s;
-  req->body.p = s + len;
-  req->message.len = req->body.len = (size_t) ~0;
+  memset(hm, 0, sizeof(*hm));
+  hm->message.p = s;
+  hm->body.p = s + len;
+  hm->message.len = hm->body.len = (size_t) ~0;
   end = s + len;
 
   /* Request is fully buffered. Skip leading whitespaces. */
   while (s < end && isspace(*(unsigned char *) s)) s++;
 
-  /* Parse request line: method, URI, proto */
-  s = ns_skip(s, end, " ", &req->method);
-  s = ns_skip(s, end, " ", &req->uri);
-  s = ns_skip(s, end, "\r\n", &req->proto);
-  if (req->uri.p <= req->method.p || req->proto.p <= req->uri.p) return -1;
+  if (is_req) {
+    /* Parse request line: method, URI, proto */
+    s = ns_skip(s, end, " ", &hm->method);
+    s = ns_skip(s, end, " ", &hm->uri);
+    s = ns_skip(s, end, "\r\n", &hm->proto);
+    if (hm->uri.p <= hm->method.p || hm->proto.p <= hm->uri.p) return -1;
 
-  /* If URI contains '?' character, initialize query_string */
-  if ((qs = (char *) memchr(req->uri.p, '?', req->uri.len)) != NULL) {
-    req->query_string.p = qs + 1;
-    req->query_string.len = &req->uri.p[req->uri.len] - (qs + 1);
-    req->uri.len = qs - req->uri.p;
+    /* If URI contains '?' character, initialize query_string */
+    if ((qs = (char *) memchr(hm->uri.p, '?', hm->uri.len)) != NULL) {
+      hm->query_string.p = qs + 1;
+      hm->query_string.len = &hm->uri.p[hm->uri.len] - (qs + 1);
+      hm->uri.len = qs - hm->uri.p;
+    }
+  } else {
+    s = ns_skip(s, end, " ", &hm->proto);
+    if (end - s < 4 || s[3] != ' ') return -1;
+    hm->resp_code = atoi(s);
+    if (hm->resp_code < 100 || hm->resp_code >= 600) return -1;
+    s += 4;
+    s = ns_skip(s, end, "\r\n", &hm->resp_status_msg);
   }
 
-  s = parse_http_headers(s, end, len, req);
+  s = parse_http_headers(s, end, len, hm);
 
   /*
    * ns_parse_http() is used to parse both HTTP requests and HTTP
@@ -231,18 +232,16 @@ int ns_parse_http(const char *s, int n, struct http_message *req) {
    * if it is HTTP request, and Content-Length is not set,
    * and method is not (PUT or POST) then reset body length to zero.
    */
-  if (req->body.len == (size_t) ~0 &&
-      !(req->method.len > 5 && !memcmp(req->method.p, "HTTP/", 5)) &&
-      ns_vcasecmp(&req->method, "PUT") != 0 &&
-      ns_vcasecmp(&req->method, "POST") != 0) {
-    req->body.len = 0;
-    req->message.len = len;
+  if (hm->body.len == (size_t) ~0 && is_req &&
+      ns_vcasecmp(&hm->method, "PUT") != 0 &&
+      ns_vcasecmp(&hm->method, "POST") != 0) {
+    hm->body.len = 0;
+    hm->message.len = len;
   }
 
   return len;
 }
 
-/* Returns HTTP header if it is present in the HTTP message, or `NULL`. */
 struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
   size_t i, len = strlen(name);
 
@@ -274,9 +273,9 @@ static void handle_incoming_websocket_frame(struct ns_connection *nc,
 
 static int deliver_websocket_data(struct ns_connection *nc) {
   /* Using unsigned char *, cause of integer arithmetic below */
-  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_iobuf.len, len,
+  uint64_t i, data_len = 0, frame_len = 0, buf_len = nc->recv_mbuf.len, len,
               mask_len = 0, header_len = 0;
-  unsigned char *p = (unsigned char *) nc->recv_iobuf.buf, *buf = p,
+  unsigned char *p = (unsigned char *) nc->recv_mbuf.buf, *buf = p,
                 *e = p + buf_len;
   unsigned *sizep = (unsigned *) &p[1]; /* Size ptr for defragmented frames */
   int ok, reass = buf_len > 0 && is_ws_fragment(p[0]) &&
@@ -325,7 +324,7 @@ static int deliver_websocket_data(struct ns_connection *nc) {
     if (reass) {
       /* On first fragmented frame, nullify size */
       if (is_ws_first_fragment(wsm.flags)) {
-        iobuf_resize(&nc->recv_iobuf, nc->recv_iobuf.size + sizeof(*sizep));
+        mbuf_resize(&nc->recv_mbuf, nc->recv_mbuf.size + sizeof(*sizep));
         p[0] &= ~0x0f; /* Next frames will be treated as continuation */
         buf = p + 1 + sizeof(*sizep);
         *sizep = 0; /* TODO(lsm): fix. this can stomp over frame data */
@@ -334,19 +333,19 @@ static int deliver_websocket_data(struct ns_connection *nc) {
       /* Append this frame to the reassembled buffer */
       memmove(buf, wsm.data, e - wsm.data);
       (*sizep) += wsm.size;
-      nc->recv_iobuf.len -= wsm.data - buf;
+      nc->recv_mbuf.len -= wsm.data - buf;
 
       /* On last fragmented frame - call user handler and remove data */
       if (wsm.flags & 0x80) {
         wsm.data = p + 1 + sizeof(*sizep);
         wsm.size = *sizep;
         handle_incoming_websocket_frame(nc, &wsm);
-        iobuf_remove(&nc->recv_iobuf, 1 + sizeof(*sizep) + *sizep);
+        mbuf_remove(&nc->recv_mbuf, 1 + sizeof(*sizep) + *sizep);
       }
     } else {
       /* TODO(lsm): properly handle OOB control frames during defragmentation */
       handle_incoming_websocket_frame(nc, &wsm);
-      iobuf_remove(&nc->recv_iobuf, (size_t) frame_len); /* Cleanup frame */
+      mbuf_remove(&nc->recv_mbuf, (size_t) frame_len); /* Cleanup frame */
     }
 
     /* If client closes, close too */
@@ -383,19 +382,6 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
   ns_send(nc, header, header_len);
 }
 
-/*
- * Send websocket frame to the remote end.
- *
- * `op` specifies frame's type , one of:
- *
- * - WEBSOCKET_OP_CONTINUE
- * - WEBSOCKET_OP_TEXT
- * - WEBSOCKET_OP_BINARY
- * - WEBSOCKET_OP_CLOSE
- * - WEBSOCKET_OP_PING
- * - WEBSOCKET_OP_PONG
- * `data` and `data_len` contain frame data.
- */
 void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
                              size_t len) {
   ns_send_ws_header(nc, op, len);
@@ -406,11 +392,6 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
   }
 }
 
-/*
- * Send multiple websocket frames.
- *
- * Like `ns_send_websocket_frame()`, but composes a frame from multiple buffers.
- */
 void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
   int i;
@@ -430,12 +411,6 @@ void ns_send_websocket_framev(struct ns_connection *nc, int op,
   }
 }
 
-/*
- * Send websocket frame to the remote end.
- *
- * Like `ns_send_websocket_frame()`, but allows to create formatted message
- * with `printf()`-like semantics.
- */
 void ns_printf_websocket_frame(struct ns_connection *nc, int op,
                                const char *fmt, ...) {
   char mem[4192], *buf = mem;
@@ -512,8 +487,8 @@ static void free_http_proto_data(struct ns_connection *nc) {
 
 /* Move data from one connection to another */
 static void ns_forward(struct ns_connection *from, struct ns_connection *to) {
-  ns_send(to, from->recv_iobuf.buf, from->recv_iobuf.len);
-  iobuf_remove(&from->recv_iobuf, from->recv_iobuf.len);
+  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
+  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
 }
 
 static void transfer_file_data(struct ns_connection *nc) {
@@ -523,7 +498,7 @@ static void transfer_file_data(struct ns_connection *nc) {
   size_t n = 0, to_read = 0;
 
   if (dp->type == DATA_FILE) {
-    struct iobuf *io = &nc->send_iobuf;
+    struct mbuf *io = &nc->send_mbuf;
     if (io->len < sizeof(buf)) {
       to_read = sizeof(buf) - io->len;
     }
@@ -533,7 +508,7 @@ static void transfer_file_data(struct ns_connection *nc) {
     }
 
     if (to_read == 0) {
-      /* Rate limiting. send_iobuf is too full, wait until it's drained. */
+      /* Rate limiting. send_mbuf is too full, wait until it's drained. */
     } else if (dp->sent < dp->cl && (n = fread(buf, 1, to_read, dp->fp)) > 0) {
       ns_send(nc, buf, n);
       dp->sent += n;
@@ -541,12 +516,12 @@ static void transfer_file_data(struct ns_connection *nc) {
       free_http_proto_data(nc);
     }
   } else if (dp->type == DATA_PUT) {
-    struct iobuf *io = &nc->recv_iobuf;
+    struct mbuf *io = &nc->recv_mbuf;
     size_t to_write =
         left <= 0 ? 0 : left < (int64_t) io->len ? (size_t) left : io->len;
     size_t n = fwrite(io->buf, 1, to_write, dp->fp);
     if (n > 0) {
-      iobuf_remove(io, n);
+      mbuf_remove(io, n);
       dp->sent += n;
     }
     if (n == 0 || dp->sent >= dp->cl) {
@@ -563,20 +538,21 @@ static void transfer_file_data(struct ns_connection *nc) {
 }
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
-  struct iobuf *io = &nc->recv_iobuf;
+  struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
   struct ns_str *vec;
   int req_len;
+  const int is_req = (nc->listener != NULL);
 
   /*
    * For HTTP messages without Content-Length, always send HTTP message
    * before NS_CLOSE message.
    */
   if (ev == NS_CLOSE && io->len > 0 &&
-      ns_parse_http(io->buf, io->len, &hm) > 0) {
+      ns_parse_http(io->buf, io->len, &hm, is_req) > 0) {
     hm.message.len = io->len;
     hm.body.len = io->buf + io->len - hm.body.p;
-    nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
+    nc->handler(nc, is_req ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
     free_http_proto_data(nc);
   }
 
@@ -587,7 +563,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   nc->handler(nc, ev, ev_data);
 
   if (ev == NS_RECV) {
-    req_len = ns_parse_http(io->buf, io->len, &hm);
+    req_len = ns_parse_http(io->buf, io->len, &hm, is_req);
     if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
@@ -596,7 +572,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
                ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
       /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
-      iobuf_remove(io, req_len);
+      mbuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
       nc->flags |= NSF_IS_WEBSOCKET;
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
@@ -604,14 +580,14 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     } else if (nc->listener != NULL &&
                (vec = ns_get_http_header(&hm, "Sec-WebSocket-Key")) != NULL) {
       /* This is a websocket request. Switch protocol handlers. */
-      iobuf_remove(io, req_len);
+      mbuf_remove(io, req_len);
       nc->proto_handler = websocket_handler;
       nc->flags |= NSF_IS_WEBSOCKET;
 
       /* Send handshake */
       nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_REQUEST, &hm);
       if (!(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-        if (nc->send_iobuf.len == 0) {
+        if (nc->send_mbuf.len == 0) {
           ws_handshake(nc, vec);
         }
         nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
@@ -620,38 +596,15 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     } else if (hm.message.len <= io->len) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
-      iobuf_remove(io, hm.message.len);
+      mbuf_remove(io, hm.message.len);
     }
   }
 }
 
-/*
- * Attach built-in HTTP event handler to the given connection.
- * User-defined event handler will receive following extra events:
- *
- * - NS_HTTP_REQUEST: HTTP request has arrived. Parsed HTTP request is passed as
- *   `struct http_message` through the handler's `void *ev_data` pointer.
- * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
- *   `struct http_message` through the handler's `void *ev_data` pointer.
- * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
- *   request. `ev_data` contains parsed HTTP request.
- * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.
- *   `ev_data` is `NULL`.
- * - NS_WEBSOCKET_FRAME: new websocket frame has arrived. `ev_data` is
- *   `struct websocket_message *`
- */
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
 
-/*
- * Sends websocket handshake to the server.
- *
- * `nc` must be a valid connection, connected to a server `uri` is an URI
- * to fetch, extra_headers` is extra HTTP headers to send or `NULL`.
- *
- * This function is intended to be used by websocket client.
- */
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
   unsigned long random = (unsigned long) uri;
@@ -858,8 +811,20 @@ static void gmt_time_string(char *buf, size_t buf_len, time_t *t) {
   strftime(buf, buf_len, "%a, %d %b %Y %H:%M:%S GMT", gmtime(t));
 }
 
-static int parse_range_header(const char *header, int64_t *a, int64_t *b) {
-  return sscanf(header, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
+static int parse_range_header(const struct ns_str *header, int64_t *a,
+                              int64_t *b) {
+  /*
+   * There is no snscanf. Headers are not guaranteed to be NUL-terminated,
+   * so we have this. Ugh.
+   */
+  int result;
+  char *p = (char *) NS_MALLOC(header->len + 1);
+  if (p == NULL) return 0;
+  memcpy(p, header->p, header->len);
+  p[header->len] = '\0';
+  result = sscanf(p, "bytes=%" INT64_FMT "-%" INT64_FMT, a, b);
+  NS_FREE(p);
+  return result;
 }
 
 static void ns_send_http_file2(struct ns_connection *nc, const char *path,
@@ -888,7 +853,7 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
     /* Handle Range header */
     range[0] = '\0';
     if (range_hdr != NULL &&
-        (n = parse_range_header(range_hdr->p, &r1, &r2)) > 0 && r1 >= 0 &&
+        (n = parse_range_header(range_hdr, &r1, &r2)) > 0 && r1 >= 0 &&
         r2 >= 0) {
       /* If range is specified like "400-", set second limit to content len */
       if (n == 1) {
@@ -985,14 +950,6 @@ static int ns_url_decode(const char *src, int src_len, char *dst, int dst_len,
   return i >= src_len ? j : -1;
 }
 
-/*
- * Fetch an HTTP form variable.
- *
- * Fetch a variable `name` from a `buf` into a buffer specified by
- * `dst`, `dst_len`. Destination is always zero-terminated. Return length
- * of a fetched variable. If not found, 0 is returned. `buf` must be
- * valid url-encoded buffer. If destination is too small, `-1` is returned.
- */
 int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
                     size_t dst_len) {
   const char *p, *e, *s;
@@ -1030,24 +987,6 @@ int ns_get_http_var(const struct ns_str *buf, const char *name, char *dst,
   return len;
 }
 
-/*
- * Send buffer `buf` of size `len` to the client using chunked HTTP encoding.
- * This function first sends buffer size as hex number + newline, then
- * buffer itself, then newline. For example,
- *   `ns_send_http_chunk(nc, "foo", 3)` whill append `3\r\nfoo\r\n` string to
- * the `nc->send_iobuf` output IO buffer.
- *
- * NOTE: HTTP header "Transfer-Encoding: chunked" should be sent prior to
- * using this function.
- *
- * NOTE: do not forget to send empty chunk at the end of the response,
- * to tell the client that everything was sent. Example:
- *
- * ```
- *   ns_printf_http_chunk(nc, "%s", "my response!");
- *   ns_send_http_chunk(nc, "", 0); // Tell the client we're finished
- * ```
- */
 void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   char chunk_size[50];
   int n;
@@ -1058,10 +997,6 @@ void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len) {
   ns_send(nc, "\r\n", 2);
 }
 
-/*
- * Send printf-formatted HTTP chunk.
- * Functionality is similar to `ns_send_http_chunk()`.
- */
 void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
   char mem[500], *buf = mem;
   int len;
@@ -1204,9 +1139,6 @@ static void mkmd5resp(const char *method, size_t method_len, const char *uri,
          colon, one, ha2, sizeof(ha2) - 1, NULL);
 }
 
-/*
- * Create Digest authentication header for client request.
- */
 int ns_http_create_digest_auth_header(char *buf, size_t buf_len,
                                       const char *method, const char *uri,
                                       const char *auth_domain, const char *user,
@@ -1524,6 +1456,8 @@ static void send_directory_listing(struct ns_connection *nc, const char *dir,
   scan_directory(nc, dir, opts, print_dir_entry);
   ns_printf_http_chunk(nc, "%s", "</tbody></body></html>");
   ns_send_http_chunk(nc, "", 0);
+  /* TODO(rojer): Remove when cesanta/dev/issues/197 is fixed. */
+  nc->flags |= NSF_SEND_AND_CLOSE;
 }
 #endif /* NS_DISABLE_DIRECTORY_LISTING */
 
@@ -1682,15 +1616,15 @@ static void handle_put(struct ns_connection *nc, const char *path,
     dp->type = DATA_PUT;
     ns_set_close_on_exec(fileno(dp->fp));
     dp->cl = to64(cl_hdr->p);
-    if (range_hdr != NULL && parse_range_header(range_hdr->p, &r1, &r2) > 0) {
+    if (range_hdr != NULL && parse_range_header(range_hdr, &r1, &r2) > 0) {
       status_code = 206;
       fseeko(dp->fp, r1, SEEK_SET);
       dp->cl = r2 > r1 ? r2 - r1 + 1 : dp->cl - r1;
     }
     ns_printf(nc, "HTTP/1.1 %d OK\r\nContent-Length: 0\r\n\r\n", status_code);
     nc->proto_data = dp;
-    /* Remove HTTP request from the iobuf, leave only payload */
-    iobuf_remove(&nc->recv_iobuf, hm->message.len - hm->body.len);
+    /* Remove HTTP request from the mbuf, leave only payload */
+    mbuf_remove(&nc->recv_mbuf, hm->message.len - hm->body.len);
     transfer_file_data(nc);
   }
 }
@@ -1701,8 +1635,15 @@ static int is_dav_request(const struct ns_str *s) {
          !ns_vcmp(s, "PROPFIND");
 }
 
-static int find_index_file(char *path, size_t path_len, const char *list,
-                           ns_stat_t *stp) {
+/*
+ * Given a directory path, find one of the files specified in the
+ * comma-separated list of index files `list`.
+ * First found index file wins. If an index file is found, then gets
+ * appended to the `path`, stat-ed, and result of `stat()` passed to `stp`.
+ * If index file is not found, then `path` and `stp` remain unchanged.
+ */
+NS_INTERNAL int find_index_file(char *path, size_t path_len, const char *list,
+                                ns_stat_t *stp) {
   ns_stat_t st;
   size_t n = strlen(path);
   struct ns_str vec;
@@ -1731,9 +1672,10 @@ static int find_index_file(char *path, size_t path_len, const char *list,
     }
   }
 
-  /* If no index file exists, restore directory path */
+  /* If no index file exists, restore directory path, keep trailing slash. */
   if (!found) {
     path[n] = '\0';
+    strncat(path + n, "/", path_len - n);
   }
 
   return found;
@@ -2133,7 +2075,7 @@ static void cgi_ev_handler(struct ns_connection *cgi_nc, int ev,
        * which makes data to be sent to the user.
        */
       if (nc->flags & NSF_USER_1) {
-        struct iobuf *io = &cgi_nc->recv_iobuf;
+        struct mbuf *io = &cgi_nc->recv_mbuf;
         int len = get_request_len(io->buf, io->len);
 
         if (len == 0) break;
@@ -2203,16 +2145,16 @@ static void handle_cgi(struct ns_connection *nc, const char *prog,
     send_http_error(nc, 500, "OOM"); /* LCOV_EXCL_LINE */
   } else if (start_process(opts->cgi_interpreter, prog, blk.buf, blk.vars, dir,
                            fds[1]) != 0) {
-    size_t n = nc->recv_iobuf.len - (hm->message.len - hm->body.len);
+    size_t n = nc->recv_mbuf.len - (hm->message.len - hm->body.len);
     dp->type = DATA_CGI;
     dp->cgi_nc = ns_add_sock(nc->mgr, fds[0], cgi_ev_handler);
     dp->cgi_nc->user_data = nc;
     nc->flags |= NSF_USER_1;
     /* Push POST data to the CGI */
-    if (n > 0 && n < nc->recv_iobuf.len) {
+    if (n > 0 && n < nc->recv_mbuf.len) {
       ns_send(dp->cgi_nc, hm->body.p, n);
     }
-    iobuf_remove(&nc->recv_iobuf, nc->recv_iobuf.len);
+    mbuf_remove(&nc->recv_mbuf, nc->recv_mbuf.len);
   } else {
     closesocket(fds[0]);
     send_http_error(nc, 500, "CGI failure");
@@ -2286,29 +2228,6 @@ void ns_send_http_file(struct ns_connection *nc, char *path,
   }
 }
 
-/*
- * Serve given HTTP request according to the `options`.
- *
- * Example code snippet:
- *
- * [source,c]
- * .web_server.c
- * ----
- * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
- *   struct http_message *hm = (struct http_message *) ev_data;
- *   struct ns_serve_http_opts opts = { .document_root = "/var/www" };  // C99
- *syntax
- *
- *   switch (ev) {
- *     case NS_HTTP_REQUEST:
- *       ns_serve_http(nc, hm, opts);
- *       break;
- *     default:
- *       break;
- *   }
- * }
- * ----
- */
 void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
                    struct ns_serve_http_opts opts) {
   char path[NS_MAX_PATH];
@@ -2330,21 +2249,6 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
 
 #endif /* NS_DISABLE_FILESYSTEM */
 
-/*
- * Helper function that creates outbound HTTP connection.
- *
- * If `post_data` is NULL, then GET request is created. Otherwise, POST request
- * is created with the specified POST data. Examples:
- *
- * [source,c]
- * ----
- *   nc1 = ns_connect_http(mgr, ev_handler_1, "http://www.google.com", NULL,
- *                         NULL);
- *   nc2 = ns_connect_http(mgr, ev_handler_1, "https://github.com", NULL, NULL);
- *   nc3 = ns_connect_http(mgr, ev_handler_1, "my_server:8000/form_submit/",
- *                         NULL, "var_1=value_1&var_2=value_2");
- * ----
- */
 struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       ns_event_handler_t ev_handler,
                                       const char *url,

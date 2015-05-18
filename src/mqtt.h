@@ -15,6 +15,10 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * === MQTT
+ */
+
 #ifndef NS_MQTT_HEADER_INCLUDED
 #define NS_MQTT_HEADER_INCLUDED
 
@@ -105,32 +109,82 @@ struct ns_send_mqtt_handshake_opts {
 extern "C" {
 #endif /* __cplusplus */
 
+/*
+ * Attach built-in MQTT event handler to the given connection.
+ *
+ * The user-defined event handler will receive following extra events:
+ *
+ * - NS_MQTT_CONNACK
+ * - NS_MQTT_PUBLISH
+ * - NS_MQTT_PUBACK
+ * - NS_MQTT_PUBREC
+ * - NS_MQTT_PUBREL
+ * - NS_MQTT_PUBCOMP
+ * - NS_MQTT_SUBACK
+ */
 void ns_set_protocol_mqtt(struct ns_connection *);
-void ns_send_mqtt_handshake(struct ns_connection *, const char *);
-void ns_send_mqtt_handshake_opt(struct ns_connection *, const char *,
+
+/* Send MQTT handshake. */
+void ns_send_mqtt_handshake(struct ns_connection *nc, const char *client_id);
+
+/* Send MQTT handshake with optional parameters. */
+void ns_send_mqtt_handshake_opt(struct ns_connection *, const char *client_id,
                                 struct ns_send_mqtt_handshake_opts);
 
-/* requests */
-void ns_mqtt_publish(struct ns_connection *, const char *, uint16_t, int,
-                     const void *, size_t);
-void ns_mqtt_subscribe(struct ns_connection *,
-                       const struct ns_mqtt_topic_expression *, size_t,
-                       uint16_t);
-void ns_mqtt_unsubscribe(struct ns_connection *, char **, size_t, uint16_t);
-void ns_mqtt_ping(struct ns_connection *);
-void ns_mqtt_disconnect(struct ns_connection *);
+/* Publish a message to a given topic. */
+void ns_mqtt_publish(struct ns_connection *nc, const char *topic,
+                     uint16_t message_id, int flags, const void *data,
+                     size_t len);
 
-/* replies */
+/* Subscribe to a bunch of topics. */
+void ns_mqtt_subscribe(struct ns_connection *nc,
+                       const struct ns_mqtt_topic_expression *topics,
+                       size_t topics_len, uint16_t message_id);
+
+/* Unsubscribe from a bunch of topics. */
+void ns_mqtt_unsubscribe(struct ns_connection *nc, char **topics,
+                         size_t topics_len, uint16_t message_id);
+
+/* Send a DISCONNECT command. */
+void ns_mqtt_disconnect(struct ns_connection *nc);
+
+/* Send a CONNACK command with a given `return_code`. */
 void ns_mqtt_connack(struct ns_connection *, uint8_t);
+
+/* Send a PUBACK command with a given `message_id`. */
 void ns_mqtt_puback(struct ns_connection *, uint16_t);
+
+/* Send a PUBREC command with a given `message_id`. */
 void ns_mqtt_pubrec(struct ns_connection *, uint16_t);
+
+/* Send a PUBREL command with a given `message_id`. */
 void ns_mqtt_pubrel(struct ns_connection *, uint16_t);
+
+/* Send a PUBCOMP command with a given `message_id`. */
 void ns_mqtt_pubcomp(struct ns_connection *, uint16_t);
+
+/*
+ * Send a SUBACK command with a given `message_id`
+ * and a sequence of granted QoSs.
+ */
 void ns_mqtt_suback(struct ns_connection *, uint8_t *, size_t, uint16_t);
+
+/* Send a UNSUBACK command with a given `message_id`. */
 void ns_mqtt_unsuback(struct ns_connection *, uint16_t);
+
+/* Send a PINGREQ command. */
+void ns_mqtt_ping(struct ns_connection *);
+
+/* Send a PINGRESP command. */
 void ns_mqtt_pong(struct ns_connection *);
 
-/* helpers */
+/*
+ * Extract the next topic expression from a SUBSCRIBE command payload.
+ *
+ * Topic expression name will point to a string in the payload buffer.
+ * Return the pos of the next topic expression or -1 when the list
+ * of topics is exhausted.
+ */
 int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *, struct ns_str *,
                                  uint8_t *, int);
 

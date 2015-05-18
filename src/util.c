@@ -3,20 +3,38 @@
  * All rights reserved
  */
 
-/*
- * == Utilities
- */
-
 #include "internal.h"
 
-/*
- * Fetches substring from input string `s`, `end` into `v`.
- * Skips initial delimiter characters. Records first non-delimiter character
- * as the beginning of substring `v`. Then scans the rest of the string
- * until a delimiter character or end-of-string is found.
- *
- * do_not_export_to_docs
- */
+ns_user_data_t ns_ud_null() {
+  ns_user_data_t ud;
+  ud.p = NULL;
+  return ud;
+}
+
+ns_user_data_t ns_ud_p(void *p) {
+  ns_user_data_t ud;
+  ud.p = p;
+  return ud;
+}
+
+ns_user_data_t ns_ud_cp(const void *cp) {
+  ns_user_data_t ud;
+  ud.p = (void *) cp;
+  return ud;
+}
+
+ns_user_data_t ns_ud_i(int i) {
+  ns_user_data_t ud;
+  ud.i = i;
+  return ud;
+}
+
+ns_user_data_t ns_ud_u(unsigned int u) {
+  ns_user_data_t ud;
+  ud.u = u;
+  return ud;
+}
+
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {
   v->p = s;
@@ -30,9 +48,6 @@ static int lowercase(const char *s) {
   return tolower(*(const unsigned char *) s);
 }
 
-/*
- * Cross-platform version of `strncasecmp()`.
- */
 int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   int diff = 0;
 
@@ -43,17 +58,10 @@ int ns_ncasecmp(const char *s1, const char *s2, size_t len) {
   return diff;
 }
 
-/*
- * Cross-platform version of `strcasecmp()`.
- */
 int ns_casecmp(const char *s1, const char *s2) {
   return ns_ncasecmp(s1, s2, (size_t) ~0);
 }
 
-/*
- * Cross-platform version of `strncasecmp()` where first string is
- * specified by `struct ns_str`.
- */
 int ns_vcasecmp(const struct ns_str *str1, const char *str2) {
   size_t n2 = strlen(str2), n1 = str1->len;
   int r = ns_ncasecmp(str1->p, str2, (n1 < n2) ? n1 : n2);
@@ -63,10 +71,6 @@ int ns_vcasecmp(const struct ns_str *str1, const char *str2) {
   return r;
 }
 
-/*
- * Cross-platform version of `strcmp()` where where first string is
- * specified by `struct ns_str`.
- */
 int ns_vcmp(const struct ns_str *str1, const char *str2) {
   size_t n2 = strlen(str2), n1 = str1->len;
   int r = memcmp(str1->p, str2, (n1 < n2) ? n1 : n2);
@@ -102,13 +106,6 @@ NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 #endif /* _WIN32 */
 
 #ifndef NS_DISABLE_FILESYSTEM
-/*
- * Perform a 64-bit `stat()` call against given file.
- *
- * `path` should be UTF8 encoded.
- *
- * Return value is the same as for `stat()` syscall.
- */
 int ns_stat(const char *path, ns_stat_t *st) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -120,13 +117,6 @@ int ns_stat(const char *path, ns_stat_t *st) {
 #endif
 }
 
-/*
- * Open the given file and return a file stream.
- *
- * `path` and `mode` should be UTF8 encoded.
- *
- * Return value is the same as for the `fopen()` call.
- */
 FILE *ns_fopen(const char *path, const char *mode) {
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE], wmode[10];
@@ -138,13 +128,6 @@ FILE *ns_fopen(const char *path, const char *mode) {
 #endif
 }
 
-/*
- * Open the given file and return a file stream.
- *
- * `path` should be UTF8 encoded.
- *
- * Return value is the same as for the `open()` syscall.
- */
 int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #ifdef _WIN32
   wchar_t wpath[MAX_PATH_SIZE];
@@ -156,100 +139,15 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 }
 #endif
 
-/*
- * Base64-encodes chunk of memory `src`, `src_len` into the destination `dst`.
- * Destination has to have enough space to hold encoded buffer.
- * Destination is '\0'-terminated.
- */
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
-  static const char *b64 =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  int i, j, a, b, c;
-
-  for (i = j = 0; i < src_len; i += 3) {
-    a = src[i];
-    b = i + 1 >= src_len ? 0 : src[i + 1];
-    c = i + 2 >= src_len ? 0 : src[i + 2];
-
-    dst[j++] = b64[a >> 2];
-    dst[j++] = b64[((a & 3) << 4) | (b >> 4)];
-    if (i + 1 < src_len) {
-      dst[j++] = b64[(b & 15) << 2 | (c >> 6)];
-    }
-    if (i + 2 < src_len) {
-      dst[j++] = b64[c & 63];
-    }
-  }
-  while (j % 4 != 0) {
-    dst[j++] = '=';
-  }
-  dst[j++] = '\0';
+  base64_encode(src, src_len, dst);
 }
 
-/* Convert one byte of encoded base64 input stream to 6-bit chunk */
-static unsigned char from_b64(unsigned char ch) {
-  /* Inverse lookup map */
-  static const unsigned char tab[128] = {
-      255, 255, 255, 255,
-      255, 255, 255, 255, /*  0 */
-      255, 255, 255, 255,
-      255, 255, 255, 255, /*  8 */
-      255, 255, 255, 255,
-      255, 255, 255, 255, /*  16 */
-      255, 255, 255, 255,
-      255, 255, 255, 255, /*  24 */
-      255, 255, 255, 255,
-      255, 255, 255, 255, /*  32 */
-      255, 255, 255, 62,
-      255, 255, 255, 63, /*  40 */
-      52,  53,  54,  55,
-      56,  57,  58,  59, /*  48 */
-      60,  61,  255, 255,
-      255, 200, 255, 255, /*  56   '=' is 200, on index 61 */
-      255, 0,   1,   2,
-      3,   4,   5,   6, /*  64 */
-      7,   8,   9,   10,
-      11,  12,  13,  14, /*  72 */
-      15,  16,  17,  18,
-      19,  20,  21,  22, /*  80 */
-      23,  24,  25,  255,
-      255, 255, 255, 255, /*  88 */
-      255, 26,  27,  28,
-      29,  30,  31,  32, /*  96 */
-      33,  34,  35,  36,
-      37,  38,  39,  40, /*  104 */
-      41,  42,  43,  44,
-      45,  46,  47,  48, /*  112 */
-      49,  50,  51,  255,
-      255, 255, 255, 255, /*  120 */
-  };
-  return tab[ch & 127];
-}
-
-/*
- * Decodes base64-encoded string `s`, `len` into the destination `dst`.
- * Destination has to have enough space to hold decoded buffer.
- * Destination is '\0'-terminated.
- */
-void ns_base64_decode(const unsigned char *s, int len, char *dst) {
-  unsigned char a, b, c, d;
-  while (len >= 4 && (a = from_b64(s[0])) != 255 &&
-         (b = from_b64(s[1])) != 255 && (c = from_b64(s[2])) != 255 &&
-         (d = from_b64(s[3])) != 255) {
-    if (a == 200 || b == 200) break; /* '=' can't be there */
-    *dst++ = a << 2 | b >> 4;
-    if (c == 200) break;
-    *dst++ = b << 4 | c >> 2;
-    if (d == 200) break;
-    *dst++ = c << 6 | d;
-    s += 4;
-    len -= 4;
-  }
-  *dst = 0;
+int ns_base64_decode(const unsigned char *s, int len, char *dst) {
+  return base64_decode(s, len, dst);
 }
 
 #ifdef NS_ENABLE_THREADS
-/* Starts a new thread. */
 void *ns_start_thread(void *(*f)(void *), void *p) {
 #ifdef _WIN32
   return (void *) _beginthread((void(__cdecl *) (void *) ) f, 0, p);
@@ -281,54 +179,66 @@ void ns_set_close_on_exec(sock_t sock) {
 #endif
 }
 
-/*
- * Converts socket's local or remote address into string.
- *
- * The `flags` parameter is a bit mask that controls the behavior.
- * If bit 2 is set (`flags & 4`) then the remote address is stringified,
- * otherwise local address is stringified. If bit 0 is set, then IP
- * address is printed. If bit 1 is set, then port number is printed. If both
- * port number and IP address are printed, they are separated by `:`.
- */
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
   socklen_t slen = sizeof(sa);
 
-  if (buf != NULL && len > 0) {
-    buf[0] = '\0';
-    memset(&sa, 0, sizeof(sa));
-    if (flags & 4) {
-      getpeername(sock, &sa.sa, &slen);
-    } else {
-      getsockname(sock, &sa.sa, &slen);
-    }
-    if (flags & 1) {
+  memset(&sa, 0, sizeof(sa));
+  if (flags & NS_SOCK_STRINGIFY_REMOTE) {
+    getpeername(sock, &sa.sa, &slen);
+  } else {
+    getsockname(sock, &sa.sa, &slen);
+  }
+
+  ns_sock_addr_to_str(&sa, buf, len, flags);
+}
+
+void ns_sock_addr_to_str(const union socket_address *sa, char *buf, size_t len,
+                         int flags) {
+  int is_v6;
+  if (buf == NULL || len <= 0) return;
+  buf[0] = '\0';
 #if defined(NS_ENABLE_IPV6)
-      inet_ntop(sa.sa.sa_family,
-                sa.sa.sa_family == AF_INET ? (void *) &sa.sin.sin_addr
-                                           : (void *) &sa.sin6.sin6_addr,
-                buf, len);
-#elif defined(_WIN32)
-      /* Only Windoze Vista (and newer) have inet_ntop() */
-      strncpy(buf, inet_ntoa(sa.sin.sin_addr), len);
+  is_v6 = sa->sa.sa_family == AF_INET6;
 #else
-      inet_ntop(sa.sa.sa_family, (void *) &sa.sin.sin_addr, buf,
-                (socklen_t) len);
+  is_v6 = 0;
 #endif
+  if (flags & NS_SOCK_STRINGIFY_IP) {
+#if defined(NS_ENABLE_IPV6)
+    const void *addr = NULL;
+    char *start = buf;
+    socklen_t capacity = len;
+    if (!is_v6) {
+      addr = &sa->sin.sin_addr;
+    } else {
+      addr = (void *) &sa->sin6.sin6_addr;
+      if (flags & NS_SOCK_STRINGIFY_PORT) {
+        *buf = '[';
+        start++;
+        capacity--;
+      }
     }
-    if (flags & 2) {
-      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s%d",
-               flags & 1 ? ":" : "", (int) ntohs(sa.sin.sin_port));
+    if (inet_ntop(sa->sa.sa_family, addr, start, capacity) == NULL) {
+      *buf = '\0';
+    }
+#elif defined(_WIN32)
+    /* Only Windoze Vista (and newer) have inet_ntop() */
+    strncpy(buf, inet_ntoa(sa->sin.sin_addr), len);
+#else
+    inet_ntop(AF_INET, (void *) &sa->sin.sin_addr, buf, len);
+#endif
+  }
+  if (flags & NS_SOCK_STRINGIFY_PORT) {
+    int port = ntohs(sa->sin.sin_port);
+    if (flags & NS_SOCK_STRINGIFY_IP) {
+      snprintf(buf + strlen(buf), len - (strlen(buf) + 1), "%s:%d",
+               (is_v6 ? "]" : ""), port);
+    } else {
+      snprintf(buf, len, "%d", port);
     }
   }
 }
 
-/*
- * Generates hexdump of memory chunk.
- *
- * Takes a memory buffer `buf` of length `len` and creates a hex dump of that
- * buffer in `dst`.
- */
 int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
   const unsigned char *p = (const unsigned char *) buf;
   char ascii[17] = "";
@@ -351,11 +261,6 @@ int ns_hexdump(const void *buf, int len, char *dst, int dst_len) {
   return n;
 }
 
-/*
- * Print message to buffer. If buffer is large enough to hold the message,
- * return buffer. If buffer is to small, allocate large enough buffer on heap,
- * and return allocated buffer.
- */
 int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
   va_list ap_copy;
   int len;
@@ -395,7 +300,7 @@ int ns_avprintf(char **buf, size_t size, const char *fmt, va_list ap) {
 #ifndef NS_DISABLE_FILESYSTEM
 void ns_hexdump_connection(struct ns_connection *nc, const char *path,
                            int num_bytes, int ev) {
-  const struct iobuf *io = ev == NS_SEND ? &nc->send_iobuf : &nc->recv_iobuf;
+  const struct mbuf *io = ev == NS_SEND ? &nc->send_mbuf : &nc->recv_mbuf;
   FILE *fp;
   char *buf, src[60], dst[60];
   int buf_size = num_bytes * 5 + 100;
@@ -423,20 +328,12 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
 }
 #endif
 
-/* TODO(mkm) use compiletime check with 4-byte char literal */
 int ns_is_big_endian(void) {
   static const int n = 1;
+  /* TODO(mkm) use compiletime check with 4-byte char literal */
   return ((char *) &n)[0] == 0;
 }
 
-/*
- * A helper function for traversing a comma separated list of values.
- * It returns a list pointer shifted to the next value, or NULL if the end
- * of the list found.
- * Value is stored in val vector. If value has form "x=y", then eq_val
- * vector is initialized to point to the "y" part, and val vector length
- * is adjusted to point only to "x".
- */
 const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
                                      struct ns_str *eq_val) {
   if (list == NULL || *list == '\0') {
@@ -470,10 +367,6 @@ const char *ns_next_comma_list_entry(const char *list, struct ns_str *val,
   return list;
 }
 
-/*
- * Match 0-terminated string against a glob pattern.
- * Match is case-insensitive. Return number of bytes matched, or -1 if no match.
- */
 int ns_match_prefix(const char *pattern, int pattern_len, const char *str) {
   const char *or_str;
   int len, res, i = 0, j = 0;

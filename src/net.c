@@ -16,17 +16,11 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
-/*
- * == Core API: TCP/UDP/SSL
- *
- * CAUTION: Fossa manager is single threaded. It does not protect
- * it's data structures by mutexes, therefore all functions that are dealing
- * with particular event manager should be called from the same thread,
- * with exception of `mg_broadcast()` function. It is fine to have different
- * event managers handled by different threads.
- */
-
 #include "internal.h"
+
+#if NS_MGR_EV_MGR == 1 /* epoll() */
+#include <sys/epoll.h>
+#endif
 
 #define NS_CTL_MSG_MESSAGE_SIZE 8192
 #define NS_READ_BUFFER_SIZE 2048
@@ -34,26 +28,50 @@
 #define NS_VPRINTF_BUFFER_SIZE 500
 #define NS_MAX_HOST_LEN 200
 
+#define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
+  memcpy(dst, src, sizeof(*dst));
+
+/* Which flags can be pre-set by the user at connection creation time. */
+#define _NS_ALLOWED_CONNECT_FLAGS_MASK                              \
+  (NSF_USER_1 | NSF_USER_2 | NSF_USER_3 | NSF_USER_4 | NSF_USER_5 | \
+   NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG)
+/* Which flags should be modifiable by user's callbacks. */
+#define _NS_CALLBACK_MODIFIABLE_FLAGS_MASK                                     \
+  (NSF_USER_1 | NSF_USER_2 | NSF_USER_3 | NSF_USER_4 | NSF_USER_5 |            \
+   NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG | NSF_SEND_AND_CLOSE | NSF_DONT_SEND | \
+   NSF_CLOSE_IMMEDIATELY)
+
 struct ctl_msg {
   ns_event_handler_t callback;
   char message[NS_CTL_MSG_MESSAGE_SIZE];
 };
+
+static void ns_ev_mgr_init(struct ns_mgr *mgr);
+static void ns_ev_mgr_free(struct ns_mgr *mgr);
+static void ns_ev_mgr_add_conn(struct ns_connection *nc);
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc);
 
 static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   c->next = mgr->active_connections;
   mgr->active_connections = c;
   c->prev = NULL;
   if (c->next != NULL) c->next->prev = c;
+  ns_ev_mgr_add_conn(c);
 }
 
 static void ns_remove_conn(struct ns_connection *conn) {
   if (conn->prev == NULL) conn->mgr->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
+  ns_ev_mgr_remove_conn(conn);
 }
 
 static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+  unsigned long flags_before;
   ns_event_handler_t ev_handler;
+
+  DBG(("%p flags=%lu ev=%d ev_data=%p rmbl=%d", nc, nc->flags, ev, ev_data,
+       (int) nc->recv_mbuf.len));
 
 #ifndef NS_DISABLE_FILESYSTEM
   /* LCOV_EXCL_START */
@@ -70,7 +88,12 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
    */
   ev_handler = nc->proto_handler ? nc->proto_handler : nc->handler;
   if (ev_handler != NULL) {
+    flags_before = nc->flags;
     ev_handler(nc, ev, ev_data);
+    if (nc->flags != flags_before) {
+      nc->flags = (flags_before & ~_NS_CALLBACK_MODIFIABLE_FLAGS_MASK) |
+                  (nc->flags & _NS_CALLBACK_MODIFIABLE_FLAGS_MASK);
+    }
   }
 }
 
@@ -81,7 +104,7 @@ static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
          inet_ntoa(nc->sa.sin.sin_addr), ntohs(nc->sa.sin.sin_port)));
     return n < 0 ? 0 : n;
   } else {
-    return iobuf_append(&nc->send_iobuf, buf, len);
+    return mbuf_append(&nc->send_mbuf, buf, len);
   }
 }
 
@@ -97,8 +120,8 @@ static void ns_destroy_conn(struct ns_connection *conn) {
      */
     conn->sock = INVALID_SOCKET;
   }
-  iobuf_free(&conn->recv_iobuf);
-  iobuf_free(&conn->send_iobuf);
+  mbuf_free(&conn->recv_mbuf);
+  mbuf_free(&conn->send_mbuf);
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
     SSL_free(conn->ssl);
@@ -112,12 +135,13 @@ static void ns_destroy_conn(struct ns_connection *conn) {
 
 static void ns_close_conn(struct ns_connection *conn) {
   DBG(("%p %lu", conn, conn->flags));
-  ns_call(conn, NS_CLOSE, NULL);
+  if (!(conn->flags & NSF_CONNECTING)) {
+    ns_call(conn, NS_CLOSE, NULL);
+  }
   ns_remove_conn(conn);
   ns_destroy_conn(conn);
 }
 
-/* Initializes Fossa manager. */
 void ns_mgr_init(struct ns_mgr *s, void *user_data) {
   memset(s, 0, sizeof(*s));
   s->ctl[0] = s->ctl[1] = INVALID_SOCKET;
@@ -149,13 +173,11 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     }
   }
 #endif
+  ns_ev_mgr_init(s);
+  DBG(("=================================="));
+  DBG(("init mgr=%p", s));
 }
 
-/*
- * De-initializes fossa manager.
- *
- * Closes and deallocates all active connections.
- */
 void ns_mgr_free(struct ns_mgr *s) {
   struct ns_connection *conn, *tmp_conn;
 
@@ -172,13 +194,10 @@ void ns_mgr_free(struct ns_mgr *s) {
     tmp_conn = conn->next;
     ns_close_conn(conn);
   }
+
+  ns_ev_mgr_free(s);
 }
 
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
 int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   char mem[NS_VPRINTF_BUFFER_SIZE], *buf = mem;
   int len;
@@ -193,11 +212,6 @@ int ns_vprintf(struct ns_connection *nc, const char *fmt, va_list ap) {
   return len;
 }
 
-/*
- * Send `printf`-style formatted data to the connection.
- *
- * See `ns_send` for more details on send semantics.
- */
 int ns_printf(struct ns_connection *conn, const char *fmt, ...) {
   int len;
   va_list ap;
@@ -218,11 +232,6 @@ static void ns_set_non_blocking_mode(sock_t sock) {
 }
 
 #ifndef NS_DISABLE_SOCKETPAIR
-/*
- * Create a socket pair.
- * `proto` can be either `SOCK_STREAM` or `SOCK_DGRAM`.
- * Return 0 on failure, 1 on success.
- */
 int ns_socketpair(sock_t sp[2], int sock_type) {
   union socket_address sa;
   sock_t sock;
@@ -299,11 +308,6 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
 #endif
 }
 
-/*
- * Converts domain name into IP address.
- *
- * This is a blocking call. Returns 1 on success, 0 on failure.
- */
 int ns_resolve(const char *host, char *buf, size_t n) {
   struct in_addr ad;
   return ns_resolve2(host, &ad) ? snprintf(buf, n, "%s", inet_ntoa(ad)) : 0;
@@ -320,14 +324,14 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
     conn->handler = callback;
     conn->mgr = mgr;
     conn->last_io_time = time(NULL);
-    conn->flags = opts.flags;
+    conn->flags = opts.flags & _NS_ALLOWED_CONNECT_FLAGS_MASK;
     conn->user_data = opts.user_data;
     /*
      * SIZE_MAX is defined as a long long constant in
      * system headers on some platforms and so it
      * doesn't compile with pedantic ansi flags.
      */
-    conn->recv_iobuf_limit = ~0;
+    conn->recv_mbuf_limit = ~0;
   }
 
   return conn;
@@ -548,7 +552,7 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
     c->proto_data = ls->proto_data;
     c->proto_handler = ls->proto_handler;
     c->user_data = ls->user_data;
-    c->recv_iobuf_limit = ls->recv_iobuf_limit;
+    c->recv_mbuf_limit = ls->recv_mbuf_limit;
     ns_call(c, NS_ACCEPT, &sa);
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
   }
@@ -568,8 +572,8 @@ static int ns_is_error(int n) {
 
 static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
   size_t avail;
-  if (conn->recv_iobuf_limit < conn->recv_iobuf.len) return 0;
-  avail = conn->recv_iobuf_limit - conn->recv_iobuf.len;
+  if (conn->recv_mbuf_limit < conn->recv_mbuf.len) return 0;
+  avail = conn->recv_mbuf_limit - conn->recv_mbuf.len;
   return avail > max ? max : avail;
 }
 
@@ -598,10 +602,11 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     }
 #endif
     (void) ret;
-    conn->flags &= ~NSF_CONNECTING;
-    DBG(("%p ok=%d", conn, ok));
+    DBG(("%p connect ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
+    } else {
+      conn->flags &= ~NSF_CONNECTING;
     }
     ns_call(conn, NS_CONNECT, &ok);
     return;
@@ -614,8 +619,8 @@ static void ns_read_from_socket(struct ns_connection *conn) {
        * Therefore, read in a loop until we read everything. Without the loop,
        * we skip to the next select() cycle which can just timeout. */
       while ((n = SSL_read(conn->ssl, buf, sizeof(buf))) > 0) {
-        DBG(("%p %lu <- %d bytes (SSL)", conn, conn->flags, n));
-        iobuf_append(&conn->recv_iobuf, buf, n);
+        DBG(("%p %d bytes <- %d (SSL)", conn, n, conn->sock));
+        mbuf_append(&conn->recv_mbuf, buf, n);
         ns_call(conn, NS_RECV, &n);
       }
       ns_ssl_err(conn, n);
@@ -636,10 +641,10 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = (int) recv(conn->sock, buf, recv_avail_size(conn, sizeof(buf)),
-                           0)) > 0) {
-      DBG(("%p %lu <- %d bytes (PLAIN)", conn, conn->flags, n));
-      iobuf_append(&conn->recv_iobuf, buf, n);
+    while ((n = (int) NS_RECV_FUNC(
+                conn->sock, buf, recv_avail_size(conn, sizeof(buf)), 0)) > 0) {
+      DBG(("%p %d bytes (PLAIN) <- %d", conn, n, conn->sock));
+      mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
     }
   }
@@ -650,8 +655,10 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 }
 
 static void ns_write_to_socket(struct ns_connection *conn) {
-  struct iobuf *io = &conn->send_iobuf;
+  struct mbuf *io = &conn->send_mbuf;
   int n = 0;
+
+  assert(io->len > 0);
 
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
@@ -670,28 +677,19 @@ static void ns_write_to_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    n = (int) send(conn->sock, io->buf, io->len, 0);
+    n = (int) NS_SEND_FUNC(conn->sock, io->buf, io->len, 0);
   }
 
-  DBG(("%p %lu -> %d bytes", conn, conn->flags, n));
+  DBG(("%p %d bytes -> %d", conn, n, conn->sock));
 
   ns_call(conn, NS_SEND, &n);
   if (ns_is_error(n)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
-    iobuf_remove(io, n);
+    mbuf_remove(io, n);
   }
 }
 
-/*
- * Send data to the connection.
- *
- * Number of written bytes is returned. Note that these sending
- * functions do not actually push data to the sockets, they just append data
- * to the output buffer. The exception is UDP connections. For UDP, data is
- * sent immediately, and returned value indicates an actual number of bytes
- * sent to the socket.
- */
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
   return (int) ns_out(conn, buf, len);
 }
@@ -713,8 +711,8 @@ static void ns_handle_udp(struct ns_connection *ls) {
 
     /* Then override some */
     nc.sa = sa;
-    nc.recv_iobuf.buf = buf;
-    nc.recv_iobuf.len = nc.recv_iobuf.size = n;
+    nc.recv_mbuf.buf = buf;
+    nc.recv_mbuf.len = nc.recv_mbuf.size = n;
     nc.listener = ls;
     nc.flags = NSF_UDP;
 
@@ -730,6 +728,207 @@ static void ns_handle_udp(struct ns_connection *ls) {
   }
 }
 
+#define _NSF_FD_CAN_READ 1
+#define _NSF_FD_CAN_WRITE 1 << 1
+#define _NSF_FD_ERROR 1 << 2
+
+static void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
+                                     time_t now) {
+  DBG(("%p fd=%d fd_flags=%d nc_flags=%lu rmbl=%d smbl=%d", nc, nc->sock,
+       fd_flags, nc->flags, (int) nc->recv_mbuf.len, (int) nc->send_mbuf.len));
+  if (fd_flags != 0) nc->last_io_time = now;
+
+  if (nc->flags & NSF_CONNECTING) {
+    if (fd_flags != 0) {
+      ns_read_from_socket(nc);
+    }
+    return;
+  }
+
+  if (nc->flags & NSF_LISTENING) {
+    /*
+     * We're not looping here, and accepting just one connection at
+     * a time. The reason is that eCos does not respect non-blocking
+     * flag on a listening socket and hangs in a loop.
+     */
+    if (fd_flags & _NSF_FD_CAN_READ) accept_conn(nc);
+    return;
+  }
+
+  if (fd_flags & _NSF_FD_CAN_READ) {
+    if (nc->flags & NSF_UDP) {
+      ns_handle_udp(nc);
+    } else {
+      ns_read_from_socket(nc);
+    }
+    if (nc->flags & NSF_CLOSE_IMMEDIATELY) return;
+  }
+
+  if ((fd_flags & _NSF_FD_CAN_WRITE) && !(nc->flags & NSF_DONT_SEND) &&
+      !(nc->flags & NSF_UDP)) { /* Writes to UDP sockets are not buffered. */
+    ns_write_to_socket(nc);
+  }
+
+  if (!(fd_flags & (_NSF_FD_CAN_READ | _NSF_FD_CAN_WRITE))) {
+    ns_call(nc, NS_POLL, &now);
+  }
+}
+
+static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
+  struct ctl_msg ctl_msg;
+  int len =
+      (int) NS_RECV_FUNC(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
+  NS_SEND_FUNC(mgr->ctl[1], ctl_msg.message, 1, 0);
+  if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
+    struct ns_connection *nc;
+    for (nc = ns_next(mgr, NULL); nc != NULL; nc = ns_next(mgr, nc)) {
+      ctl_msg.callback(nc, NS_POLL, ctl_msg.message);
+    }
+  }
+}
+
+#if NS_MGR_EV_MGR == 1 /* epoll() */
+
+#ifndef NS_EPOLL_MAX_EVENTS
+#define NS_EPOLL_MAX_EVENTS 100
+#endif
+
+#define _NS_EPF_EV_EPOLLIN (1 << 0)
+#define _NS_EPF_EV_EPOLLOUT (1 << 1)
+#define _NS_EPF_NO_POLL (1 << 2)
+
+static uint32_t ns_epf_to_evflags(unsigned int epf) {
+  uint32_t result = 0;
+  if (epf & _NS_EPF_EV_EPOLLIN) result |= EPOLLIN;
+  if (epf & _NS_EPF_EV_EPOLLOUT) result |= EPOLLOUT;
+  return result;
+}
+
+static void ns_ev_mgr_epoll_set_flags(const struct ns_connection *nc,
+                                      struct epoll_event *ev) {
+  /* NOTE: EPOLLERR and EPOLLHUP are always enabled. */
+  ev->events = 0;
+  if (nc->recv_mbuf.len < nc->recv_mbuf_limit) {
+    ev->events |= EPOLLIN;
+  }
+  if ((nc->flags & NSF_CONNECTING) ||
+      (nc->send_mbuf.len > 0 && !(nc->flags & NSF_DONT_SEND))) {
+    ev->events |= EPOLLOUT;
+  }
+}
+
+static void ns_ev_mgr_epoll_ctl(struct ns_connection *nc, int op) {
+  int epoll_fd = nc->mgr->mgr_data.i;
+  struct epoll_event ev;
+  assert(op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || EPOLL_CTL_DEL);
+  if (op != EPOLL_CTL_DEL) {
+    ns_ev_mgr_epoll_set_flags(nc, &ev);
+    if (op == EPOLL_CTL_MOD) {
+      uint32_t old_ev_flags = ns_epf_to_evflags(nc->mgr_data.u);
+      if (ev.events == old_ev_flags) return;
+    }
+    ev.data.ptr = nc;
+  }
+  if (epoll_ctl(epoll_fd, op, nc->sock, &ev) != 0) {
+    perror("epoll_ctl");
+    abort();
+  }
+}
+
+static void ns_ev_mgr_init(struct ns_mgr *mgr) {
+  int epoll_fd;
+  DBG(("%p using epoll()", mgr));
+  epoll_fd = epoll_create(NS_EPOLL_MAX_EVENTS /* unused but required */);
+  if (epoll_fd < 0) {
+    perror("epoll_ctl");
+    abort();
+  }
+  mgr->mgr_data.i = epoll_fd;
+  if (mgr->ctl[1] != INVALID_SOCKET) {
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.ptr = NULL;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mgr->ctl[1], &ev) != 0) {
+      perror("epoll_ctl");
+      abort();
+    }
+  }
+}
+
+static void ns_ev_mgr_free(struct ns_mgr *mgr) {
+  int epoll_fd = mgr->mgr_data.i;
+  close(epoll_fd);
+}
+
+static void ns_ev_mgr_add_conn(struct ns_connection *nc) {
+  ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_ADD);
+}
+
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
+  ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_DEL);
+}
+
+time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
+  int epoll_fd = mgr->mgr_data.i, num_ev, fd_flags;
+  struct epoll_event events[NS_EPOLL_MAX_EVENTS];
+  struct ns_connection *nc, *next;
+  time_t now;
+
+  num_ev = epoll_wait(epoll_fd, events, NS_EPOLL_MAX_EVENTS, timeout_ms);
+  now = time(NULL);
+  DBG(("epoll_wait @ %ld num_ev=%d", now, num_ev));
+
+  while (num_ev-- > 0) {
+    struct epoll_event *ev = events + num_ev;
+    nc = (struct ns_connection *) ev->data.ptr;
+    if (nc == NULL) {
+      ns_mgr_handle_ctl_sock(mgr);
+      continue;
+    }
+    fd_flags = ((ev->events & (EPOLLIN | EPOLLHUP)) ? _NSF_FD_CAN_READ : 0) |
+               ((ev->events & (EPOLLOUT)) ? _NSF_FD_CAN_WRITE : 0) |
+               ((ev->events & (EPOLLERR)) ? _NSF_FD_ERROR : 0);
+    ns_mgr_handle_connection(nc, fd_flags, now);
+    nc->mgr_data.u |= _NS_EPF_NO_POLL;
+  }
+
+  for (nc = mgr->active_connections; nc != NULL; nc = next) {
+    next = nc->next;
+    if (!(nc->mgr_data.u & _NS_EPF_NO_POLL)) {
+      ns_mgr_handle_connection(nc, 0, now);
+    } else {
+      nc->mgr_data.u ^= _NS_EPF_NO_POLL;
+    }
+    if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
+        (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
+      ns_close_conn(nc);
+    } else {
+      ns_ev_mgr_epoll_ctl(nc, EPOLL_CTL_MOD);
+    }
+  }
+
+  return now;
+}
+
+#else /* select() */
+
+static void ns_ev_mgr_init(struct ns_mgr *mgr) {
+  (void) mgr;
+  DBG(("%p using select()", mgr));
+}
+
+static void ns_ev_mgr_free(struct ns_mgr *mgr) {
+  (void) mgr;
+}
+
+static void ns_ev_mgr_add_conn(struct ns_connection *nc) {
+  (void) nc;
+}
+
+static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
+  (void) nc;
+}
+
 static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   if (sock != INVALID_SOCKET) {
     FD_SET(sock, set);
@@ -739,16 +938,13 @@ static void ns_add_to_set(sock_t sock, fd_set *set, sock_t *max_fd) {
   }
 }
 
-/*
- * This function performs the actual IO, and must be called in a loop
- * (an event loop). Returns the current timestamp.
- */
 time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
+  time_t now;
   struct ns_connection *nc, *tmp;
   struct timeval tv;
   fd_set read_set, write_set, err_set;
   sock_t max_fd = INVALID_SOCKET;
-  time_t current_time = time(NULL);
+  int num_selected, fd_flags;
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
@@ -757,28 +953,14 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
-    if (!(nc->flags & (NSF_LISTENING | NSF_CONNECTING))) {
-      ns_call(nc, NS_POLL, &current_time);
-    }
-
-    /*
-     * NS_POLL handler could have signaled us to close the connection
-     * by setting NSF_CLOSE_IMMEDIATELY flag. In this case, we don't want to
-     * trigger any other events on that connection, but close it right away.
-     */
-    if (nc->flags & NSF_CLOSE_IMMEDIATELY) {
-      /* NOTE(lsm): this call removes nc from the mgr->active_connections */
-      ns_close_conn(nc);
-      continue;
-    }
 
     if (!(nc->flags & NSF_WANT_WRITE) &&
-        nc->recv_iobuf.len < nc->recv_iobuf_limit) {
+        nc->recv_mbuf.len < nc->recv_mbuf_limit) {
       ns_add_to_set(nc->sock, &read_set, &max_fd);
     }
 
     if (((nc->flags & NSF_CONNECTING) && !(nc->flags & NSF_WANT_READ)) ||
-        (nc->send_iobuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
+        (nc->send_mbuf.len > 0 && !(nc->flags & NSF_CONNECTING) &&
          !(nc->flags & NSF_DONT_SEND))) {
       ns_add_to_set(nc->sock, &write_set, &max_fd);
       ns_add_to_set(nc->sock, &err_set, &max_fd);
@@ -788,79 +970,37 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   tv.tv_sec = milli / 1000;
   tv.tv_usec = (milli % 1000) * 1000;
 
-  if (select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv) > 0) {
-    /* select() might have been waiting for a long time, reset current_time
-     *  now to prevent last_io_time being set to the past. */
-    current_time = time(NULL);
+  num_selected = select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv);
+  now = time(NULL);
 
-#ifndef __AVR__
-    /*
-     * Note: it seems, avr-gcc breaks on long functions
-     * As workaround unused (on AVR) part just excluded
-     * TODO(alashkin): investigate this
-     */
+  if (num_selected > 0 && mgr->ctl[1] != INVALID_SOCKET &&
+      FD_ISSET(mgr->ctl[1], &read_set)) {
+    ns_mgr_handle_ctl_sock(mgr);
+  }
 
-    /* Read wakeup messages */
-    if (mgr->ctl[1] != INVALID_SOCKET && FD_ISSET(mgr->ctl[1], &read_set)) {
-      struct ctl_msg ctl_msg;
-      int len = (int) recv(mgr->ctl[1], (char *) &ctl_msg, sizeof(ctl_msg), 0);
-      send(mgr->ctl[1], ctl_msg.message, 1, 0);
-      if (len >= (int) sizeof(ctl_msg.callback) && ctl_msg.callback != NULL) {
-        struct ns_connection *c;
-        for (c = ns_next(mgr, NULL); c != NULL; c = ns_next(mgr, c)) {
-          ctl_msg.callback(c, NS_POLL, ctl_msg.message);
-        }
-      }
+  fd_flags = 0;
+  for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+    if (num_selected > 0) {
+      fd_flags = (FD_ISSET(nc->sock, &read_set) ? _NSF_FD_CAN_READ : 0) |
+                 (FD_ISSET(nc->sock, &write_set) ? _NSF_FD_CAN_WRITE : 0) |
+                 (FD_ISSET(nc->sock, &err_set) ? _NSF_FD_ERROR : 0);
     }
-#endif
-
-    for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
-      tmp = nc->next;
-
-      /* Windows reports failed connect() requests in err_set */
-      if (FD_ISSET(nc->sock, &err_set) && (nc->flags & NSF_CONNECTING)) {
-        nc->last_io_time = current_time;
-        ns_read_from_socket(nc);
-      }
-
-      if (FD_ISSET(nc->sock, &read_set)) {
-        nc->last_io_time = current_time;
-        if (nc->flags & NSF_UDP) {
-          ns_handle_udp(nc);
-        } else if (nc->flags & NSF_LISTENING) {
-          /*
-           * We're not looping here, and accepting just one connection at
-           * a time. The reason is that eCos does not respect non-blocking
-           * flag on a listening socket and hangs in a loop.
-           */
-          accept_conn(nc);
-        } else {
-          ns_read_from_socket(nc);
-        }
-      }
-
-      if (FD_ISSET(nc->sock, &write_set)) {
-        nc->last_io_time = current_time;
-        if (nc->flags & NSF_CONNECTING) {
-          ns_read_from_socket(nc);
-        } else if (!(nc->flags & NSF_DONT_SEND) &&
-                   !(nc->flags & NSF_CLOSE_IMMEDIATELY)) {
-          ns_write_to_socket(nc);
-        }
-      }
-    }
+    tmp = nc->next;
+    ns_mgr_handle_connection(nc, fd_flags, now);
   }
 
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
     tmp = nc->next;
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
-        (nc->send_iobuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
+        (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
       ns_close_conn(nc);
     }
   }
 
-  return current_time;
+  return now;
 }
+
+#endif
 
 /*
  * Schedules an async connect for a resolved address and proto.
@@ -881,8 +1021,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
   if ((sock = socket(AF_INET, proto, 0)) == INVALID_SOCKET) {
     int failure = errno;
     NS_SET_PTRPTR(o.error_string, "cannot create socket");
-    ns_call(nc, NS_CONNECT, &failure);
-    ns_call(nc, NS_CLOSE, NULL);
+    if (nc->flags & NSF_CONNECTING) {
+      ns_call(nc, NS_CONNECT, &failure);
+    }
     ns_destroy_conn(nc);
     return NULL;
   }
@@ -892,23 +1033,19 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
   if (rc != 0 && ns_is_error(rc)) {
     NS_SET_PTRPTR(o.error_string, "cannot connect to socket");
-    ns_call(nc, NS_CONNECT, &rc);
-    ns_call(nc, NS_CLOSE, NULL);
+    if (nc->flags & NSF_CONNECTING) {
+      ns_call(nc, NS_CONNECT, &rc);
+    }
     ns_destroy_conn(nc);
     close(sock);
     return NULL;
   }
 
+  /* Fire NS_CONNECT on next poll. */
+  nc->flags |= NSF_CONNECTING;
+
   /* No ns_destroy_conn() call after this! */
   ns_set_sock(nc, sock);
-
-  if (rc == 0) {
-    /* connect() succeeded. Trigger successful NS_CONNECT event */
-    ns_call(nc, NS_CONNECT, &rc);
-  } else {
-    nc->flags |= NSF_CONNECTING;
-  }
-
   return nc;
 }
 
@@ -937,7 +1074,8 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
          */
         ns_dns_parse_record_data(msg, &msg->answers[i], &nc->sa.sin.sin_addr,
                                  4);
-        /* ns_finish_connect() triggers NS_CONNECT on failure */
+        /* Make ns_finish_connect() trigger NS_CONNECT on failure */
+        nc->flags |= NSF_CONNECTING;
         ns_finish_connect(nc, nc->flags & NSF_UDP ? SOCK_DGRAM : SOCK_STREAM,
                           &nc->sa, opts);
         return;
@@ -949,64 +1087,16 @@ static void resolve_cb(struct ns_dns_message *msg, void *data) {
    * If we get there was no NS_DNS_A_RECORD in the answer
    */
   ns_call(nc, NS_CONNECT, &failure);
-  ns_call(nc, NS_CLOSE, NULL);
   ns_destroy_conn(nc);
 }
 #endif
-/*
- * Connect to a remote host.
- *
- * See `ns_connect_opt` for full documentation.
- */
+
 struct ns_connection *ns_connect(struct ns_mgr *mgr, const char *address,
                                  ns_event_handler_t callback) {
   static struct ns_connect_opts opts;
   return ns_connect_opt(mgr, address, callback, opts);
 }
 
-/*
- * Connect to a remote host.
- *
- * `address` format is `[PROTO://]HOST:PORT`. `PROTO` could be `tcp` or `udp`.
- * `HOST` could be an IP address,
- * IPv6 address (if Fossa is compiled with `-DNS_ENABLE_IPV6`), or a host name.
- * If `HOST` is a name, Fossa will resolve it asynchronously. Examples of
- * valid addresses: `google.com:80`, `udp://1.2.3.4:53`, `10.0.0.1:443`.
- *
- * See the `ns_connect_opts` structure for a description of the optional
- * parameters.
- *
- * Returns a new outbound connection, or `NULL` on error.
- *
- * NOTE: New connection will receive `NS_CONNECT` as it's first event
- * which will report connect success status.
- * If asynchronous resolution fail, or `connect()` syscall fail for whatever
- * reason (e.g. with `ECONNREFUSED` or `ENETUNREACH`), then `NS_CONNECT`
- * event report failure. Code example below:
- *
- * [source,c]
- * ----
- * static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
- *   int connect_status;
- *
- *   switch (ev) {
- *     case NS_CONNECT:
- *       connect_status = * (int *) ev_data;
- *       if (connect_status == 0) {
- *         // Success
- *       } else  {
- *         // Error
- *         printf("connect() error: %s\n", strerror(connect_status));
- *       }
- *       break;
- *     ...
- *   }
- * }
- *
- *   ...
- *   ns_connect(mgr, "my_site.com:80", ev_handler);
- * ----
- */
 struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
                                      ns_event_handler_t callback,
                                      struct ns_connect_opts opts) {
@@ -1026,8 +1116,7 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
     ns_destroy_conn(nc);
     return NULL;
   }
-
-  nc->flags |= opts.flags;
+  nc->flags |= opts.flags & _NS_ALLOWED_CONNECT_FLAGS_MASK;
   nc->flags |= (proto == SOCK_DGRAM) ? NSF_UDP : 0;
   nc->user_data = opts.user_data;
 
@@ -1037,7 +1126,6 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
      * DNS resolution is required for host.
      * ns_parse_address() fills port in nc->sa, which we pass to resolve_cb()
      */
-
     if (ns_resolve_async(nc->mgr, host, NS_DNS_A_RECORD, resolve_cb, nc) != 0) {
       NS_SET_PTRPTR(opts.error_string, "cannot schedule DNS lookup");
       ns_destroy_conn(nc);
@@ -1056,33 +1144,12 @@ struct ns_connection *ns_connect_opt(struct ns_mgr *mgr, const char *address,
   }
 }
 
-/*
- * Create listening connection.
- *
- * See `ns_bind_opt` for full documentation.
- */
 struct ns_connection *ns_bind(struct ns_mgr *srv, const char *address,
                               ns_event_handler_t event_handler) {
   static struct ns_bind_opts opts;
   return ns_bind_opt(srv, address, event_handler, opts);
 }
 
-/*
- * Create listening connection.
- *
- * `address` parameter tells which address to bind to. It's format is the same
- * as for the `ns_connect()` call, where `HOST` part is optional. `address`
- * can be just a port number, e.g. `:8000`. To bind to a specific interface,
- * an IP address can be specified, e.g. `1.2.3.4:8000`. By default, a TCP
- * connection is created. To create UDP connection, prepend `udp://` prefix,
- * e.g. `udp://:8000`. To summarize, `address` paramer has following format:
- * `[PROTO://][IP_ADDRESS]:PORT`, where `PROTO` could be `tcp` or `udp`.
- *
- * See the `ns_bind_opts` structure for a description of the optional
- * parameters.
- *
- * Returns a new listening connection, or `NULL` on error.
- */
 struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
                                   ns_event_handler_t callback,
                                   struct ns_bind_opts opts) {
@@ -1107,11 +1174,12 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
     closesocket(sock);
   } else {
     nc->sa = sa;
-    nc->flags |= NSF_LISTENING;
     nc->handler = callback;
 
     if (proto == SOCK_DGRAM) {
       nc->flags |= NSF_UDP;
+    } else {
+      nc->flags |= NSF_LISTENING;
     }
 
     DBG(("%p sock %d/%d", nc, sock, proto));
@@ -1120,24 +1188,12 @@ struct ns_connection *ns_bind_opt(struct ns_mgr *mgr, const char *address,
   return nc;
 }
 
-/*
- * Create a connection, associate it with the given socket and event handler,
- * and add it to the manager.
- *
- * For more options see the `ns_add_sock_opt` variant.
- */
 struct ns_connection *ns_add_sock(struct ns_mgr *s, sock_t sock,
                                   ns_event_handler_t callback) {
   static struct ns_add_sock_opts opts;
   return ns_add_sock_opt(s, sock, callback, opts);
 }
 
-/*
- * Create a connection, associate it with the given socket and event handler,
- * and add to the manager.
- *
- * See the `ns_add_sock_opts` structure for a description of the options.
- */
 struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
                                       ns_event_handler_t callback,
                                       struct ns_add_sock_opts opts) {
@@ -1148,46 +1204,28 @@ struct ns_connection *ns_add_sock_opt(struct ns_mgr *s, sock_t sock,
   return nc;
 }
 
-/*
- * Iterates over all active connections.
- *
- * Returns next connection from the list
- * of active connections, or `NULL` if there is no more connections. Below
- * is the iteration idiom:
- *
- * [source,c]
- * ----
- * for (c = ns_next(srv, NULL); c != NULL; c = ns_next(srv, c)) {
- *   // Do something with connection `c`
- * }
- * ----
- */
 struct ns_connection *ns_next(struct ns_mgr *s, struct ns_connection *conn) {
   return conn == NULL ? s->active_connections : conn->next;
 }
 
-/*
- * Passes a message of a given length to all connections.
- *
- * Must be called from a different thread.
- *
- * Fossa manager has a socketpair, `struct ns_mgr::ctl`,
- * where `ns_broadcast()` pushes the message.
- * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
- * specified callback for each connection. Thus the callback function executes
- * in event manager thread. Note that `ns_broadcast()` is the only function
- * that can be, and must be, called from a different thread.
- */
 void ns_broadcast(struct ns_mgr *mgr, ns_event_handler_t cb, void *data,
                   size_t len) {
   struct ctl_msg ctl_msg;
+
+  /*
+   * Fossa manager has a socketpair, `struct ns_mgr::ctl`,
+   * where `ns_broadcast()` pushes the message.
+   * `ns_mgr_poll()` wakes up, reads a message from the socket pair, and calls
+   * specified callback for each connection. Thus the callback function executes
+   * in event manager thread.
+   */
   if (mgr->ctl[0] != INVALID_SOCKET && data != NULL &&
       len < sizeof(ctl_msg.message)) {
     ctl_msg.callback = cb;
     memcpy(ctl_msg.message, data, len);
-    send(mgr->ctl[0], (char *) &ctl_msg,
-         offsetof(struct ctl_msg, message) + len, 0);
-    recv(mgr->ctl[0], (char *) &len, 1, 0);
+    NS_SEND_FUNC(mgr->ctl[0], (char *) &ctl_msg,
+                 offsetof(struct ctl_msg, message) + len, 0);
+    NS_RECV_FUNC(mgr->ctl[0], (char *) &len, 1, 0);
   }
 }
 
@@ -1211,26 +1249,6 @@ static int parse_net(const char *spec, uint32_t *net, uint32_t *mask) {
   return len;
 }
 
-/*
- * Verify given IP address against the ACL.
- *
- * `remote_ip` - an IPv4 address to check, in host byte order
- * `acl` - a comma separated list of IP subnets: `x.x.x.x/x` or `x.x.x.x`.
- * Each subnet is
- * prepended by either a - or a + sign. A plus sign means allow, where a
- * minus sign means deny. If a subnet mask is omitted, such as `-1.2.3.4`,
- * this means to deny only that single IP address.
- * Subnet masks may vary from 0 to 32, inclusive. The default setting
- * is to allow all accesses. On each request the full list is traversed,
- * and the last match wins. Example:
- *
- * `-0.0.0.0/0,+192.168/16` - deny all acccesses, only allow 192.168/16 subnet
- *
- * To learn more about subnet masks, see the
- * link:https://en.wikipedia.org/wiki/Subnetwork[Wikipedia page on Subnetwork]
- *
- * Return -1 if ACL is malformed, 0 if address is disallowed, 1 if allowed.
- */
 int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
   int allowed, flag;
   uint32_t net, mask;

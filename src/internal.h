@@ -22,6 +22,14 @@
 #define NS_FREE free
 #endif
 
+#ifndef MBUF_REALLOC
+#define MBUF_REALLOC NS_REALLOC
+#endif
+
+#ifndef MBUF_FREE
+#define MBUF_FREE NS_FREE
+#endif
+
 #define NS_SET_PTRPTR(_ptr, _v) \
   do {                          \
     if (_ptr) *(_ptr) = _v;     \
@@ -29,6 +37,13 @@
 
 #ifndef NS_INTERNAL
 #define NS_INTERNAL static
+#endif
+
+#if !defined(NS_MGR_EV_MGR) && defined(__linux__)
+#define NS_MGR_EV_MGR 1 /* epoll() */
+#endif
+#if !defined(NS_MGR_EV_MGR)
+#define NS_MGR_EV_MGR 0 /* select() */
 #endif
 
 #include "../fossa.h"
@@ -41,9 +56,14 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
+NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
 
 #ifdef _WIN32
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
+
+/* Forward declarations for testing. */
+extern void *(*test_malloc)(size_t);
+extern void *(*test_calloc)(size_t, size_t);
 
 #endif /* NS_INTERNAL_HEADER_INCLUDED */

@@ -3,10 +3,6 @@
  * All rights reserved
  */
 
-/*
- * == Name resolver
- */
-
 #ifndef NS_DISABLE_RESOLVER
 
 #include "internal.h"
@@ -99,11 +95,6 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   return ret;
 }
 
-/*
- * Resolve a name from `/etc/hosts`.
- *
- * Returns 0 on success, -1 on failure.
- */
 int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
 #ifndef NS_DISABLE_FILESYSTEM
   /* TODO(mkm) cache /etc/hosts */
@@ -147,6 +138,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   req = (struct ns_resolve_async_request *) nc->user_data;
 
   switch (ev) {
+    case NS_CONNECT:
     case NS_POLL:
       if (req->retries > req->max_retries) {
         req->callback(NULL, req->data);
@@ -160,7 +152,7 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       }
       break;
     case NS_RECV:
-      if (ns_parse_dns(nc->recv_iobuf.buf, *(int *) data, &msg) == 0 &&
+      if (ns_parse_dns(nc->recv_mbuf.buf, *(int *) data, &msg) == 0 &&
           msg.num_answers > 0) {
         req->callback(&msg, req->data);
       } else {
@@ -171,34 +163,12 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   }
 }
 
-/* See `ns_resolve_async_opt` */
 int ns_resolve_async(struct ns_mgr *mgr, const char *name, int query,
                      ns_resolve_callback_t cb, void *data) {
   static struct ns_resolve_async_opts opts;
   return ns_resolve_async_opt(mgr, name, query, cb, data, opts);
 }
 
-/*
- * Resolved a DNS name asynchronously.
- *
- * Upon successful resolution, the user callback will be invoked
- * with the full DNS response message and a pointer to the user's
- * context `data`.
- *
- * In case of timeout while performing the resolution the callback
- * will receive a NULL `msg`.
- *
- * The DNS answers can be extracted with `ns_next_record` and
- * `ns_dns_parse_record_data`:
- *
- * [source,c]
- * ----
- * struct in_addr ina;
- * struct ns_dns_resource_record *rr = ns_next_record(msg, NS_DNS_A_RECORD,
- *NULL);
- * ns_dns_parse_record_data(msg, rr, &ina, sizeof(ina));
- * ----
- */
 int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
                          ns_resolve_callback_t cb, void *data,
                          struct ns_resolve_async_opts opts) {

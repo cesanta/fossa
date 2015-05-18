@@ -15,12 +15,22 @@
  * license, as set out in <http://cesanta.com/>.
  */
 
+/*
+ * === CoAP
+ *
+ * CoAP message format:
+ *
+ *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+ *    |Ver| T | TKL | Code | Message ID | Token (if any, TKL bytes) ...
+ *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+ *    | Options (if any) ...            |1 1 1 1 1 1 1 1| Payload (if any) ...
+ *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+ */
+
 #ifndef NS_COAP_HEADER_INCLUDED
 #define NS_COAP_HEADER_INCLUDED
 
 #ifdef NS_ENABLE_COAP
-
-#include "internal.h"
 
 #define NS_COAP_MSG_TYPE_FIELD 0x2
 #define NS_COAP_CODE_CLASS_FIELD 0x4
@@ -81,17 +91,67 @@ struct ns_coap_message {
 extern "C" {
 #endif /* __cplusplus */
 
-void ns_coap_free_options(struct ns_coap_message *cm);
+/* Set CoAP protocol handler - trigger CoAP specific events */
+int ns_set_protocol_coap(struct ns_connection *nc);
+
+/*
+ * Add new option to ns_coap_message structure.
+ * Returns pointer to the newly created option.
+ */
 struct ns_coap_option *ns_coap_add_option(struct ns_coap_message *cm,
                                           uint32_t number, char *value,
                                           size_t len);
-int ns_set_protocol_coap(struct ns_connection *nc);
-uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id);
+
+/*
+ * Free the memory allocated for options,
+ * if cm paramater doesn't contain any option does nothing.
+ */
+void ns_coap_free_options(struct ns_coap_message *cm);
+
+/*
+ * Compose CoAP message from `ns_coap_message`
+ * and send it into `nc` connection.
+ * Return 0 on success. On error, it is a bitmask:
+ *
+ * - #define NS_COAP_ERROR 0x10000
+ * - #define NS_COAP_FORMAT_ERROR (NS_COAP_ERROR | 0x20000)
+ * - #define NS_COAP_IGNORE (NS_COAP_ERROR | 0x40000)
+ * - #define NS_COAP_NOT_ENOUGH_DATA (NS_COAP_ERROR | 0x80000)
+ * - #define NS_COAP_NETWORK_ERROR (NS_COAP_ERROR | 0x100000)
+ */
 uint32_t ns_coap_send_message(struct ns_connection *nc,
                               struct ns_coap_message *cm);
 
-uint32_t ns_coap_parse(struct iobuf *io, struct ns_coap_message *cm);
-uint32_t ns_coap_compose(struct ns_coap_message *cm, struct iobuf *io);
+/*
+ * Compose CoAP acknowledgement from `ns_coap_message`
+ * and send it into `nc` connection.
+ * Return value: see `ns_coap_send_message()`
+ */
+uint32_t ns_coap_send_ack(struct ns_connection *nc, uint16_t msg_id);
+
+/*
+ * Parse COAP message and fills ns_coap_message and returns cm->flags.
+ * This is a helper function.
+ *
+ * NOTE: usually CoAP work over UDP, so lack of data means format error,
+ * but in theory it is possible to use CoAP over TCP (according to RFC)
+ *
+ * The caller have to check results and treat COAP_NOT_ENOUGH_DATA according to
+ * underlying protocol:
+ *
+ * - in case of UDP COAP_NOT_ENOUGH_DATA means COAP_FORMAT_ERROR,
+ * - in case of TCP client can try to recieve more data
+ *
+ * Return value: see `ns_coap_send_message()`
+ */
+uint32_t ns_coap_parse(struct mbuf *io, struct ns_coap_message *cm);
+
+/*
+ * Composes CoAP message from ns_coap_message structure.
+ * This is a helper function.
+ * Return value: see `ns_coap_send_message()`
+ */
+uint32_t ns_coap_compose(struct ns_coap_message *cm, struct mbuf *io);
 
 #ifdef __cplusplus
 }

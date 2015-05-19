@@ -36,10 +36,6 @@ static struct ns_serve_http_opts s_http_server_opts;
 #define TEST_NS_MALLOC malloc
 #define TEST_NS_CALLOC calloc
 
-#ifndef intptr_t
-#define intptr_t long
-#endif
-
 void *(*test_malloc)(size_t) = TEST_NS_MALLOC;
 void *(*test_calloc)(size_t, size_t) = TEST_NS_CALLOC;
 
@@ -128,19 +124,19 @@ static const char *test_mbuf(void) {
   return NULL;
 }
 
-static int c_str_ne(void *a, void *b) {
-  int r = strcmp((const char *) a, (const char *) b);
+static int c_str_ne(ns_user_data_t a, ns_user_data_t b) {
+  int r = strcmp((const char *) a.p, (const char *) b.p);
   DBG(("%p %p %d", a.p, b.p, r));
   return r;
 }
 
-static int c_int_eq(void *a, void *b) {
-  return *((int *) a) == (intptr_t) b;
+static int c_int_eq(ns_user_data_t a, ns_user_data_t b) {
+  return *((int *) a.p) == b.i;
 }
 
 static void poll_until(struct ns_mgr *mgr, int timeout_ms,
-                       int (*cond)(void *, void *), void *cond_arg1,
-                       void *cond_arg2) {
+                       int (*cond)(ns_user_data_t, ns_user_data_t),
+                       ns_user_data_t cond_arg1, ns_user_data_t cond_arg2) {
   int i, num_iterations = timeout_ms / 2;
   for (i = 0; i < num_iterations; i++) {
     ns_mgr_poll(mgr, 2);
@@ -212,7 +208,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   }
 #endif
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
 
   ASSERT_STREQ(buf, "ok!");
 
@@ -356,7 +352,7 @@ static const char *test_connection_errors(void) {
                               connect_fail_cb, copts)) != NULL);
 
   /* handler is invoked when it fails asynchronously */
-  poll_until(&mgr, 1000, c_int_eq, &data, (void *) 4);
+  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&data), ns_ud_i(4));
   ASSERT_EQ(data, 4);
 
   /* ns_bind() does not use NS_CALLOC, but async resolver does */
@@ -425,6 +421,207 @@ static const char *test_socketpair(void) {
   return NULL;
 }
 
+struct simple_data {
+  int num_accept;
+  int num_connect;
+  int num_recv;
+  int num_send;
+  int num_close;
+  char to_send[100];
+  char data_rcvd[100];
+  char fail[200];
+  struct simple_data *sclient_data;
+  struct ns_connection *sclient_nc;
+};
+
+static void count_events(struct simple_data *d, int ev) {
+  switch (ev) {
+    case NS_POLL:
+      break;
+    case NS_ACCEPT:
+      d->num_accept++;
+      break;
+    case NS_CONNECT:
+      d->num_connect++;
+      break;
+    case NS_RECV:
+      d->num_recv++;
+      break;
+    case NS_SEND:
+      d->num_send++;
+      break;
+    case NS_CLOSE:
+      d->num_close++;
+      break;
+    default: {
+      char msg[100];
+      sprintf(msg, "(unexpected event: %d)", ev);
+      strcat(d->fail, msg);
+    }
+  }
+}
+
+static void do_send(struct simple_data *d, struct ns_connection *nc) {
+  if (d->to_send[0] != '\0') {
+    ns_printf(nc, "%s", d->to_send);
+  }
+}
+
+static void do_recv(struct simple_data *d, struct ns_connection *nc,
+                    void *ev_data) {
+  if (*((int *) ev_data) != (int) nc->recv_mbuf.len) {
+    char msg[100];
+    sprintf(msg, "(num recv wrong: %d vs %d)", *((int *) ev_data),
+            (int) strlen(d->to_send));
+    strcat(d->fail, msg);
+    return;
+  }
+  strncat(d->data_rcvd, nc->recv_mbuf.buf, nc->recv_mbuf.len);
+  mbuf_remove(&nc->recv_mbuf, nc->recv_mbuf.len);
+}
+
+static void check_sent(struct simple_data *d, struct ns_connection *nc,
+                       void *ev_data) {
+  if (*((int *) ev_data) != (int) strlen(d->to_send)) {
+    char msg[100];
+    sprintf(msg, "(num sent wrong: %d vs %d)", *((int *) ev_data),
+            (int) strlen(d->to_send));
+    strcat(d->fail, msg);
+  } else {
+    d->to_send[0] = '\0';
+  }
+  if (nc->send_mbuf.len != 0) strcat(d->fail, "(send buf not empty)");
+}
+
+static void cb_client(struct ns_connection *nc, int ev, void *ev_data) {
+  struct simple_data *d = (struct simple_data *) nc->user_data;
+  count_events(d, ev);
+  switch (ev) {
+    case NS_CONNECT:
+      do_send(d, nc);
+      break;
+    case NS_SEND:
+      check_sent(d, nc, ev_data);
+      break;
+    case NS_RECV:
+      do_recv(d, nc, ev_data);
+      break;
+  }
+}
+
+static void cb_sclient(struct ns_connection *nc, int ev, void *ev_data) {
+  struct simple_data *d = (struct simple_data *) nc->user_data;
+  count_events(d, ev);
+  switch (ev) {
+    case NS_RECV: {
+      do_recv(d, nc, ev_data);
+      do_send(d, nc);
+      nc->flags |= NSF_SEND_AND_CLOSE;
+      break;
+    }
+    case NS_SEND: {
+      check_sent(d, nc, ev_data);
+      break;
+    }
+  }
+}
+
+static void cb_server(struct ns_connection *nc, int ev, void *ev_data) {
+  struct simple_data *d = (struct simple_data *) nc->user_data;
+  (void) ev_data;
+  if (ev == NS_ACCEPT) {
+    d->sclient_nc = nc;
+    nc->user_data = d = d->sclient_data;
+    nc->handler = cb_sclient;
+  }
+  count_events(d, ev);
+}
+
+static const char *test_simple(void) {
+  struct ns_mgr mgr;
+  struct ns_connection *nc_server, *nc_client, *nc_sclient;
+  const char *address = "tcp://127.0.0.1:8910";
+  struct simple_data client_data, server_data, sclient_data;
+
+  ns_mgr_init(&mgr, NULL);
+
+  ASSERT((nc_server = ns_bind(&mgr, address, cb_server)) != NULL);
+  nc_server->user_data = &server_data;
+  memset(&server_data, 0, sizeof(server_data));
+  server_data.sclient_data = &sclient_data;
+  memset(&sclient_data, 0, sizeof(sclient_data));
+
+  ns_mgr_poll(&mgr, 1); /* 1 - nothing */
+
+  ASSERT((nc_client = ns_connect(&mgr, address, cb_client)) != NULL);
+  nc_client->user_data = &client_data;
+  memset(&client_data, 0, sizeof(client_data));
+  strcpy(client_data.to_send, "hi");
+
+  ns_mgr_poll(&mgr, 1); /* 2 - client connects, server accepts */
+  ASSERT_EQ(server_data.num_accept, 0);
+  ASSERT_EQ(sclient_data.num_accept, 1);
+  ASSERT_EQ(client_data.num_connect, 1);
+  ASSERT_STREQ(client_data.fail, "");
+  ASSERT_STREQ(server_data.fail, "");
+
+  ASSERT(server_data.sclient_nc != NULL);
+  nc_sclient = server_data.sclient_nc;
+  ASSERT_EQ(sclient_data.num_send, 0);
+  ASSERT_EQ(sclient_data.num_recv, 0);
+
+  ns_mgr_poll(&mgr, 1); /* 3 - client sends */
+  ASSERT_EQ(client_data.num_send, 1);
+  ASSERT_EQ(sclient_data.num_recv, 0);
+  ASSERT_STREQ(client_data.fail, "");
+  ASSERT_STREQ(sclient_data.fail, "");
+
+  strcpy(sclient_data.to_send, "hello");
+  ns_mgr_poll(&mgr, 1); /* 4 - server receives, buffers response, closes */
+  ASSERT_STREQ(sclient_data.fail, "");
+  ASSERT_EQ(sclient_data.num_recv, 1);
+  ASSERT_EQ(sclient_data.num_send, 0);
+  ASSERT_EQ(client_data.num_recv, 0);
+  ASSERT_STREQ(sclient_data.data_rcvd, "hi");
+
+  ns_mgr_poll(&mgr, 1); /* 5 - server sends */
+  ASSERT_STREQ(sclient_data.fail, "");
+  ASSERT_EQ(sclient_data.num_send, 1);
+
+  ns_mgr_poll(&mgr, 1); /* 6 - client receives */
+  ASSERT_STREQ(client_data.fail, "");
+  ASSERT_EQ(client_data.num_recv, 1);
+  ASSERT_STREQ(client_data.data_rcvd, "hello");
+
+  (void) nc_sclient;
+
+  ns_mgr_free(&mgr);
+
+  ASSERT_STREQ(client_data.fail, "");
+  ASSERT_STREQ(server_data.fail, "");
+  ASSERT_STREQ(sclient_data.fail, "");
+
+  ASSERT_EQ(server_data.num_accept, 0);
+  ASSERT_EQ(server_data.num_connect, 0);
+  ASSERT_EQ(server_data.num_recv, 0);
+  ASSERT_EQ(server_data.num_send, 0);
+  ASSERT_EQ(server_data.num_close, 1);
+
+  ASSERT_EQ(client_data.num_accept, 0);
+  ASSERT_EQ(client_data.num_connect, 1);
+  ASSERT_EQ(client_data.num_recv, 1);
+  ASSERT_EQ(client_data.num_send, 1);
+  ASSERT_EQ(client_data.num_close, 1);
+
+  ASSERT_EQ(sclient_data.num_accept, 1);
+  ASSERT_EQ(sclient_data.num_connect, 0);
+  ASSERT_EQ(sclient_data.num_recv, 1);
+  ASSERT_EQ(sclient_data.num_send, 1);
+  ASSERT_EQ(sclient_data.num_close, 1);
+
+  return NULL;
+}
+
 #ifdef NS_ENABLE_THREADS
 static void eh2(struct ns_connection *nc, int ev, void *p) {
   (void) p;
@@ -455,7 +652,7 @@ static const char *test_thread(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
   ASSERT_STREQ(buf, ":-)");
   ns_mgr_free(&mgr);
   closesocket(sp[1]);
@@ -501,7 +698,7 @@ static const char *test_udp(void) {
   ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
   ns_printf(nc2, "%s", "boo!");
 
-  poll_until(&mgr, 1000, c_str_ne, res.buf_clnt, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(res.buf_clnt), ns_ud_cp(""));
   ASSERT_EQ(memcmp(res.buf_srv, "boo!", 4), 0);
   ASSERT_EQ(memcmp(res.buf_clnt, "boo!", 4), 0);
   ns_mgr_free(&mgr);
@@ -731,7 +928,7 @@ static void fetch_http(char *buf, const char *request_fmt, ...) {
 
   /* Run event loop, destroy server */
   buf[0] = '\0';
-  poll_until(&mgr, 10000, c_str_ne, buf, (void *) "");
+  poll_until(&mgr, 10000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
   ns_mgr_free(&mgr);
 }
 
@@ -796,7 +993,7 @@ static const char *test_http(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_ok;
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_until(&mgr, 10000, c_str_ne, status, (void *) "");
+  poll_until(&mgr, 10000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -830,7 +1027,7 @@ static const char *test_http_errors(void) {
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "../test_unreadable");
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
   system("rm -f test_unreadable");
 
   /* Check that it failed */
@@ -844,7 +1041,7 @@ static const char *test_http_errors(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/please_dont_create_this_file_srsly");
 
-  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 404");
@@ -858,7 +1055,7 @@ static const char *test_http_errors(void) {
 
   s_http_server_opts.enable_directory_listing = "no";
 
-  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 403");
@@ -1062,7 +1259,7 @@ static const char *test_websocket(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1133,7 +1330,7 @@ static const char *test_websocket_big(void) {
   nc->user_data = &params;
   params.buf[0] = '\0';
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, params.buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(params.buf), ns_ud_cp(""));
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT_STREQ(buf, "success");
@@ -1145,7 +1342,7 @@ static const char *test_websocket_big(void) {
   nc->user_data = &params;
   params.buf[0] = '\0';
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, params.buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(params.buf), ns_ud_cp(""));
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1511,7 +1708,7 @@ static const char *test_mqtt_broker(void) {
   cln_nc->user_data = &cln_data;
 
   /* Run event loop. Use more cycles to let client and broker communicate. */
-  poll_until(&mgr, 1000, c_int_eq, &cln_data, (void *) 1);
+  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&cln_data), ns_ud_i(1));
 
   ASSERT_EQ(cln_data, 1);
 
@@ -1607,7 +1804,7 @@ static const char *test_rpc(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
 
-  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
   ns_mgr_free(&mgr);
 
   ASSERT_STREQ(buf, "1 1 16");
@@ -1633,7 +1830,7 @@ static const char *test_connect_fail(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33211", cb5)) != NULL);
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "0");
+  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp("0"));
   ns_mgr_free(&mgr);
 
 /* printf("failed connect status: [%s]\n", buf); */
@@ -2313,7 +2510,7 @@ static const char *test_dns_resolve(void) {
   ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD, dns_resolve_cb,
                    &data);
 
-  poll_until(&mgr, 10000, c_int_eq, &data, (void *) 1);
+  poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&data), ns_ud_i(1));
   ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
@@ -2341,7 +2538,7 @@ static const char *test_dns_resolve_timeout(void) {
   ns_resolve_async_opt(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
                        dns_resolve_timeout_cb, &data, opts);
 
-  poll_until(&mgr, 10000, c_int_eq, &data, (void *) 1);
+  poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&data), ns_ud_i(1));
   ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
@@ -2383,7 +2580,7 @@ static const char *test_buffer_limit(void) {
   ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(clnt, "abcd");
 
-  poll_until(&mgr, 1000, c_int_eq, &res, (void *) 4);
+  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&res), ns_ud_i(4));
 
   /* expect four single byte read events */
   ASSERT_EQ(res, 4);
@@ -2746,7 +2943,7 @@ static const char *test_coap(void) {
     ns_set_protocol_coap(nc2);
     nc2->user_data = &res;
 
-    poll_until(&mgr, 10000, c_int_eq, &res.client, (void *) 3);
+    poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&res.client), ns_ud_i(3));
 
     ns_mgr_free(&mgr);
 
@@ -2783,6 +2980,7 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_to64);
   RUN_TEST(test_alloc_vprintf);
   RUN_TEST(test_socketpair);
+  RUN_TEST(test_simple);
 #ifdef NS_ENABLE_THREADS
   RUN_TEST(test_thread);
 #endif

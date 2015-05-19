@@ -88,6 +88,15 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 #define NS_CLOSE 5   /* Connection is closed. NULL */
 
 /*
+ * Union structure for user data.
+ */
+typedef union ns_user_data {
+  int i;
+  unsigned int u;
+  void *p;
+} ns_user_data_t;
+
+/*
  * Fossa event manager.
  */
 struct ns_mgr {
@@ -95,7 +104,7 @@ struct ns_mgr {
   const char *hexdump_file; /* Debug hexdump file path */
   sock_t ctl[2];            /* Socketpair for mg_wakeup() */
   void *user_data;          /* User data */
-  void *mgr_data;           /* Implementation-specific event manager's data. */
+  ns_user_data_t mgr_data;  /* Implementation-specific event manager's data. */
 };
 
 /*
@@ -118,7 +127,7 @@ struct ns_connection {
   void *proto_data;                 /* Protocol-specific data */
   ns_event_handler_t handler;       /* Event handler function */
   void *user_data;                  /* User-specific data */
-  void *mgr_data; /* Implementation-specific event manager's data. */
+  ns_user_data_t mgr_data; /* Implementation-specific event manager's data. */
 
   unsigned long flags;
 /* Flags set by Fossa */

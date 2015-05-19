@@ -41,10 +41,6 @@
    NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG | NSF_SEND_AND_CLOSE | NSF_DONT_SEND | \
    NSF_CLOSE_IMMEDIATELY)
 
-#ifndef intptr_t
-#define intptr_t long
-#endif
-
 struct ctl_msg {
   ns_event_handler_t callback;
   char message[NS_CTL_MSG_MESSAGE_SIZE];
@@ -79,8 +75,9 @@ static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
 
 #ifndef NS_DISABLE_FILESYSTEM
   /* LCOV_EXCL_START */
-  if (nc->mgr->hexdump_file != NULL && ev != NS_POLL) {
-    int len = (ev == NS_RECV || ev == NS_SEND) ? *(int *) ev_data : 0;
+  if (nc->mgr->hexdump_file != NULL && ev != NS_POLL &&
+      ev != NS_SEND /* handled separately */) {
+    int len = (ev == NS_RECV ? *(int *) ev_data : 0);
     ns_hexdump_connection(nc, nc->mgr->hexdump_file, len, ev);
   }
 /* LCOV_EXCL_STOP */
@@ -686,12 +683,19 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 
   DBG(("%p %d bytes -> %d", conn, n, conn->sock));
 
-  ns_call(conn, NS_SEND, &n);
   if (ns_is_error(n)) {
     conn->flags |= NSF_CLOSE_IMMEDIATELY;
   } else if (n > 0) {
+#ifndef NS_DISABLE_FILESYSTEM
+    /* LCOV_EXCL_START */
+    if (conn->mgr->hexdump_file != NULL) {
+      ns_hexdump_connection(conn, conn->mgr->hexdump_file, n, NS_SEND);
+    }
+/* LCOV_EXCL_STOP */
+#endif
     mbuf_remove(io, n);
   }
+  ns_call(conn, NS_SEND, &n);
 }
 
 int ns_send(struct ns_connection *conn, const void *buf, int len) {
@@ -776,6 +780,9 @@ static void ns_mgr_handle_connection(struct ns_connection *nc, int fd_flags,
   if (!(fd_flags & (_NSF_FD_CAN_READ | _NSF_FD_CAN_WRITE))) {
     ns_call(nc, NS_POLL, &now);
   }
+
+  DBG(("%p after fd=%d nc_flags=%lu rmbl=%d smbl=%d", nc, nc->sock, nc->flags,
+       (int) nc->recv_mbuf.len, (int) nc->send_mbuf.len));
 }
 
 static void ns_mgr_handle_ctl_sock(struct ns_mgr *mgr) {
@@ -822,13 +829,13 @@ static void ns_ev_mgr_epoll_set_flags(const struct ns_connection *nc,
 }
 
 static void ns_ev_mgr_epoll_ctl(struct ns_connection *nc, int op) {
-  int epoll_fd = (intptr_t) nc->mgr->mgr_data;
+  int epoll_fd = nc->mgr->mgr_data.i;
   struct epoll_event ev;
   assert(op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || EPOLL_CTL_DEL);
   if (op != EPOLL_CTL_DEL) {
     ns_ev_mgr_epoll_set_flags(nc, &ev);
     if (op == EPOLL_CTL_MOD) {
-      uint32_t old_ev_flags = ns_epf_to_evflags((intptr_t) nc->mgr_data);
+      uint32_t old_ev_flags = ns_epf_to_evflags(nc->mgr_data.u);
       if (ev.events == old_ev_flags) return;
     }
     ev.data.ptr = nc;
@@ -847,7 +854,7 @@ static void ns_ev_mgr_init(struct ns_mgr *mgr) {
     perror("epoll_ctl");
     abort();
   }
-  mgr->mgr_data = (void *) ((intptr_t) epoll_fd);
+  mgr->mgr_data.i = epoll_fd;
   if (mgr->ctl[1] != INVALID_SOCKET) {
     struct epoll_event ev;
     ev.events = EPOLLIN;
@@ -860,7 +867,7 @@ static void ns_ev_mgr_init(struct ns_mgr *mgr) {
 }
 
 static void ns_ev_mgr_free(struct ns_mgr *mgr) {
-  int epoll_fd = (intptr_t) mgr->mgr_data;
+  int epoll_fd = mgr->mgr_data.i;
   close(epoll_fd);
 }
 
@@ -873,10 +880,9 @@ static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
 }
 
 time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
-  int epoll_fd = (intptr_t) mgr->mgr_data;
+  int epoll_fd = mgr->mgr_data.i, num_ev, fd_flags;
   struct epoll_event events[NS_EPOLL_MAX_EVENTS];
   struct ns_connection *nc, *next;
-  int num_ev, fd_flags;
   time_t now;
 
   num_ev = epoll_wait(epoll_fd, events, NS_EPOLL_MAX_EVENTS, timeout_ms);
@@ -884,7 +890,6 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
   DBG(("epoll_wait @ %ld num_ev=%d", now, num_ev));
 
   while (num_ev-- > 0) {
-    intptr_t epf;
     struct epoll_event *ev = events + num_ev;
     nc = (struct ns_connection *) ev->data.ptr;
     if (nc == NULL) {
@@ -895,19 +900,15 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
                ((ev->events & (EPOLLOUT)) ? _NSF_FD_CAN_WRITE : 0) |
                ((ev->events & (EPOLLERR)) ? _NSF_FD_ERROR : 0);
     ns_mgr_handle_connection(nc, fd_flags, now);
-    epf = (intptr_t) nc->mgr_data;
-    epf ^= _NS_EPF_NO_POLL;
-    nc->mgr_data = (void *) epf;
+    nc->mgr_data.u |= _NS_EPF_NO_POLL;
   }
 
   for (nc = mgr->active_connections; nc != NULL; nc = next) {
     next = nc->next;
-    if (!(((intptr_t) nc->mgr_data) & _NS_EPF_NO_POLL)) {
+    if (!(nc->mgr_data.u & _NS_EPF_NO_POLL)) {
       ns_mgr_handle_connection(nc, 0, now);
     } else {
-      intptr_t epf = (intptr_t) nc->mgr_data;
-      epf ^= _NS_EPF_NO_POLL;
-      nc->mgr_data = (void *) epf;
+      nc->mgr_data.u ^= _NS_EPF_NO_POLL;
     }
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
         (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
@@ -982,6 +983,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   num_selected = select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv);
   now = time(NULL);
+  DBG(("select @ %ld num_ev=%d", now, num_selected));
 
   if (num_selected > 0 && mgr->ctl[1] != INVALID_SOCKET &&
       FD_ISSET(mgr->ctl[1], &read_set)) {

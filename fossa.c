@@ -1148,6 +1148,10 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
    NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG | NSF_SEND_AND_CLOSE | NSF_DONT_SEND | \
    NSF_CLOSE_IMMEDIATELY)
 
+#ifndef intptr_t
+#define intptr_t long
+#endif
+
 struct ctl_msg {
   ns_event_handler_t callback;
   char message[NS_CTL_MSG_MESSAGE_SIZE];
@@ -1925,13 +1929,13 @@ static void ns_ev_mgr_epoll_set_flags(const struct ns_connection *nc,
 }
 
 static void ns_ev_mgr_epoll_ctl(struct ns_connection *nc, int op) {
-  int epoll_fd = nc->mgr->mgr_data.i;
+  int epoll_fd = (intptr_t) nc->mgr->mgr_data;
   struct epoll_event ev;
   assert(op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD || EPOLL_CTL_DEL);
   if (op != EPOLL_CTL_DEL) {
     ns_ev_mgr_epoll_set_flags(nc, &ev);
     if (op == EPOLL_CTL_MOD) {
-      uint32_t old_ev_flags = ns_epf_to_evflags(nc->mgr_data.u);
+      uint32_t old_ev_flags = ns_epf_to_evflags((intptr_t) nc->mgr_data);
       if (ev.events == old_ev_flags) return;
     }
     ev.data.ptr = nc;
@@ -1950,7 +1954,7 @@ static void ns_ev_mgr_init(struct ns_mgr *mgr) {
     perror("epoll_ctl");
     abort();
   }
-  mgr->mgr_data.i = epoll_fd;
+  mgr->mgr_data = (void *) ((intptr_t) epoll_fd);
   if (mgr->ctl[1] != INVALID_SOCKET) {
     struct epoll_event ev;
     ev.events = EPOLLIN;
@@ -1963,7 +1967,7 @@ static void ns_ev_mgr_init(struct ns_mgr *mgr) {
 }
 
 static void ns_ev_mgr_free(struct ns_mgr *mgr) {
-  int epoll_fd = mgr->mgr_data.i;
+  int epoll_fd = (intptr_t) mgr->mgr_data;
   close(epoll_fd);
 }
 
@@ -1976,9 +1980,10 @@ static void ns_ev_mgr_remove_conn(struct ns_connection *nc) {
 }
 
 time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
-  int epoll_fd = mgr->mgr_data.i, num_ev, fd_flags;
+  int epoll_fd = (intptr_t) mgr->mgr_data;
   struct epoll_event events[NS_EPOLL_MAX_EVENTS];
   struct ns_connection *nc, *next;
+  int num_ev, fd_flags;
   time_t now;
 
   num_ev = epoll_wait(epoll_fd, events, NS_EPOLL_MAX_EVENTS, timeout_ms);
@@ -1986,6 +1991,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
   DBG(("epoll_wait @ %ld num_ev=%d", now, num_ev));
 
   while (num_ev-- > 0) {
+    intptr_t epf;
     struct epoll_event *ev = events + num_ev;
     nc = (struct ns_connection *) ev->data.ptr;
     if (nc == NULL) {
@@ -1996,15 +2002,19 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
                ((ev->events & (EPOLLOUT)) ? _NSF_FD_CAN_WRITE : 0) |
                ((ev->events & (EPOLLERR)) ? _NSF_FD_ERROR : 0);
     ns_mgr_handle_connection(nc, fd_flags, now);
-    nc->mgr_data.u |= _NS_EPF_NO_POLL;
+    epf = (intptr_t) nc->mgr_data;
+    epf ^= _NS_EPF_NO_POLL;
+    nc->mgr_data = (void *) epf;
   }
 
   for (nc = mgr->active_connections; nc != NULL; nc = next) {
     next = nc->next;
-    if (!(nc->mgr_data.u & _NS_EPF_NO_POLL)) {
+    if (!(((intptr_t) nc->mgr_data) & _NS_EPF_NO_POLL)) {
       ns_mgr_handle_connection(nc, 0, now);
     } else {
-      nc->mgr_data.u ^= _NS_EPF_NO_POLL;
+      intptr_t epf = (intptr_t) nc->mgr_data;
+      epf ^= _NS_EPF_NO_POLL;
+      nc->mgr_data = (void *) epf;
     }
     if ((nc->flags & NSF_CLOSE_IMMEDIATELY) ||
         (nc->send_mbuf.len == 0 && (nc->flags & NSF_SEND_AND_CLOSE))) {
@@ -4689,36 +4699,6 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
  * All rights reserved
  */
 
-
-ns_user_data_t ns_ud_null() {
-  ns_user_data_t ud;
-  ud.p = NULL;
-  return ud;
-}
-
-ns_user_data_t ns_ud_p(void *p) {
-  ns_user_data_t ud;
-  ud.p = p;
-  return ud;
-}
-
-ns_user_data_t ns_ud_cp(const void *cp) {
-  ns_user_data_t ud;
-  ud.p = (void *) cp;
-  return ud;
-}
-
-ns_user_data_t ns_ud_i(int i) {
-  ns_user_data_t ud;
-  ud.i = i;
-  return ud;
-}
-
-ns_user_data_t ns_ud_u(unsigned int u) {
-  ns_user_data_t ud;
-  ud.u = u;
-  return ud;
-}
 
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {

@@ -36,6 +36,10 @@ static struct ns_serve_http_opts s_http_server_opts;
 #define TEST_NS_MALLOC malloc
 #define TEST_NS_CALLOC calloc
 
+#ifndef intptr_t
+#define intptr_t long
+#endif
+
 void *(*test_malloc)(size_t) = TEST_NS_MALLOC;
 void *(*test_calloc)(size_t, size_t) = TEST_NS_CALLOC;
 
@@ -124,19 +128,19 @@ static const char *test_mbuf(void) {
   return NULL;
 }
 
-static int c_str_ne(ns_user_data_t a, ns_user_data_t b) {
-  int r = strcmp((const char *) a.p, (const char *) b.p);
+static int c_str_ne(void *a, void *b) {
+  int r = strcmp((const char *) a, (const char *) b);
   DBG(("%p %p %d", a.p, b.p, r));
   return r;
 }
 
-static int c_int_eq(ns_user_data_t a, ns_user_data_t b) {
-  return *((int *) a.p) == b.i;
+static int c_int_eq(void *a, void *b) {
+  return *((int *) a) == (intptr_t) b;
 }
 
 static void poll_until(struct ns_mgr *mgr, int timeout_ms,
-                       int (*cond)(ns_user_data_t, ns_user_data_t),
-                       ns_user_data_t cond_arg1, ns_user_data_t cond_arg2) {
+                       int (*cond)(void *, void *), void *cond_arg1,
+                       void *cond_arg2) {
   int i, num_iterations = timeout_ms / 2;
   for (i = 0; i < num_iterations; i++) {
     ns_mgr_poll(mgr, 2);
@@ -208,7 +212,7 @@ static const char *test_mgr_with_ssl(int use_ssl) {
   }
 #endif
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
 
   ASSERT_STREQ(buf, "ok!");
 
@@ -352,7 +356,7 @@ static const char *test_connection_errors(void) {
                               connect_fail_cb, copts)) != NULL);
 
   /* handler is invoked when it fails asynchronously */
-  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&data), ns_ud_i(4));
+  poll_until(&mgr, 1000, c_int_eq, &data, (void *) 4);
   ASSERT_EQ(data, 4);
 
   /* ns_bind() does not use NS_CALLOC, but async resolver does */
@@ -652,7 +656,7 @@ static const char *test_thread(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_add_sock(&mgr, sp[0], eh2)) != NULL);
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
   ASSERT_STREQ(buf, ":-)");
   ns_mgr_free(&mgr);
   closesocket(sp[1]);
@@ -698,7 +702,7 @@ static const char *test_udp(void) {
   ASSERT((nc2 = ns_connect(&mgr, address, eh3_clnt)) != NULL);
   ns_printf(nc2, "%s", "boo!");
 
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(res.buf_clnt), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, res.buf_clnt, (void *) "");
   ASSERT_EQ(memcmp(res.buf_srv, "boo!", 4), 0);
   ASSERT_EQ(memcmp(res.buf_clnt, "boo!", 4), 0);
   ns_mgr_free(&mgr);
@@ -928,7 +932,7 @@ static void fetch_http(char *buf, const char *request_fmt, ...) {
 
   /* Run event loop, destroy server */
   buf[0] = '\0';
-  poll_until(&mgr, 10000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
+  poll_until(&mgr, 10000, c_str_ne, buf, (void *) "");
   ns_mgr_free(&mgr);
 }
 
@@ -993,7 +997,7 @@ static const char *test_http(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = auth_ok;
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_until(&mgr, 10000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
+  poll_until(&mgr, 10000, c_str_ne, status, (void *) "");
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1027,7 +1031,7 @@ static const char *test_http_errors(void) {
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "../test_unreadable");
 
   /* Run event loop. Use more cycles to let file download complete. */
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
   system("rm -f test_unreadable");
 
   /* Check that it failed */
@@ -1041,7 +1045,7 @@ static const char *test_http_errors(void) {
   nc->user_data = status;
   ns_printf(nc, "GET /%s HTTP/1.0\n\n", "/please_dont_create_this_file_srsly");
 
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 404");
@@ -1055,7 +1059,7 @@ static const char *test_http_errors(void) {
 
   s_http_server_opts.enable_directory_listing = "no";
 
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(status), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, status, (void *) "");
 
   /* Check that it failed */
   ASSERT_STREQ_NZ(status, "HTTP/1.1 403");
@@ -1259,7 +1263,7 @@ static const char *test_websocket(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1330,7 +1334,7 @@ static const char *test_websocket_big(void) {
   nc->user_data = &params;
   params.buf[0] = '\0';
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(params.buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, params.buf, (void *) "");
 
   /* Check that test buffer has been filled by the callback properly. */
   ASSERT_STREQ(buf, "success");
@@ -1342,7 +1346,7 @@ static const char *test_websocket_big(void) {
   nc->user_data = &params;
   params.buf[0] = '\0';
   ns_send_websocket_handshake(nc, "/ws", NULL);
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(params.buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, params.buf, (void *) "");
   ns_mgr_free(&mgr);
 
   /* Check that test buffer has been filled by the callback properly. */
@@ -1708,7 +1712,7 @@ static const char *test_mqtt_broker(void) {
   cln_nc->user_data = &cln_data;
 
   /* Run event loop. Use more cycles to let client and broker communicate. */
-  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&cln_data), ns_ud_i(1));
+  poll_until(&mgr, 1000, c_int_eq, &cln_data, (void *) 1);
 
   ASSERT_EQ(cln_data, 1);
 
@@ -1804,7 +1808,7 @@ static const char *test_rpc(void) {
   ns_set_protocol_http_websocket(nc);
   nc->user_data = buf;
 
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp(""));
+  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "");
   ns_mgr_free(&mgr);
 
   ASSERT_STREQ(buf, "1 1 16");
@@ -1830,7 +1834,7 @@ static const char *test_connect_fail(void) {
   ns_mgr_init(&mgr, NULL);
   ASSERT((nc = ns_connect(&mgr, "127.0.0.1:33211", cb5)) != NULL);
   nc->user_data = buf;
-  poll_until(&mgr, 1000, c_str_ne, ns_ud_cp(buf), ns_ud_cp("0"));
+  poll_until(&mgr, 1000, c_str_ne, buf, (void *) "0");
   ns_mgr_free(&mgr);
 
 /* printf("failed connect status: [%s]\n", buf); */
@@ -2510,7 +2514,7 @@ static const char *test_dns_resolve(void) {
   ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD, dns_resolve_cb,
                    &data);
 
-  poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&data), ns_ud_i(1));
+  poll_until(&mgr, 10000, c_int_eq, &data, (void *) 1);
   ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
@@ -2538,7 +2542,7 @@ static const char *test_dns_resolve_timeout(void) {
   ns_resolve_async_opt(&mgr, "www.cesanta.com", NS_DNS_A_RECORD,
                        dns_resolve_timeout_cb, &data, opts);
 
-  poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&data), ns_ud_i(1));
+  poll_until(&mgr, 10000, c_int_eq, &data, (void *) 1);
   ASSERT_EQ(data, 1);
 
   ns_mgr_free(&mgr);
@@ -2580,7 +2584,7 @@ static const char *test_buffer_limit(void) {
   ASSERT((clnt = ns_connect(&mgr, address, NULL)) != NULL);
   ns_printf(clnt, "abcd");
 
-  poll_until(&mgr, 1000, c_int_eq, ns_ud_cp(&res), ns_ud_i(4));
+  poll_until(&mgr, 1000, c_int_eq, &res, (void *) 4);
 
   /* expect four single byte read events */
   ASSERT_EQ(res, 4);
@@ -2943,7 +2947,7 @@ static const char *test_coap(void) {
     ns_set_protocol_coap(nc2);
     nc2->user_data = &res;
 
-    poll_until(&mgr, 10000, c_int_eq, ns_ud_cp(&res.client), ns_ud_i(3));
+    poll_until(&mgr, 10000, c_int_eq, &res.client, (void *) 3);
 
     ns_mgr_free(&mgr);
 

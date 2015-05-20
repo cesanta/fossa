@@ -172,4 +172,26 @@ int64_t strtoll(const char* str, char** endptr, int base);
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
+#ifndef NO_LIBC
+typedef FILE* c_file_t;
+/*
+ * Cannot use fopen & Co directly and
+ * override them with -D because
+ * these overrides conflicts with
+ * functions in stdio.h
+ */
+#define c_fopen fopen
+#define c_fread fread
+#define c_fwrite fwrite
+#define c_fclose fclose
+#define c_rename rename
+#define c_remove remove
+#define c_fseek fseek
+#define c_ftell ftell
+#define c_rewind rewind
+#define c_ferror ferror
+#define INVALID_FILE NULL
+
+#endif
+
 #endif /* OSDEP_HEADER_INCLUDED */

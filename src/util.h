@@ -23,15 +23,6 @@ extern "C" {
 #endif
 
 /*
- * Helpers for creating ns_user_data_t from different types.
- */
-ns_user_data_t ns_ud_null();
-ns_user_data_t ns_ud_p(void *p);
-ns_user_data_t ns_ud_cp(const void *cp);
-ns_user_data_t ns_ud_i(int i);
-ns_user_data_t ns_ud_u(unsigned int u);
-
-/*
  * Fetch substring from input string `s`, `end` into `v`.
  * Skips initial delimiter characters. Records first non-delimiter character
  * as the beginning of substring `v`. Then scans the rest of the string

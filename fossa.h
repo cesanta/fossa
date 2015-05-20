@@ -201,6 +201,28 @@ int64_t strtoll(const char* str, char** endptr, int base);
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
+#ifndef NO_LIBC
+typedef FILE* c_file_t;
+/*
+ * Cannot use fopen & Co directly and
+ * override them with -D because
+ * these overrides conflicts with
+ * functions in stdio.h
+ */
+#define c_fopen fopen
+#define c_fread fread
+#define c_fwrite fwrite
+#define c_fclose fclose
+#define c_rename rename
+#define c_remove remove
+#define c_fseek fseek
+#define c_ftell ftell
+#define c_rewind rewind
+#define c_ferror ferror
+#define INVALID_FILE NULL
+
+#endif
+
 #endif /* OSDEP_HEADER_INCLUDED */
 /*
  * Copyright (c) 2015 Cesanta Software Limited
@@ -512,15 +534,6 @@ typedef void (*ns_event_handler_t)(struct ns_connection *, int ev, void *);
 #define NS_CLOSE 5   /* Connection is closed. NULL */
 
 /*
- * Union structure for user data.
- */
-typedef union ns_user_data {
-  int i;
-  unsigned int u;
-  void *p;
-} ns_user_data_t;
-
-/*
  * Fossa event manager.
  */
 struct ns_mgr {
@@ -528,7 +541,7 @@ struct ns_mgr {
   const char *hexdump_file; /* Debug hexdump file path */
   sock_t ctl[2];            /* Socketpair for mg_wakeup() */
   void *user_data;          /* User data */
-  ns_user_data_t mgr_data;  /* Implementation-specific event manager's data. */
+  void *mgr_data;           /* Implementation-specific event manager's data. */
 };
 
 /*
@@ -551,7 +564,7 @@ struct ns_connection {
   void *proto_data;                 /* Protocol-specific data */
   ns_event_handler_t handler;       /* Event handler function */
   void *user_data;                  /* User-specific data */
-  ns_user_data_t mgr_data; /* Implementation-specific event manager's data. */
+  void *mgr_data; /* Implementation-specific event manager's data. */
 
   unsigned long flags;
 /* Flags set by Fossa */
@@ -860,15 +873,6 @@ extern "C" {
 #ifndef MAX_PATH_SIZE
 #define MAX_PATH_SIZE 500
 #endif
-
-/*
- * Helpers for creating ns_user_data_t from different types.
- */
-ns_user_data_t ns_ud_null();
-ns_user_data_t ns_ud_p(void *p);
-ns_user_data_t ns_ud_cp(const void *cp);
-ns_user_data_t ns_ud_i(int i);
-ns_user_data_t ns_ud_u(unsigned int u);
 
 /*
  * Fetch substring from input string `s`, `end` into `v`.

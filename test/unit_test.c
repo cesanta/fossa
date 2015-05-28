@@ -1082,7 +1082,7 @@ static const char *test_http_index(void) {
   ASSERT_STREQ_NZ(buf,
                   "HTTP/1.1 200 OK\r\n"
                   "Transfer-Encoding: chunked\r\n");
-  ASSERT(strstr(buf, "40A\r\n<html><head><title>") != NULL);
+  ASSERT(strstr(buf, "<html><head><title>") != NULL);
 
   /* Test that trailing slash in directory does not get truncated */
   snprintf(buf, sizeof(buf), "%s", "/foo/bar/");

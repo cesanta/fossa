@@ -537,6 +537,35 @@ static void transfer_file_data(struct ns_connection *nc) {
   }
 }
 
+static void handle_chunked(struct http_message *hm, char *buf, size_t len) {
+  unsigned char *s = (unsigned char *) buf, *p = s;
+  unsigned char *end = s + len;
+
+  while (s < end) {
+    size_t chunk_len = 0;
+    while (s < end && isxdigit(*s)) {
+      chunk_len *= 16;
+      chunk_len += (*s >= '0' && *s <= '9') ? *s - '0' : tolower(*s) - 'a' + 10;
+      s++;
+    }
+    if (s < end && *s == '\r') s++;
+    if (s < end && *s == '\n') s++;
+    memmove(p, s, chunk_len);
+    p += chunk_len;
+    s += chunk_len;
+
+    if (chunk_len == 0) {
+      /* Last chunk. Set body length to reassembled length */
+      hm->body.len = (char *) p - buf;
+
+      /* Set message length to non-reassembled length and zero-out trailing */
+      hm->message.len = (char *) s - hm->message.p;
+      memset(p, 0, s - p);
+      break;
+    }
+  }
+}
+
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
@@ -563,7 +592,15 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   nc->handler(nc, ev, ev_data);
 
   if (ev == NS_RECV) {
+    struct ns_str *s;
     req_len = ns_parse_http(io->buf, io->len, &hm, is_req);
+
+    if (req_len > 0 &&
+        (s = ns_get_http_header(&hm, "Transfer-Encoding")) != NULL &&
+        ns_vcasecmp(s, "chunked") == 0) {
+      handle_chunked(&hm, io->buf + req_len, io->len - req_len);
+    }
+
     if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {

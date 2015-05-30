@@ -336,9 +336,7 @@ typedef struct {
 void SHA1Init(SHA1_CTX *);
 void SHA1Update(SHA1_CTX *, const unsigned char *data, uint32_t len);
 void SHA1Final(unsigned char digest[20], SHA1_CTX *);
-void hmac_sha1(const unsigned char *key, size_t key_len,
-               const unsigned char *text, size_t text_len,
-               unsigned char out[20]);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

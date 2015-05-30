@@ -34,7 +34,7 @@ static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
         handle_sum_call(nc, hm);                    /* Handle RESTful call */
       } else if (ns_vcmp(&hm->uri, "/printcontent") == 0) {
         char buf[100] = {0};
-        memcpy(buf, hm->body.p,
+        memcpy(buf, hm->body.p, 
                sizeof(buf) - 1 < hm->body.len? sizeof(buf) - 1 : hm->body.len);
         printf("%s\n", buf);
       } else {
@@ -50,20 +50,12 @@ int main(int argc, char *argv[]) {
   struct ns_mgr mgr;
   struct ns_connection *nc;
   int i;
-  char *cp;
 
   ns_mgr_init(&mgr, NULL);
   nc = ns_bind(&mgr, s_http_port, ev_handler);
   ns_set_protocol_http_websocket(nc);
   s_http_server_opts.document_root = ".";
   s_http_server_opts.enable_directory_listing = "yes";
-
-  /* Use current binary directory as document root */
-  if (argc > 0 && ((cp = strrchr(argv[0], '/')) != NULL ||
-      (cp = strrchr(argv[0], '/')) != NULL)) {
-    *cp = '\0';
-    s_http_server_opts.document_root = argv[0];
-  }
 
   /* Process command line options to customize HTTP server */
   for (i = 1; i < argc; i++) {

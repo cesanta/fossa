@@ -298,41 +298,6 @@ ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   memset(context, '\0', sizeof(*context));
   memset(&finalcount, '\0', sizeof(finalcount));
 }
-
-ON_FLASH void hmac_sha1(const unsigned char *key, size_t keylen,
-                        const unsigned char *data, size_t datalen,
-                        unsigned char out[20]) {
-  SHA1_CTX ctx;
-  unsigned char buf1[64], buf2[64], tmp_key[20], i;
-
-  if (keylen > sizeof(buf1)) {
-    SHA1Init(&ctx);
-    SHA1Update(&ctx, key, keylen);
-    SHA1Final(tmp_key, &ctx);
-    key = tmp_key;
-    keylen = sizeof(tmp_key);
-  }
-
-  memset(buf1, 0, sizeof(buf1));
-  memset(buf2, 0, sizeof(buf2));
-  memcpy(buf1, key, keylen);
-  memcpy(buf2, key, keylen);
-
-  for (i = 0; i < sizeof(buf1); i++) {
-    buf1[i] ^= 0x36;
-    buf2[i] ^= 0x5c;
-  }
-
-  SHA1Init(&ctx);
-  SHA1Update(&ctx, buf1, sizeof(buf1));
-  SHA1Update(&ctx, data, datalen);
-  SHA1Final(out, &ctx);
-
-  SHA1Init(&ctx);
-  SHA1Update(&ctx, buf2, sizeof(buf2));
-  SHA1Update(&ctx, out, 20);
-  SHA1Final(out, &ctx);
-}
 #endif
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/md5.c"
@@ -2977,35 +2942,6 @@ static void transfer_file_data(struct ns_connection *nc) {
   }
 }
 
-static void handle_chunked(struct http_message *hm, char *buf, size_t len) {
-  unsigned char *s = (unsigned char *) buf, *p = s;
-  unsigned char *end = s + len;
-
-  while (s < end) {
-    size_t chunk_len = 0;
-    while (s < end && isxdigit(*s)) {
-      chunk_len *= 16;
-      chunk_len += (*s >= '0' && *s <= '9') ? *s - '0' : tolower(*s) - 'a' + 10;
-      s++;
-    }
-    if (s < end && *s == '\r') s++;
-    if (s < end && *s == '\n') s++;
-    memmove(p, s, chunk_len);
-    p += chunk_len;
-    s += chunk_len;
-
-    if (chunk_len == 0) {
-      /* Last chunk. Set body length to reassembled length */
-      hm->body.len = (char *) p - buf;
-
-      /* Set message length to non-reassembled length and zero-out trailing */
-      hm->message.len = (char *) s - hm->message.p;
-      memset(p, 0, s - p);
-      break;
-    }
-  }
-}
-
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
@@ -3032,15 +2968,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   nc->handler(nc, ev, ev_data);
 
   if (ev == NS_RECV) {
-    struct ns_str *s;
     req_len = ns_parse_http(io->buf, io->len, &hm, is_req);
-
-    if (req_len > 0 &&
-        (s = ns_get_http_header(&hm, "Transfer-Encoding")) != NULL &&
-        ns_vcasecmp(s, "chunked") == 0) {
-      handle_chunked(&hm, io->buf + req_len, io->len - req_len);
-    }
-
     if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {

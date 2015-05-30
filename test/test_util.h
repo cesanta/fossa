@@ -60,15 +60,24 @@ double _now();
     if (msg) return msg;                        \
   } while (0)
 
-/* Numeric equality assertion. Compariosn is made in native types but for
- * printing both are convetrted to double. */
-#define ASSERT_EQ(actual, expected)                               \
-  do {                                                            \
-    num_tests++;                                                  \
-    if (!(actual == expected)) {                                  \
-      printf("%lf != %lf\n", (double) actual, (double) expected); \
-      FAIL(#actual " == " #expected, __LINE__);                   \
-    }                                                             \
+/* VC6 doesn't know how to cast an unsigned 64-bit int to double */
+#if (defined(_MSC_VER) && _MSC_VER <= 1200)
+#define AS_DOUBLE(d) (double)(int64_t)(d)
+#else
+#define AS_DOUBLE(d) (double)(d)
+#endif
+
+/*
+ * Numeric equality assertion. Compariosn is made in native types but for
+ * printing both are convetrted to double.
+ */
+#define ASSERT_EQ(actual, expected)                                   \
+  do {                                                                \
+    num_tests++;                                                      \
+    if (!(actual == expected)) {                                      \
+      printf("%lf != %lf\n", AS_DOUBLE(actual), AS_DOUBLE(expected)); \
+      FAIL(#actual " == " #expected, __LINE__);                       \
+    }                                                                 \
   } while (0)
 
 /* Assert that actual == expected, where both are NUL-terminated. */

@@ -1,7 +1,5 @@
 # Fossa: Multi-Protocol Networking Library
 
-![](https://circleci.com/gh/cesanta/fossa.svg?style=shield "Build Status")
-![](http://img.shields.io/coveralls/cesanta/fossa/master.svg "Coverage Status")
 ![](https://img.shields.io/badge/license-GPL_2-green.svg "License")
 
 [Fossa](http://cesanta.com/fossa.shtml) is a

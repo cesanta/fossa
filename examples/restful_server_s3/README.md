@@ -22,9 +22,9 @@ This example takes form data and uploads it as a file to Amazon S3.
 Then, open a browser on `http://localhost:8000`
 
 Note: If you're getting a *Temporary Redirect* error, look what is the
-Endpoint value is. It should be something like
+Endpoint value is. It's likely that you have something like
 `BUCKET_NAME.S3_ZONE.amazonaws.com`.
-Change change *Host* field to `S3_ZONE.amazonaws.com and retry`.
+Change the *Host* field to `S3_ZONE.amazonaws.com and retry`.
 
 ## Screenshot
 

@@ -57,6 +57,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
+NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
 
 #ifdef _WIN32
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);

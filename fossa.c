@@ -61,6 +61,7 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
+NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
 
 #ifdef _WIN32
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
@@ -1212,7 +1213,7 @@ static void ns_remove_conn(struct ns_connection *conn) {
   ns_ev_mgr_remove_conn(conn);
 }
 
-static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+NS_INTERNAL void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   unsigned long flags_before;
   ns_event_handler_t ev_handler;
 
@@ -3107,12 +3108,6 @@ static void send_http_error(struct ns_connection *nc, int code,
   ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
 }
 
-/* Suffix must be smaller then string */
-static int has_suffix(const char *str, const char *suffix) {
-  return str != NULL && suffix != NULL && strlen(suffix) < strlen(str) &&
-         strcmp(str + strlen(str) - strlen(suffix), suffix) == 0;
-}
-
 #ifndef NS_DISABLE_SSI
 static void send_ssi_file(struct ns_connection *, const char *, FILE *, int,
                           const struct ns_serve_http_opts *);
@@ -3161,7 +3156,8 @@ static void do_ssi_include(struct ns_connection *nc, const char *ssi, char *tag,
     ns_printf(nc, "SSI include error: fopen(%s): %s", path, strerror(errno));
   } else {
     ns_set_close_on_exec(fileno(fp));
-    if (has_suffix(path, opts->ssi_suffix)) {
+    if (ns_match_prefix(opts->ssi_pattern, strlen(opts->ssi_pattern), path) >
+        0) {
       send_ssi_file(nc, path, fp, include_level + 1, opts);
     } else {
       send_file_data(nc, fp);
@@ -3186,10 +3182,22 @@ static void do_ssi_exec(struct ns_connection *nc, char *tag) {
 }
 #endif /* !NS_DISABLE_POPEN */
 
+static void do_ssi_call(struct ns_connection *nc, char *tag) {
+  ns_call(nc, NS_SSI_CALL, tag);
+}
+
+/*
+ * SSI directive has the following format:
+ * <!--#directive parameter=value parameter=value -->
+ */
 static void send_ssi_file(struct ns_connection *nc, const char *path, FILE *fp,
                           int include_level,
                           const struct ns_serve_http_opts *opts) {
-  char buf[BUFSIZ];
+  static const struct ns_str btag = NS_STR("<!--#");
+  static const struct ns_str d_include = NS_STR("include");
+  static const struct ns_str d_call = NS_STR("call");
+  static const struct ns_str d_exec = NS_STR("exec");
+  char buf[BUFSIZ], *p = buf + btag.len;  /* p points to SSI directive */
   int ch, offset, len, in_ssi_tag;
 
   if (include_level > 10) {
@@ -3199,28 +3207,31 @@ static void send_ssi_file(struct ns_connection *nc, const char *path, FILE *fp,
 
   in_ssi_tag = len = offset = 0;
   while ((ch = fgetc(fp)) != EOF) {
-    if (in_ssi_tag && ch == '>') {
+    if (in_ssi_tag && ch == '>' && buf[len - 1] == '-' && buf[len - 2] == '-') {
+      size_t i = len - 2;
       in_ssi_tag = 0;
-      buf[len++] = (char) ch;
-      buf[len] = '\0';
-      assert(len <= (int) sizeof(buf));
-      if (len < 6 || memcmp(buf, "<!--#", 5) != 0) {
-        /* Not an SSI tag, pass it */
-        (void) ns_send(nc, buf, (size_t) len);
-      } else {
-        if (!memcmp(buf + 5, "include", 7)) {
-          do_ssi_include(nc, path, buf + 12, include_level, opts);
+
+      /* Trim closing --> */
+      buf[i--] = '\0';
+      while (i > 0 && buf[i] == ' ') {
+        buf[i--] = '\0';
+      }
+
+      /* Handle known SSI directives */
+      if (memcmp(p, d_include.p, d_include.len) == 0) {
+        do_ssi_include(nc, path, p + d_include.len + 1, include_level, opts);
+      } else if (memcmp(p, d_call.p, d_call.len) == 0) {
+        do_ssi_call(nc, p + d_call.len + 1);
 #ifndef NS_DISABLE_POPEN
-        } else if (!memcmp(buf + 5, "exec", 4)) {
-          do_ssi_exec(nc, buf + 9);
-#endif /* !NO_POPEN */
-        } else {
-          /* Silently ignoring unknown SSI commands. */
-        }
+      } else if (memcmp(p, d_exec.p, d_exec.len) == 0) {
+        do_ssi_exec(nc, p + d_exec.len + 1);
+#endif
+      } else {
+        /* Silently ignore unknown SSI directive. */
       }
       len = 0;
     } else if (in_ssi_tag) {
-      if (len == 5 && memcmp(buf, "<!--#", 5) != 0) {
+      if (len == (int) btag.len && memcmp(buf, btag.p, btag.len) != 0) {
         /* Not an SSI tag */
         in_ssi_tag = 0;
       } else if (len == (int) sizeof(buf) - 2) {
@@ -3317,7 +3328,8 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
     NS_FREE(dp);
     nc->proto_data = NULL;
     send_http_error(nc, 500, "Server Error");
-  } else if (has_suffix(path, opts->ssi_suffix)) {
+  } else if (ns_match_prefix(opts->ssi_pattern, strlen(opts->ssi_pattern),
+                             path) > 0) {
     handle_ssi_request(nc, path, opts);
   } else {
     char etag[50], current_time[50], last_modified[50], range[50];
@@ -3485,6 +3497,33 @@ void ns_printf_http_chunk(struct ns_connection *nc, const char *fmt, ...) {
 
   if (len >= 0) {
     ns_send_http_chunk(nc, buf, len);
+  }
+
+  /* LCOV_EXCL_START */
+  if (buf != mem && buf != NULL) {
+    NS_FREE(buf);
+  }
+  /* LCOV_EXCL_STOP */
+}
+
+void ns_printf_html_escape(struct ns_connection *nc, const char *fmt, ...) {
+  char mem[500], *buf = mem;
+  int i, j, len;
+  va_list ap;
+
+  va_start(ap, fmt);
+  len = ns_avprintf(&buf, sizeof(mem), fmt, ap);
+  va_end(ap);
+
+  if (len >= 0) {
+    for (i = j = 0; i < len; i++) {
+      if (buf[i] == '<' || buf[i] == '>') {
+        ns_send(nc, buf + j, i - j);
+        ns_send(nc, buf[i] == '<' ? "&lt;" : "&gt;", 4);
+        j = i + 1;
+      }
+    }
+    ns_send(nc, buf + j, i - j);
   }
 
   /* LCOV_EXCL_START */
@@ -4717,6 +4756,9 @@ void ns_serve_http(struct ns_connection *nc, struct http_message *hm,
   }
   if (opts.cgi_file_pattern == NULL) {
     opts.cgi_file_pattern = "**.cgi$|**.php$";
+  }
+  if (opts.ssi_pattern == NULL) {
+    opts.ssi_pattern = "**.shtml$|**.shtm$";
   }
   if (opts.index_files == NULL) {
     opts.index_files = "index.html,index.htm,index.shtml,index.cgi,index.php";

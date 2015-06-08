@@ -130,7 +130,7 @@ static const char *test_mbuf(void) {
 
 static int c_str_ne(void *a, void *b) {
   int r = strcmp((const char *) a, (const char *) b);
-  DBG(("%p %p %d", a.p, b.p, r));
+  DBG(("%p %p %d", a, b, r));
   return r;
 }
 
@@ -823,7 +823,6 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
       s_http_server_opts.document_root = ".";
       s_http_server_opts.per_directory_auth_file = "passwords.txt";
       s_http_server_opts.auth_domain = "foo.com";
-      s_http_server_opts.ssi_suffix = ".shtml";
       s_http_server_opts.dav_document_root = "./data/dav";
       s_http_server_opts.hidden_file_pattern = "hidden_file.*$";
 #ifdef _WIN32
@@ -837,6 +836,8 @@ static void cb1(struct ns_connection *nc, int ev, void *ev_data) {
           ".c=text/plain; charset=utf-8";
       ns_serve_http(nc, hm, s_http_server_opts);
     }
+  } else if (ev == NS_SSI_CALL) {
+    ns_printf_html_escape(nc, "[ssi call: %s]", (char *) ev_data);
   }
 }
 
@@ -1097,7 +1098,8 @@ static const char *test_ssi(void) {
   fetch_http(buf, "%s", "GET /data/ssi/ HTTP/1.0\n\n");
   ASSERT(strcmp(buf,
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
-                "Connection: close\r\n\r\na\n\nb\n\n\n") == 0);
+                "Connection: close\r\n\r\na\n\n"
+                "[ssi call: foo&lt;bar&gt;]\nb\n\n\n") == 0);
   return NULL;
 }
 

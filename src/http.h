@@ -87,6 +87,7 @@ struct websocket_message {
 /* HTTP and websocket events. void *ev_data is described in a comment. */
 #define NS_HTTP_REQUEST 100 /* struct http_message * */
 #define NS_HTTP_REPLY 101   /* struct http_message * */
+#define NS_SSI_CALL 105     /* char * */
 
 #define NS_WEBSOCKET_HANDSHAKE_REQUEST 111 /* NULL */
 #define NS_WEBSOCKET_HANDSHAKE_DONE 112    /* NULL */
@@ -179,6 +180,11 @@ void ns_send_http_chunk(struct ns_connection *nc, const char *buf, size_t len);
  * Functionality is similar to `ns_send_http_chunk()`.
  */
 void ns_printf_http_chunk(struct ns_connection *, const char *, ...);
+
+/*
+ * Send printf-formatted HTTP chunk, escaping HTML tags.
+ */
+void ns_printf_html_escape(struct ns_connection *, const char *, ...);
 
 /* Websocket opcodes, from http://tools.ietf.org/html/rfc6455 */
 #define WEBSOCKET_OP_CONTINUE 0
@@ -302,8 +308,8 @@ struct ns_serve_http_opts {
   /* Set to "no" to disable directory listing. Enabled by default. */
   const char *enable_directory_listing;
 
-  /* SSI files suffix. By default is NULL, SSI is disabled */
-  const char *ssi_suffix;
+  /* SSI files pattern. If not set, "**.shtml$|**.shtm$" is used. */
+  const char *ssi_pattern;
 
   /* IP ACL. By default, NULL, meaning all IPs are allowed to connect */
   const char *ip_acl;

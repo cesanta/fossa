@@ -70,7 +70,7 @@ static void ns_remove_conn(struct ns_connection *conn) {
   ns_ev_mgr_remove_conn(conn);
 }
 
-static void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
+NS_INTERNAL void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
   unsigned long flags_before;
   ns_event_handler_t ev_handler;
 

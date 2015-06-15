@@ -756,7 +756,7 @@ static void send_ssi_file(struct ns_connection *nc, const char *path, FILE *fp,
   static const struct ns_str d_include = NS_STR("include");
   static const struct ns_str d_call = NS_STR("call");
   static const struct ns_str d_exec = NS_STR("exec");
-  char buf[BUFSIZ], *p = buf + btag.len;  /* p points to SSI directive */
+  char buf[BUFSIZ], *p = buf + btag.len; /* p points to SSI directive */
   int ch, offset, len, in_ssi_tag;
 
   if (include_level > 10) {

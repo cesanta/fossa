@@ -795,7 +795,20 @@ struct ns_connection *ns_connect(struct ns_mgr *, const char *,
 struct ns_connection *ns_connect_opt(struct ns_mgr *, const char *,
                                      ns_event_handler_t,
                                      struct ns_connect_opts);
-const char *ns_set_ssl(struct ns_connection *nc, const char *, const char *);
+
+/*
+ * Enable SSL for a given connection.
+ * `cert` is a server certificate file name for a listening connection,
+ * or a client certificate file name for an outgoing connection.
+ * Certificate files must be in PEM format. Server certificate file
+ * must contain a certificate, concatenated with a private key, optionally
+ * concatenated with parameters.
+ * `ca_cert` is a CA certificate, or NULL if peer verification is not
+ * required.
+ * Return: NULL on success, or error message on error.
+ */
+const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
+                       const char *ca_cert);
 
 /*
  * Send data to the connection.
@@ -1303,6 +1316,46 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name);
  */
 int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
                          size_t buf_size);
+
+/*
+ * Parse buffer `buf`, `buf_len` that contains multipart form data chunks.
+ * Store chunk name in a `var_name`, `var_name_len` buffer.
+ * If a chunk is an uploaded file, then `file_name`, `file_name_len` is
+ * filled with an uploaded file name. `chunk`, `chunk_len`
+ * points to the chunk data.
+ *
+ * Return: number of bytes to skip to the next chunk, or 0 if there are
+ *         no more chunks.
+ *
+ * Usage example:
+ *
+ *    static void ev_handler(struct ns_connection *nc, int ev, void *ev_data) {
+ *      switch(ev) {
+ *        case NS_HTTP_REQUEST: {
+ *          struct http_message *hm = (struct http_message *) ev_data;
+ *          char var_name[100], file_name[100];
+ *          const char *chunk;
+ *          size_t chunk_len, n1, n2;
+ *
+ *          n1 = n2 = 0;
+ *          while ((n2 = ns_parse_multipart(hm->body.p + n1,
+ *                                          hm->body.len - n1,
+ *                                          var_name, sizeof(var_name),
+ *                                          file_name, sizeof(file_name),
+ *                                          &chunk, &chunk_len)) > 0) {
+ *            printf("var: %s, file_name: %s, size: %d, chunk: [%.*s]\n",
+ *                   var_name, file_name, (int) chunk_len,
+ *                   (int) chunk_len, chunk);
+ *            n1 += n2;
+ *          }
+ *        }
+ *        break;
+ *
+ */
+size_t ns_parse_multipart(const char *buf, size_t buf_len,
+                          char *var_name, size_t var_name_len,
+                          char *file_name, size_t file_name_len,
+                          const char **chunk, size_t *chunk_len);
 
 /*
  * Fetch an HTTP form variable.

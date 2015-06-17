@@ -1784,7 +1784,6 @@ static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
 
 #ifdef NS_ENABLE_SSL
 static void ns_ssl_accept(struct ns_connection *conn) {
-  assert(conn->ssl != NULL);
   int res = SSL_accept(conn->ssl);
   int ssl_err = ns_ssl_err(conn, res);
   if (res == 1) {
@@ -4888,6 +4887,50 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   }
 
   return nc;
+}
+
+static size_t get_line_len(const char *buf, size_t buf_len) {
+  size_t len = 0;
+  while (len < buf_len && buf[len] != '\n') len++;
+  return buf[len] == '\n' ? len + 1: 0;
+}
+
+size_t ns_parse_multipart(const char *buf, size_t buf_len,
+                          char *var_name, size_t var_name_len,
+                          char *file_name, size_t file_name_len,
+                          const char **data, size_t *data_len) {
+  static const char cd[] = "Content-Disposition: ";
+  size_t hl, bl, n, ll, pos, cdl = sizeof(cd) - 1;
+
+  if (buf == NULL || buf_len <= 0) return 0;
+  if ((hl = get_request_len(buf, buf_len)) <= 0) return 0;
+  if (buf[0] != '-' || buf[1] != '-' || buf[2] == '\n') return 0;
+
+  /* Get boundary length */
+  bl = get_line_len(buf, buf_len);
+
+  /* Loop through headers, fetch variable name and file name */
+  var_name[0] = file_name[0] = '\0';
+  for (n = bl; (ll = get_line_len(buf + n, hl - n)) > 0; n += ll) {
+    if (ns_ncasecmp(cd, buf + n, cdl) == 0) {
+      struct ns_str header;
+      header.p = buf + n + cdl;
+      header.len = ll - (cdl + 2);
+      ns_http_parse_header(&header, "name", var_name, var_name_len);
+      ns_http_parse_header(&header, "filename", file_name, file_name_len);
+    }
+  }
+
+  /* Scan through the body, search for terminating boundary */
+  for (pos = hl; pos + (bl - 2) < buf_len; pos++) {
+    if (buf[pos] == '-' && !memcmp(buf, &buf[pos], bl - 2)) {
+      if (data_len != NULL) *data_len = (pos - 2) - hl;
+      if (data != NULL) *data = buf + hl;
+      return pos;
+    }
+  }
+
+  return 0;
 }
 
 #endif /* NS_DISABLE_HTTP_WEBSOCKET */

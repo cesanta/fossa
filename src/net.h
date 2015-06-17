@@ -336,7 +336,20 @@ struct ns_connection *ns_connect(struct ns_mgr *, const char *,
 struct ns_connection *ns_connect_opt(struct ns_mgr *, const char *,
                                      ns_event_handler_t,
                                      struct ns_connect_opts);
-const char *ns_set_ssl(struct ns_connection *nc, const char *, const char *);
+
+/*
+ * Enable SSL for a given connection.
+ * `cert` is a server certificate file name for a listening connection,
+ * or a client certificate file name for an outgoing connection.
+ * Certificate files must be in PEM format. Server certificate file
+ * must contain a certificate, concatenated with a private key, optionally
+ * concatenated with parameters.
+ * `ca_cert` is a CA certificate, or NULL if peer verification is not
+ * required.
+ * Return: NULL on success, or error message on error.
+ */
+const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
+                       const char *ca_cert);
 
 /*
  * Send data to the connection.

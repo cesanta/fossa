@@ -641,7 +641,6 @@ static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
 
 #ifdef NS_ENABLE_SSL
 static void ns_ssl_accept(struct ns_connection *conn) {
-  assert(conn->ssl != NULL);
   int res = SSL_accept(conn->ssl);
   int ssl_err = ns_ssl_err(conn, res);
   if (res == 1) {

@@ -1,6 +1,6 @@
 PROG = mqtt_client
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -lssl $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -lssl -lcrypto $(CFLAGS_EXTRA)
 
 all: $(PROG)
 

@@ -1,6 +1,6 @@
 PROG = settings_panel
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -DNS_ENABLE_SSL -lssl $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. -DNS_ENABLE_SSL -lssl -lcrypto $(CFLAGS_EXTRA)
 
 all: $(PROG)
 

@@ -225,8 +225,75 @@ static const char *test_mgr(void) {
 }
 
 #ifdef NS_ENABLE_SSL
+void *run_manager(void *param) {
+  struct ns_mgr *mgr = (struct ns_mgr *) param;
+  while (((intptr_t) mgr->user_data) == 0) {
+    ns_mgr_poll(mgr, 1000);
+  }
+  ns_mgr_free(mgr);
+  free(mgr);
+  return NULL;
+}
+
 static const char *test_ssl(void) {
   return test_mgr_with_ssl(1);
+}
+
+static void eh_hello_server(struct ns_connection *nc, int ev, void *ev_data) {
+  (void) ev_data;
+  if (ev == NS_ACCEPT) ns_printf(nc, "hello");
+}
+
+static const char *test_modern_crypto(void) {
+  char addr[100] = "127.0.0.1:8000";
+  struct ns_mgr *mgr = (struct ns_mgr *) malloc(sizeof(*mgr));
+  struct ns_connection *nc;
+  int port;
+
+  ns_mgr_init(mgr, NULL);
+
+  ASSERT((nc = ns_bind(mgr, addr, eh_hello_server)) != NULL);
+  port = htons(nc->sa.sin.sin_port);
+  ASSERT(port > 0);
+  ASSERT(ns_set_ssl(nc, S_PEM, NULL /* no client certs */) == NULL);
+  ns_sock_to_str(nc->sock, addr, sizeof(addr),
+                 NS_SOCK_STRINGIFY_IP | NS_SOCK_STRINGIFY_PORT);
+  ns_start_thread(run_manager, mgr);
+
+  {
+    char buf[100];
+    SSL_CTX *ctx = NULL;
+    BIO *bio = NULL;
+    SSL *ssl = NULL;
+
+    ctx = SSL_CTX_new(SSLv23_client_method());
+    ASSERT(ctx != NULL);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    SSL_CTX_set_verify_depth(ctx, 1);
+    /*
+     * These are pretty restrictive settings and should satisfy e.g.
+     * Chrome's "modern cryptography" requirements.
+     */
+    ASSERT_EQ(SSL_CTX_set_cipher_list(nc->ssl_ctx, "DH:!ADH:AES:!MD5:!SHA1"),
+              1);
+    ASSERT_EQ(SSL_CTX_load_verify_locations(ctx, CA_PEM, NULL), 1);
+    bio = BIO_new_ssl_connect(ctx);
+    ASSERT(bio != NULL);
+    BIO_get_ssl(bio, &ssl);
+    ASSERT(ssl != NULL);
+    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+    BIO_set_conn_hostname(bio, addr);
+    ASSERT_EQ(BIO_do_connect(bio), 1);
+    ASSERT_EQ(BIO_do_handshake(bio), 1);
+    ASSERT_EQ(SSL_get_verify_result(ssl), X509_V_OK);
+    ASSERT_EQ(BIO_read(bio, buf, 5), 5);
+    ASSERT_STREQ_NZ(buf, "hello");
+    BIO_free_all(bio);
+    SSL_CTX_free(ctx);
+  }
+
+  mgr->user_data = (void *) 1;
+  return NULL;
 }
 #endif
 
@@ -3041,6 +3108,7 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_hexdump_file);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
+  RUN_TEST(test_modern_crypto);
 #endif
   RUN_TEST(test_udp);
 #ifdef NS_ENABLE_COAP

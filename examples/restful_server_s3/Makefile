@@ -3,7 +3,7 @@ SOURCES = $(PROG).c ../../fossa.c
 CFLAGS = -W -Wall -I../.. $(CFLAGS_EXTRA)
 
 ifeq ($(SSL), openssl)
-	CFLAGS += -DNS_ENABLE_SSL -lssl -lcrypto
+	CFLAGS += -DNS_ENABLE_SSL -lssl -lcrypto -lcrypto
 else ifeq ($(SSL), krypton)
 	CFLAGS += -DNS_ENABLE_SSL ../../../krypton/krypton.c
 endif

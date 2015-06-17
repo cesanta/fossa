@@ -142,7 +142,6 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
     case NS_POLL:
       if (req->retries > req->max_retries) {
         req->callback(NULL, req->data);
-        NS_FREE(req);
         nc->flags |= NSF_CLOSE_IMMEDIATELY;
         break;
       }
@@ -159,7 +158,6 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       } else {
         req->callback(NULL, req->data);
       }
-      NS_FREE(req);
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
       break;
   }

@@ -1,6 +1,6 @@
 PROG = mqtt_broker
 SOURCES = $(PROG).c ../../fossa.c
-CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -DNS_ENABLE_MQTT_BROKER -lssl $(CFLAGS_EXTRA)
+CFLAGS = -W -Wall -I../.. -pthread -DNS_ENABLE_SSL -DNS_ENABLE_MQTT_BROKER -lssl -lcrypto $(CFLAGS_EXTRA)
 
 all: $(PROG)
 

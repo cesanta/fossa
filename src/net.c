@@ -461,8 +461,32 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 }
 
 #ifdef NS_ENABLE_SSL
-/* Certificate generation script is at */
-/* https://github.com/cesanta/fossa/blob/master/scripts/gen_certs.sh */
+/*
+ * Certificate generation script is at
+ * https://github.com/cesanta/fossa/blob/master/scripts/generate_ssl_certificates.sh
+ */
+
+/*
+ * Cipher suite options used for TLS negotiation.
+ * We start with everything and disable some outdated ciphers and digests.
+ */
+static const char ns_s_cipher_list[] =
+    "ALL:!SSLv2:!SSLv3:!EXPORT:!LOW:!MEDIUM:!ADH:!MD5";
+
+/*
+ * Default DH params for PFS cipher negotiation. This is a 2048-bit group.
+ * Will be used if none are provided by the user in the certificate file.
+ */
+static const char ns_s_default_dh_params[] =
+    "\
+-----BEGIN DH PARAMETERS-----\n\
+MIIBCAKCAQEAlvbgD/qh9znWIlGFcV0zdltD7rq8FeShIqIhkQ0C7hYFThrBvF2E\n\
+Z9bmgaP+sfQwGpVlv9mtaWjvERbu6mEG7JTkgmVUJrUt/wiRzwTaCXBqZkdUO8Tq\n\
++E6VOEQAilstG90ikN1Tfo+K6+X68XkRUIlgawBTKuvKVwBhuvlqTGerOtnXWnrt\n\
+ym//hd3cd5PBYGBix0i7oR4xdghvfR2WLVu0LgdThTBb6XP7gLd19cQ1JuBtAajZ\n\
+wMuPn7qlUkEFDIkAZy59/Hue/H2Q2vU/JsvVhHWCQBL4F1ofEAt50il6ZxR1QfFK\n\
+9VGKDC4oOgm9DlxwwBoC2FjqmvQlqVV3kwIBAg==\n\
+-----END DH PARAMETERS-----\n";
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -483,6 +507,30 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
              SSL_CTX_use_PrivateKey_file(ctx, pem_file, 1) == 0) {
     return -2;
   } else {
+    BIO *bio = NULL;
+    DH *dh = NULL;
+
+    /* Try to read DH parameters from the cert/key file. */
+    bio = BIO_new_file(pem_file, "r");
+    if (bio != NULL) {
+      dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+      BIO_free(bio);
+    }
+    /*
+     * If there are no DH params in the file, fall back to hard-coded ones.
+     * Not ideal, but better than nothing.
+     */
+    if (dh == NULL) {
+      bio = BIO_new_mem_buf((void *) ns_s_default_dh_params, -1);
+      dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+      BIO_free(bio);
+    }
+    if (dh != NULL) {
+      SSL_CTX_set_tmp_dh(ctx, dh);
+      SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+      DH_free(dh);
+    }
+
     SSL_CTX_set_mode(ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
     SSL_CTX_use_certificate_chain_file(ctx, pem_file);
     return 0;
@@ -493,7 +541,8 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
  * Turn the connection into SSL mode.
  * `cert` is the certificate file in PEM format. For listening connections,
  * certificate file must contain private key and server certificate,
- * concatenated. `ca_cert` is a certificate authority (CA) PEM file, and
+ * concatenated. It may also contain DH params - these will be used for more
+ * secure key exchange. `ca_cert` is a certificate authority (CA) PEM file, and
  * it is optional (can be set to NULL). If `ca_cert` is non-NULL, then
  * the connection is so-called two-way-SSL: other peer's certificate is
  * checked against the `ca_cert`.
@@ -524,6 +573,7 @@ const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
   } else if (!(nc->flags & NSF_LISTENING)) {
     SSL_set_fd(nc->ssl, nc->sock);
   }
+  SSL_CTX_set_cipher_list(nc->ssl_ctx, ns_s_cipher_list);
   return result;
 }
 
@@ -558,7 +608,9 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
     c->proto_handler = ls->proto_handler;
     c->user_data = ls->user_data;
     c->recv_mbuf_limit = ls->recv_mbuf_limit;
-    ns_call(c, NS_ACCEPT, &sa);
+    if (c->ssl == NULL) { /* SSL connections need to perform handshake. */
+      ns_call(c, NS_ACCEPT, &sa);
+    }
     DBG(("%p %d %p %p", c, c->sock, c->ssl_ctx, c->ssl));
   }
 
@@ -581,6 +633,29 @@ static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
   avail = conn->recv_mbuf_limit - conn->recv_mbuf.len;
   return avail > max ? max : avail;
 }
+
+#ifdef NS_ENABLE_SSL
+static void ns_ssl_accept(struct ns_connection *conn) {
+  assert(conn->ssl != NULL);
+  int res = SSL_accept(conn->ssl);
+  int ssl_err = ns_ssl_err(conn, res);
+  if (res == 1) {
+    union socket_address sa;
+    socklen_t sa_len = sizeof(sa);
+    conn->flags |= NSF_SSL_HANDSHAKE_DONE;
+    conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
+    /* In case port was set to 0, get the real port number */
+    (void) getsockname(conn->sock, &sa.sa, &sa_len);
+    ns_call(conn, NS_ACCEPT, &sa);
+  } else if (ssl_err == SSL_ERROR_WANT_READ ||
+             ssl_err == SSL_ERROR_WANT_WRITE) {
+    return; /* Call us again */
+  } else {
+    conn->flags |= NSF_CLOSE_IMMEDIATELY;
+    return;
+  }
+}
+#endif /* NS_ENABLE_SSL */
 
 static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[NS_READ_BUFFER_SIZE];
@@ -630,17 +705,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       }
       ns_ssl_err(conn, n);
     } else {
-      int res = SSL_accept(conn->ssl);
-      int ssl_err = ns_ssl_err(conn, res);
-      if (res == 1) {
-        conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-        conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
-      } else if (ssl_err == SSL_ERROR_WANT_READ ||
-                 ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; /* Call us again */
-      } else {
-        conn->flags |= NSF_CLOSE_IMMEDIATELY;
-      }
+      ns_ssl_accept(conn);
       return;
     }
   } else
@@ -667,17 +732,22 @@ static void ns_write_to_socket(struct ns_connection *conn) {
 
 #ifdef NS_ENABLE_SSL
   if (conn->ssl != NULL) {
-    n = SSL_write(conn->ssl, io->buf, io->len);
-    if (n <= 0) {
-      int ssl_err = ns_ssl_err(conn, n);
-      if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; /* Call us again */
+    if (conn->flags & NSF_SSL_HANDSHAKE_DONE) {
+      n = SSL_write(conn->ssl, io->buf, io->len);
+      if (n <= 0) {
+        int ssl_err = ns_ssl_err(conn, n);
+        if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
+          return; /* Call us again */
+        } else {
+          conn->flags |= NSF_CLOSE_IMMEDIATELY;
+        }
       } else {
-        conn->flags |= NSF_CLOSE_IMMEDIATELY;
+        /* Successful SSL operation, clear off SSL wait flags */
+        conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
       }
     } else {
-      /* Successful SSL operation, clear off SSL wait flags */
-      conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
+      ns_ssl_accept(conn);
+      return;
     }
   } else
 #endif

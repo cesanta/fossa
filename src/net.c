@@ -469,9 +469,14 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
 /*
  * Cipher suite options used for TLS negotiation.
  * We start with everything and disable some outdated ciphers and digests.
+ * For older OpenSSL versions (< 1.0.0) we leave SSLv3 enabled.
  */
 static const char ns_s_cipher_list[] =
-    "ALL:!SSLv2:!SSLv3:!EXPORT:!LOW:!MEDIUM:!ADH:!MD5";
+    ("ALL:!SSLv2:!EXPORT:!LOW:!MEDIUM:!ADH:!MD5"
+#if OPENSSL_VERSION_NUMBER > 0x10000000
+     ":!SSLv3"
+#endif
+     );
 
 /*
  * Default DH params for PFS cipher negotiation. This is a 2048-bit group.

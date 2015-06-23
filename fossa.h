@@ -1352,10 +1352,10 @@ int ns_http_parse_header(struct ns_str *hdr, const char *var_name, char *buf,
  *        break;
  *
  */
-size_t ns_parse_multipart(const char *buf, size_t buf_len,
-                          char *var_name, size_t var_name_len,
-                          char *file_name, size_t file_name_len,
-                          const char **chunk, size_t *chunk_len);
+size_t ns_parse_multipart(const char *buf, size_t buf_len, char *var_name,
+                          size_t var_name_len, char *file_name,
+                          size_t file_name_len, const char **chunk,
+                          size_t *chunk_len);
 
 /*
  * Fetch an HTTP form variable.

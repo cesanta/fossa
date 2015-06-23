@@ -2377,13 +2377,13 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
 static size_t get_line_len(const char *buf, size_t buf_len) {
   size_t len = 0;
   while (len < buf_len && buf[len] != '\n') len++;
-  return buf[len] == '\n' ? len + 1: 0;
+  return buf[len] == '\n' ? len + 1 : 0;
 }
 
-size_t ns_parse_multipart(const char *buf, size_t buf_len,
-                          char *var_name, size_t var_name_len,
-                          char *file_name, size_t file_name_len,
-                          const char **data, size_t *data_len) {
+size_t ns_parse_multipart(const char *buf, size_t buf_len, char *var_name,
+                          size_t var_name_len, char *file_name,
+                          size_t file_name_len, const char **data,
+                          size_t *data_len) {
   static const char cd[] = "Content-Disposition: ";
   size_t hl, bl, n, ll, pos, cdl = sizeof(cd) - 1;
 

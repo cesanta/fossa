@@ -266,7 +266,8 @@ static const char *test_modern_crypto(void) {
 
   {
     char buf[100];
-    /* For older OpenSSL version we have to allow older digests. Then it still tests DH. */
+/* For older OpenSSL version we have to allow older digests. Then it still tests
+ * DH. */
 #if OPENSSL_VERSION_NUMBER < 0x10000000
     const char *ciphers = "DH:!ADH:AES:MD5:SHA1";
 #else

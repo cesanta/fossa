@@ -966,7 +966,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int timeout_ms) {
 
   num_ev = epoll_wait(epoll_fd, events, NS_EPOLL_MAX_EVENTS, timeout_ms);
   now = time(NULL);
-  DBG(("epoll_wait @ %ld num_ev=%d", now, num_ev));
+  DBG(("epoll_wait @ %ld num_ev=%d", (long) now, num_ev));
 
   while (num_ev-- > 0) {
     intptr_t epf;
@@ -1067,7 +1067,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
 
   num_selected = select((int) max_fd + 1, &read_set, &write_set, &err_set, &tv);
   now = time(NULL);
-  DBG(("select @ %ld num_ev=%d", now, num_selected));
+  DBG(("select @ %ld num_ev=%d", (long) now, num_selected));
 
   if (num_selected > 0 && mgr->ctl[1] != INVALID_SOCKET &&
       FD_ISSET(mgr->ctl[1], &read_set)) {

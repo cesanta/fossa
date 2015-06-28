@@ -119,6 +119,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     for (p = line + len; sscanf(p, "%s%n", alias, &len) == 1; p += len) {
       if (strcmp(alias, name) == 0) {
         usa->sin.sin_addr.s_addr = htonl(a << 24 | b << 16 | c << 8 | d);
+        fclose(fp);
         return 0;
       }
     }

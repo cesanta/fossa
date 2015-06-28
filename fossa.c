@@ -1429,8 +1429,6 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
   int rv = 0;
   struct addrinfo hints, *servinfo, *p;
   struct sockaddr_in *h = NULL;
-  char *ip = NS_MALLOC(17);
-  memset(ip, '\0', 17);
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -6497,6 +6495,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
     for (p = line + len; sscanf(p, "%s%n", alias, &len) == 1; p += len) {
       if (strcmp(alias, name) == 0) {
         usa->sin.sin_addr.s_addr = htonl(a << 24 | b << 16 | c << 8 | d);
+        fclose(fp);
         return 0;
       }
     }

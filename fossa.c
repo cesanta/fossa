@@ -639,6 +639,95 @@ ON_FLASH int base64_decode(const unsigned char *s, int len, char *dst) {
   return orig_len - len;
 }
 #ifdef NS_MODULE_LINES
+#line 1 "src/../../common/dirent.c"
+/**/
+#endif
+/*
+ * Copyright (c) 2015 Cesanta Software Limited
+ * All rights reserved
+ */
+
+
+/*
+ * This file contains POSIX opendir/closedir/readdir API implementation
+ * for systems which do not natively support it (e.g. Windows).
+ */
+
+#ifndef NS_FREE
+#define NS_FREE free
+#endif
+
+#ifndef NS_MALLOC
+#define NS_MALLOC malloc
+#endif
+
+#ifdef _WIN32
+DIR *opendir(const char *name) {
+  DIR *dir = NULL;
+  wchar_t wpath[MAX_PATH];
+  DWORD attrs;
+
+  if (name == NULL) {
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  } else if ((dir = (DIR *) NS_MALLOC(sizeof(*dir))) == NULL) {
+    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+  } else {
+    to_wchar(name, wpath, ARRAY_SIZE(wpath));
+    attrs = GetFileAttributesW(wpath);
+    if (attrs != 0xFFFFFFFF && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+      (void) wcscat(wpath, L"\\*");
+      dir->handle = FindFirstFileW(wpath, &dir->info);
+      dir->result.d_name[0] = '\0';
+    } else {
+      NS_FREE(dir);
+      dir = NULL;
+    }
+  }
+
+  return dir;
+}
+
+int closedir(DIR *dir) {
+  int result = 0;
+
+  if (dir != NULL) {
+    if (dir->handle != INVALID_HANDLE_VALUE)
+      result = FindClose(dir->handle) ? 0 : -1;
+    NS_FREE(dir);
+  } else {
+    result = -1;
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  }
+
+  return result;
+}
+
+struct dirent *readdir(DIR *dir) {
+  struct dirent *result = 0;
+
+  if (dir) {
+    if (dir->handle != INVALID_HANDLE_VALUE) {
+      result = &dir->result;
+      (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
+                                 result->d_name, sizeof(result->d_name), NULL,
+                                 NULL);
+
+      if (!FindNextFileW(dir->handle, &dir->info)) {
+        (void) FindClose(dir->handle);
+        dir->handle = INVALID_HANDLE_VALUE;
+      }
+
+    } else {
+      SetLastError(ERROR_FILE_NOT_FOUND);
+    }
+  } else {
+    SetLastError(ERROR_BAD_ARGUMENTS);
+  }
+
+  return result;
+}
+#endif
+#ifdef NS_MODULE_LINES
 #line 1 "src/../deps/frozen/frozen.c"
 /**/
 #endif
@@ -3834,85 +3923,6 @@ static int is_authorized(struct http_message *hm, const char *path,
 #endif
 
 #ifndef NS_DISABLE_DIRECTORY_LISTING
-/* Implementation of POSIX opendir/closedir/readdir for Windows. */
-#ifdef _WIN32
-struct dirent {
-  char d_name[MAX_PATH_SIZE];
-};
-
-typedef struct DIR {
-  HANDLE handle;
-  WIN32_FIND_DATAW info;
-  struct dirent result;
-} DIR;
-
-static DIR *opendir(const char *name) {
-  DIR *dir = NULL;
-  wchar_t wpath[MAX_PATH_SIZE];
-  DWORD attrs;
-
-  if (name == NULL) {
-    SetLastError(ERROR_BAD_ARGUMENTS);
-  } else if ((dir = (DIR *) NS_MALLOC(sizeof(*dir))) == NULL) {
-    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
-  } else {
-    to_wchar(name, wpath, ARRAY_SIZE(wpath));
-    attrs = GetFileAttributesW(wpath);
-    if (attrs != 0xFFFFFFFF && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
-      (void) wcscat(wpath, L"\\*");
-      dir->handle = FindFirstFileW(wpath, &dir->info);
-      dir->result.d_name[0] = '\0';
-    } else {
-      NS_FREE(dir);
-      dir = NULL;
-    }
-  }
-
-  return dir;
-}
-
-static int closedir(DIR *dir) {
-  int result = 0;
-
-  if (dir != NULL) {
-    if (dir->handle != INVALID_HANDLE_VALUE)
-      result = FindClose(dir->handle) ? 0 : -1;
-
-    NS_FREE(dir);
-  } else {
-    result = -1;
-    SetLastError(ERROR_BAD_ARGUMENTS);
-  }
-
-  return result;
-}
-
-static struct dirent *readdir(DIR *dir) {
-  struct dirent *result = 0;
-
-  if (dir) {
-    if (dir->handle != INVALID_HANDLE_VALUE) {
-      result = &dir->result;
-      (void) WideCharToMultiByte(CP_UTF8, 0, dir->info.cFileName, -1,
-                                 result->d_name, sizeof(result->d_name), NULL,
-                                 NULL);
-
-      if (!FindNextFileW(dir->handle, &dir->info)) {
-        (void) FindClose(dir->handle);
-        dir->handle = INVALID_HANDLE_VALUE;
-      }
-
-    } else {
-      SetLastError(ERROR_FILE_NOT_FOUND);
-    }
-  } else {
-    SetLastError(ERROR_BAD_ARGUMENTS);
-  }
-
-  return result;
-}
-#endif /* _WIN32  POSIX opendir/closedir/readdir implementation */
-
 static size_t ns_url_encode(const char *src, size_t s_len, char *dst,
                             size_t dst_len) {
   static const char *dont_escape = "._-$,;~()";
@@ -4986,31 +4996,6 @@ int ns_vcmp(const struct ns_str *str1, const char *str2) {
   }
   return r;
 }
-
-#ifdef _WIN32
-NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
-  char buf[MAX_PATH_SIZE * 2], buf2[MAX_PATH_SIZE * 2], *p;
-
-  strncpy(buf, path, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
-
-  /* Trim trailing slashes. Leave backslash for paths like "X:\" */
-  p = buf + strlen(buf) - 1;
-  while (p > buf && p[-1] != ':' && (p[0] == '\\' || p[0] == '/')) *p-- = '\0';
-
-  /*
-   * Convert to Unicode and back. If doubly-converted string does not
-   * match the original, something is fishy, reject.
-   */
-  memset(wbuf, 0, wbuf_len * sizeof(wchar_t));
-  MultiByteToWideChar(CP_UTF8, 0, buf, -1, wbuf, (int) wbuf_len);
-  WideCharToMultiByte(CP_UTF8, 0, wbuf, (int) wbuf_len, buf2, sizeof(buf2),
-                      NULL, NULL);
-  if (strcmp(buf, buf2) != 0) {
-    wbuf[0] = L'\0';
-  }
-}
-#endif /* _WIN32 */
 
 #ifndef NS_DISABLE_FILESYSTEM
 int ns_stat(const char *path, ns_stat_t *st) {

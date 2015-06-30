@@ -155,6 +155,22 @@ typedef struct _stati64 ns_stat_t;
 #define S_ISDIR(x) ((x) &_S_IFDIR)
 #endif
 #define DIRSEP '\\'
+
+/* POSIX opendir/closedir/readdir API for Windows. */
+struct dirent {
+  char d_name[MAX_PATH];
+};
+
+typedef struct DIR {
+  HANDLE handle;
+  WIN32_FIND_DATAW info;
+  struct dirent result;
+} DIR;
+
+DIR *opendir(const char *name);
+int closedir(DIR *dir);
+struct dirent *readdir(DIR *dir);
+
 #else /* not _WIN32 */
 #ifndef NO_LIBC
 #include <dirent.h>

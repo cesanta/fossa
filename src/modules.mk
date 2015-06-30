@@ -24,6 +24,7 @@ SOURCES = $(COMMON)/mbuf.c \
           $(COMMON)/sha1.c \
           $(COMMON)/md5.c \
           $(COMMON)/base64.c \
+          $(COMMON)/dirent.c \
           $(FROZEN)/frozen.c \
           net.c \
           http.c \

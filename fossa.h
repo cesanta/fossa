@@ -8,6 +8,17 @@
 #define ON_FLASH
 #endif
 
+#ifdef PICOTCP
+#   define NO_LIBC
+#   define NS_DISABLE_FILESYSTEM 
+#   define NS_DISABLE_POPEN 
+#   define NS_DISABLE_CGI 
+#   define NS_DISABLE_DIRECTORY_LISTING 
+#   define NS_DISABLE_SOCKETPAIR 
+#   define NS_DISABLE_PFS
+#   define NS_DISABLE_RESOLVER
+#endif
+
 #endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
@@ -79,12 +90,25 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
-#ifndef AVR_LIBC
+#if !(defined (AVR_LIBC) || defined (PICOTCP))
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
 #include <signal.h>
+#endif
+
+#ifdef PICOTCP
+  #define time(x) PICO_TIME()
+  #include "pico_config.h"
+  #include "pico_bsd_sockets.h"
+  #include "pico_bsd_syscalls.h"
+  #ifndef SOMAXCONN
+    #define SOMAXCONN (16)
+  #endif
+  #ifdef _POSIX_VERSION
+    #define signal(...)
+  #endif
 #endif
 
 #include <assert.h>
@@ -240,6 +264,8 @@ typedef FILE* c_file_t;
 /*
  * TODO(alashkin): move to .h file (v7.h?)
  */
+
+#ifndef NS_DISABLE_FILESYSTEM
 c_file_t c_fopen(const char *filename, const char *mode);
 size_t c_fread(void *ptr, size_t size, size_t count, c_file_t fd);
 size_t c_fwrite(const void *ptr, size_t size, size_t count, c_file_t fd);
@@ -248,6 +274,7 @@ int c_rename(const char *oldname, const char *newname);
 int c_remove(const char *filename);
 void c_rewind(c_file_t fd);
 int c_ferror(c_file_t fd);
+#endif
 #endif
 
 #endif /* OSDEP_HEADER_INCLUDED */

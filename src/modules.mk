@@ -8,6 +8,7 @@ HEADERS = $(COMMON)/onflash.h \
           $(COMMON)/sha1.h \
           $(COMMON)/md5.h \
           $(COMMON)/base64.h \
+          $(COMMON)/str_util.h \
           $(FROZEN)/frozen.h \
           net.h \
           util.h \
@@ -24,6 +25,7 @@ SOURCES = $(COMMON)/mbuf.c \
           $(COMMON)/sha1.c \
           $(COMMON)/md5.c \
           $(COMMON)/base64.c \
+          $(COMMON)/str_util.c \
           $(COMMON)/dirent.c \
           $(FROZEN)/frozen.c \
           net.c \

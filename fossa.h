@@ -408,6 +408,28 @@ int base64_decode(const unsigned char *s, int len, char *dst);
 #endif
 #endif
 /*
+ * Copyright (c) 2015 Cesanta Software Limited
+ * All rights reserved
+ */
+
+#ifndef STR_UTIL_H
+#define STR_UTIL_H
+
+#include <stdarg.h>
+#include <stdlib.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int c_snprintf(char *buf, size_t buf_size, const char *format, ...);
+int c_vsnprintf(char *buf, size_t buf_size, const char *format, va_list ap);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+/*
  * Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
  * Copyright (c) 2013 Cesanta Software Limited
  * All rights reserved

@@ -505,7 +505,7 @@ static const char ns_s_cipher_list[] =
     "DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:"
     "!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA"
 #endif
-;
+    ;
 
 /*
  * Default DH params for PFS cipher negotiation. This is a 2048-bit group.

@@ -507,6 +507,7 @@ static const char ns_s_cipher_list[] =
 #endif
     ;
 
+#ifndef NS_DISABLE_PFS
 /*
  * Default DH params for PFS cipher negotiation. This is a 2048-bit group.
  * Will be used if none are provided by the user in the certificate file.
@@ -521,6 +522,7 @@ ym//hd3cd5PBYGBix0i7oR4xdghvfR2WLVu0LgdThTBb6XP7gLd19cQ1JuBtAajZ\n\
 wMuPn7qlUkEFDIkAZy59/Hue/H2Q2vU/JsvVhHWCQBL4F1ofEAt50il6ZxR1QfFK\n\
 9VGKDC4oOgm9DlxwwBoC2FjqmvQlqVV3kwIBAg==\n\
 -----END DH PARAMETERS-----\n";
+#endif
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -540,6 +542,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
   } else if (SSL_CTX_use_certificate_file(ctx, pem_file, 1) == 0 ||
              SSL_CTX_use_PrivateKey_file(ctx, pem_file, 1) == 0) {
     return -2;
+#ifndef NS_DISABLE_PFS
   } else {
     BIO *bio = NULL;
     DH *dh = NULL;
@@ -568,6 +571,7 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
     SSL_CTX_set_mode(ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
     SSL_CTX_use_certificate_chain_file(ctx, pem_file);
     return 0;
+#endif
   }
 }
 

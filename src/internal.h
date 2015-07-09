@@ -46,17 +46,6 @@
 #define NS_MGR_EV_MGR 0 /* select() */
 #endif
 
-#ifdef PICOTCP
-#define NO_LIBC
-#define NS_DISABLE_FILESYSTEM
-#define NS_DISABLE_POPEN
-#define NS_DISABLE_CGI
-#define NS_DISABLE_DIRECTORY_LISTING
-#define NS_DISABLE_SOCKETPAIR
-#define NS_DISABLE_PFS
-#define NS_DISABLE_RESOLVER
-#endif
-
 #include "../fossa.h"
 
 /* internals that need to be accessible in unit tests */

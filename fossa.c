@@ -51,17 +51,6 @@
 #define NS_MGR_EV_MGR 0 /* select() */
 #endif
 
-#ifdef PICOTCP
-#define NO_LIBC
-#define NS_DISABLE_FILESYSTEM
-#define NS_DISABLE_POPEN
-#define NS_DISABLE_CGI
-#define NS_DISABLE_DIRECTORY_LISTING
-#define NS_DISABLE_SOCKETPAIR
-#define NS_DISABLE_PFS
-#define NS_DISABLE_RESOLVER
-#endif
-
 
 /* internals that need to be accessible in unit tests */
 NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
@@ -1956,7 +1945,6 @@ static const char ns_s_cipher_list[] =
 #endif
     ;
 
-#ifndef NS_DISABLE_PFS
 /*
  * Default DH params for PFS cipher negotiation. This is a 2048-bit group.
  * Will be used if none are provided by the user in the certificate file.
@@ -1971,7 +1959,6 @@ ym//hd3cd5PBYGBix0i7oR4xdghvfR2WLVu0LgdThTBb6XP7gLd19cQ1JuBtAajZ\n\
 wMuPn7qlUkEFDIkAZy59/Hue/H2Q2vU/JsvVhHWCQBL4F1ofEAt50il6ZxR1QfFK\n\
 9VGKDC4oOgm9DlxwwBoC2FjqmvQlqVV3kwIBAg==\n\
 -----END DH PARAMETERS-----\n";
-#endif
 
 static int ns_use_ca_cert(SSL_CTX *ctx, const char *cert) {
   if (ctx == NULL) {
@@ -1991,7 +1978,6 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
   } else if (SSL_CTX_use_certificate_file(ctx, pem_file, 1) == 0 ||
              SSL_CTX_use_PrivateKey_file(ctx, pem_file, 1) == 0) {
     return -2;
-#ifndef NS_DISABLE_PFS
   } else {
     BIO *bio = NULL;
     DH *dh = NULL;
@@ -2020,7 +2006,6 @@ static int ns_use_cert(SSL_CTX *ctx, const char *pem_file) {
     SSL_CTX_set_mode(ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
     SSL_CTX_use_certificate_chain_file(ctx, pem_file);
     return 0;
-#endif
   }
 }
 

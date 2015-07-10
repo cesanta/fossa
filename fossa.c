@@ -179,7 +179,7 @@ ON_FLASH void mbuf_remove(struct mbuf *mb, size_t n) {
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-#ifndef ISABLE_SHA1
+#ifndef DISABLE_SHA1
 
 
 #define SHA1HANDSOFF

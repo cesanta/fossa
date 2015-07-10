@@ -133,11 +133,9 @@ ON_FLASH size_t
 mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
-#ifndef NO_LIBC
   assert(a != NULL);
   assert(a->len <= a->size);
   assert(off <= a->len);
-#endif
 
   /* check overflow */
   if (~(size_t) 0 - (size_t) a->buf < len) return 0;

@@ -34,7 +34,7 @@ struct ns_resolve_async_request {
  * Return 0 if OK, -1 if error
  */
 static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
-  int ret = 0;
+  int ret = -1;
 
 #ifdef _WIN32
   int i;

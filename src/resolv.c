@@ -7,7 +7,12 @@
 
 #include "internal.h"
 
-static const char *ns_default_dns_server = "udp://8.8.8.8:53";
+#ifndef NS_DEFAULT_NAMESERVER
+#define NS_DEFAULT_NAMESERVER "8.8.8.8"
+#endif
+
+static const char *ns_default_dns_server = "udp://" NS_DEFAULT_NAMESERVER ":53";
+
 NS_INTERNAL char ns_dns_server[256];
 
 struct ns_resolve_async_request {

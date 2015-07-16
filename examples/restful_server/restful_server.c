@@ -53,17 +53,6 @@ int main(int argc, char *argv[]) {
   char *cp;
 
   ns_mgr_init(&mgr, NULL);
-  nc = ns_bind(&mgr, s_http_port, ev_handler);
-  ns_set_protocol_http_websocket(nc);
-  s_http_server_opts.document_root = ".";
-  s_http_server_opts.enable_directory_listing = "yes";
-
-  /* Use current binary directory as document root */
-  if (argc > 0 && ((cp = strrchr(argv[0], '/')) != NULL ||
-      (cp = strrchr(argv[0], '/')) != NULL)) {
-    *cp = '\0';
-    s_http_server_opts.document_root = argv[0];
-  }
 
   /* Process command line options to customize HTTP server */
   for (i = 1; i < argc; i++) {
@@ -71,6 +60,8 @@ int main(int argc, char *argv[]) {
       mgr.hexdump_file = argv[++i];
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
       s_http_server_opts.document_root = argv[++i];
+    } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+      s_http_port = argv[++i];
     } else if (strcmp(argv[i], "-a") == 0 && i + 1 < argc) {
       s_http_server_opts.auth_domain = argv[++i];
     } else if (strcmp(argv[i], "-P") == 0 && i + 1 < argc) {
@@ -93,6 +84,24 @@ int main(int argc, char *argv[]) {
       }
 #endif
     }
+  }
+
+  /* Set HTTP server options */
+  nc = ns_bind(&mgr, s_http_port, ev_handler);
+  if (nc == NULL) {
+    fprintf(stderr, "Error starting server on port %s\n", s_http_port);
+    exit(1);
+  }
+
+  ns_set_protocol_http_websocket(nc);
+  s_http_server_opts.document_root = ".";
+  s_http_server_opts.enable_directory_listing = "yes";
+
+  /* Use current binary directory as document root */
+  if (argc > 0 && ((cp = strrchr(argv[0], '/')) != NULL ||
+      (cp = strrchr(argv[0], '/')) != NULL)) {
+    *cp = '\0';
+    s_http_server_opts.document_root = argv[0];
   }
 
   printf("Starting RESTful server on port %s\n", s_http_port);

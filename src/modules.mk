@@ -1,8 +1,7 @@
 COMMON = ../../common
 FROZEN = ../deps/frozen
 
-HEADERS = $(COMMON)/onflash.h \
-					common.h \
+HEADERS = common.h \
           $(COMMON)/osdep.h \
           $(COMMON)/mbuf.h \
           $(COMMON)/sha1.h \

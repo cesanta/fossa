@@ -50,7 +50,7 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
-#if !(defined (AVR_LIBC) || defined (PICOTCP))
+#if !(defined(AVR_LIBC) || defined(PICOTCP))
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -181,7 +181,7 @@ typedef struct stat ns_stat_t;
 #define DIRSEP '/'
 #endif
 #ifdef __APPLE__
-int64_t strtoll(const char* str, char** endptr, int base);
+int64_t strtoll(const char *str, char **endptr, int base);
 #endif
 #endif /* _WIN32 */
 
@@ -202,7 +202,7 @@ int64_t strtoll(const char* str, char** endptr, int base);
 #endif
 
 #if !defined(NO_LIBC) && !defined(NS_DISABLE_FILESYSTEM)
-typedef FILE* c_file_t;
+typedef FILE *c_file_t;
 /*
  * Cannot use fopen & Co directly and
  * override them with -D because

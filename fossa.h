@@ -1,14 +1,6 @@
 #ifdef __AVR__
 #include "avrsupport.h"
 #endif
-#ifndef ONFLASH_HEADER_INCLUDED
-#define ONFLASH_HEADER_INCLUDED
-
-#ifndef ON_FLASH
-#define ON_FLASH
-#endif
-
-#endif
 /*
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
@@ -79,7 +71,7 @@
 #pragma warning(disable : 4204) /* missing c99 support */
 #endif
 
-#if !(defined (AVR_LIBC) || defined (PICOTCP))
+#if !(defined(AVR_LIBC) || defined(PICOTCP))
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -207,7 +199,7 @@ typedef struct stat ns_stat_t;
 #define DIRSEP '/'
 #endif
 #ifdef __APPLE__
-int64_t strtoll(const char* str, char** endptr, int base);
+int64_t strtoll(const char *str, char **endptr, int base);
 #endif
 #endif /* _WIN32 */
 
@@ -228,7 +220,7 @@ int64_t strtoll(const char* str, char** endptr, int base);
 #endif
 
 #if !defined(NO_LIBC) && !defined(NS_DISABLE_FILESYSTEM)
-typedef FILE* c_file_t;
+typedef FILE *c_file_t;
 /*
  * Cannot use fopen & Co directly and
  * override them with -D because
@@ -334,7 +326,6 @@ void mbuf_resize(struct mbuf *, size_t new_size);
 /* Shrink an Mbuf by resizing its `size` to `len`. */
 void mbuf_trim(struct mbuf *);
 
-
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */
@@ -404,7 +395,6 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 
 #if !defined(BASE64_H_INCLUDED) && !defined(DISABLE_BASE64)
 #define BASE64_H_INCLUDED
-
 
 #ifdef __cplusplus
 extern "C" {

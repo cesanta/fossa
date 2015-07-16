@@ -103,20 +103,20 @@ extern void *(*test_calloc)(size_t, size_t);
 #define MBUF_FREE free
 #endif
 
-ON_FLASH void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
+void mbuf_init(struct mbuf *mbuf, size_t initial_size) {
   mbuf->len = mbuf->size = 0;
   mbuf->buf = NULL;
   mbuf_resize(mbuf, initial_size);
 }
 
-ON_FLASH void mbuf_free(struct mbuf *mbuf) {
+void mbuf_free(struct mbuf *mbuf) {
   if (mbuf->buf != NULL) {
     MBUF_FREE(mbuf->buf);
     mbuf_init(mbuf, 0);
   }
 }
 
-ON_FLASH void mbuf_resize(struct mbuf *a, size_t new_size) {
+void mbuf_resize(struct mbuf *a, size_t new_size) {
   char *p;
   if ((new_size > a->size || (new_size < a->size && new_size >= a->len)) &&
       (p = (char *) MBUF_REALLOC(a->buf, new_size)) != NULL) {
@@ -125,12 +125,11 @@ ON_FLASH void mbuf_resize(struct mbuf *a, size_t new_size) {
   }
 }
 
-ON_FLASH void mbuf_trim(struct mbuf *mbuf) {
+void mbuf_trim(struct mbuf *mbuf) {
   mbuf_resize(mbuf, mbuf->len);
 }
 
-ON_FLASH size_t
-mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
+size_t mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   char *p = NULL;
 
   assert(a != NULL);
@@ -162,11 +161,11 @@ mbuf_insert(struct mbuf *a, size_t off, const void *buf, size_t len) {
   return len;
 }
 
-ON_FLASH size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
+size_t mbuf_append(struct mbuf *a, const void *buf, size_t len) {
   return mbuf_insert(a, a->len, buf, len);
 }
 
-ON_FLASH void mbuf_remove(struct mbuf *mb, size_t n) {
+void mbuf_remove(struct mbuf *mb, size_t n) {
   if (n > 0 && n <= mb->len) {
     memmove(mb->buf, mb->buf + n, mb->len - n);
     mb->len -= n;
@@ -186,15 +185,18 @@ ON_FLASH void mbuf_remove(struct mbuf *mb, size_t n) {
 #if defined(__sun)
 #endif
 
-union char64long16 { unsigned char c[64]; uint32_t l[16]; };
+union char64long16 {
+  unsigned char c[64];
+  uint32_t l[16];
+};
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-ON_FLASH static uint32_t blk0(union char64long16 *block, int i) {
-  /* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
+static uint32_t blk0(union char64long16 *block, int i) {
+/* Forrest: SHA expect BIG_ENDIAN, swap if LITTLE_ENDIAN */
 #if BYTE_ORDER == LITTLE_ENDIAN
-    block->l[i] = (rol(block->l[i], 24) & 0xFF00FF00) |
-      (rol(block->l[i], 8) & 0x00FF00FF);
+  block->l[i] =
+      (rol(block->l[i], 24) & 0xFF00FF00) | (rol(block->l[i], 8) & 0x00FF00FF);
 #endif
   return block->l[i];
 }
@@ -207,15 +209,27 @@ ON_FLASH static uint32_t blk0(union char64long16 *block, int i) {
 #undef R3
 #undef R4
 
-#define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
-    ^block->l[(i+2)&15]^block->l[i&15],1))
-#define R0(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk0(block, i)+0x5A827999+rol(v,5);w=rol(w,30);
-#define R1(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk(i)+0x5A827999+rol(v,5);w=rol(w,30);
-#define R2(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0x6ED9EBA1+rol(v,5);w=rol(w,30);
-#define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
-#define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
+#define blk(i)                                                               \
+  (block->l[i & 15] = rol(block->l[(i + 13) & 15] ^ block->l[(i + 8) & 15] ^ \
+                              block->l[(i + 2) & 15] ^ block->l[i & 15],     \
+                          1))
+#define R0(v, w, x, y, z, i)                                          \
+  z += ((w & (x ^ y)) ^ y) + blk0(block, i) + 0x5A827999 + rol(v, 5); \
+  w = rol(w, 30);
+#define R1(v, w, x, y, z, i)                                  \
+  z += ((w & (x ^ y)) ^ y) + blk(i) + 0x5A827999 + rol(v, 5); \
+  w = rol(w, 30);
+#define R2(v, w, x, y, z, i)                          \
+  z += (w ^ x ^ y) + blk(i) + 0x6ED9EBA1 + rol(v, 5); \
+  w = rol(w, 30);
+#define R3(v, w, x, y, z, i)                                        \
+  z += (((w | x) & y) | (w & x)) + blk(i) + 0x8F1BBCDC + rol(v, 5); \
+  w = rol(w, 30);
+#define R4(v, w, x, y, z, i)                          \
+  z += (w ^ x ^ y) + blk(i) + 0xCA62C1D6 + rol(v, 5); \
+  w = rol(w, 30);
 
-ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
+void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   uint32_t a, b, c, d, e;
   union char64long16 block[1];
 
@@ -225,26 +239,86 @@ ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
   c = state[2];
   d = state[3];
   e = state[4];
-  R0(a,b,c,d,e, 0); R0(e,a,b,c,d, 1); R0(d,e,a,b,c, 2); R0(c,d,e,a,b, 3);
-  R0(b,c,d,e,a, 4); R0(a,b,c,d,e, 5); R0(e,a,b,c,d, 6); R0(d,e,a,b,c, 7);
-  R0(c,d,e,a,b, 8); R0(b,c,d,e,a, 9); R0(a,b,c,d,e,10); R0(e,a,b,c,d,11);
-  R0(d,e,a,b,c,12); R0(c,d,e,a,b,13); R0(b,c,d,e,a,14); R0(a,b,c,d,e,15);
-  R1(e,a,b,c,d,16); R1(d,e,a,b,c,17); R1(c,d,e,a,b,18); R1(b,c,d,e,a,19);
-  R2(a,b,c,d,e,20); R2(e,a,b,c,d,21); R2(d,e,a,b,c,22); R2(c,d,e,a,b,23);
-  R2(b,c,d,e,a,24); R2(a,b,c,d,e,25); R2(e,a,b,c,d,26); R2(d,e,a,b,c,27);
-  R2(c,d,e,a,b,28); R2(b,c,d,e,a,29); R2(a,b,c,d,e,30); R2(e,a,b,c,d,31);
-  R2(d,e,a,b,c,32); R2(c,d,e,a,b,33); R2(b,c,d,e,a,34); R2(a,b,c,d,e,35);
-  R2(e,a,b,c,d,36); R2(d,e,a,b,c,37); R2(c,d,e,a,b,38); R2(b,c,d,e,a,39);
-  R3(a,b,c,d,e,40); R3(e,a,b,c,d,41); R3(d,e,a,b,c,42); R3(c,d,e,a,b,43);
-  R3(b,c,d,e,a,44); R3(a,b,c,d,e,45); R3(e,a,b,c,d,46); R3(d,e,a,b,c,47);
-  R3(c,d,e,a,b,48); R3(b,c,d,e,a,49); R3(a,b,c,d,e,50); R3(e,a,b,c,d,51);
-  R3(d,e,a,b,c,52); R3(c,d,e,a,b,53); R3(b,c,d,e,a,54); R3(a,b,c,d,e,55);
-  R3(e,a,b,c,d,56); R3(d,e,a,b,c,57); R3(c,d,e,a,b,58); R3(b,c,d,e,a,59);
-  R4(a,b,c,d,e,60); R4(e,a,b,c,d,61); R4(d,e,a,b,c,62); R4(c,d,e,a,b,63);
-  R4(b,c,d,e,a,64); R4(a,b,c,d,e,65); R4(e,a,b,c,d,66); R4(d,e,a,b,c,67);
-  R4(c,d,e,a,b,68); R4(b,c,d,e,a,69); R4(a,b,c,d,e,70); R4(e,a,b,c,d,71);
-  R4(d,e,a,b,c,72); R4(c,d,e,a,b,73); R4(b,c,d,e,a,74); R4(a,b,c,d,e,75);
-  R4(e,a,b,c,d,76); R4(d,e,a,b,c,77); R4(c,d,e,a,b,78); R4(b,c,d,e,a,79);
+  R0(a, b, c, d, e, 0);
+  R0(e, a, b, c, d, 1);
+  R0(d, e, a, b, c, 2);
+  R0(c, d, e, a, b, 3);
+  R0(b, c, d, e, a, 4);
+  R0(a, b, c, d, e, 5);
+  R0(e, a, b, c, d, 6);
+  R0(d, e, a, b, c, 7);
+  R0(c, d, e, a, b, 8);
+  R0(b, c, d, e, a, 9);
+  R0(a, b, c, d, e, 10);
+  R0(e, a, b, c, d, 11);
+  R0(d, e, a, b, c, 12);
+  R0(c, d, e, a, b, 13);
+  R0(b, c, d, e, a, 14);
+  R0(a, b, c, d, e, 15);
+  R1(e, a, b, c, d, 16);
+  R1(d, e, a, b, c, 17);
+  R1(c, d, e, a, b, 18);
+  R1(b, c, d, e, a, 19);
+  R2(a, b, c, d, e, 20);
+  R2(e, a, b, c, d, 21);
+  R2(d, e, a, b, c, 22);
+  R2(c, d, e, a, b, 23);
+  R2(b, c, d, e, a, 24);
+  R2(a, b, c, d, e, 25);
+  R2(e, a, b, c, d, 26);
+  R2(d, e, a, b, c, 27);
+  R2(c, d, e, a, b, 28);
+  R2(b, c, d, e, a, 29);
+  R2(a, b, c, d, e, 30);
+  R2(e, a, b, c, d, 31);
+  R2(d, e, a, b, c, 32);
+  R2(c, d, e, a, b, 33);
+  R2(b, c, d, e, a, 34);
+  R2(a, b, c, d, e, 35);
+  R2(e, a, b, c, d, 36);
+  R2(d, e, a, b, c, 37);
+  R2(c, d, e, a, b, 38);
+  R2(b, c, d, e, a, 39);
+  R3(a, b, c, d, e, 40);
+  R3(e, a, b, c, d, 41);
+  R3(d, e, a, b, c, 42);
+  R3(c, d, e, a, b, 43);
+  R3(b, c, d, e, a, 44);
+  R3(a, b, c, d, e, 45);
+  R3(e, a, b, c, d, 46);
+  R3(d, e, a, b, c, 47);
+  R3(c, d, e, a, b, 48);
+  R3(b, c, d, e, a, 49);
+  R3(a, b, c, d, e, 50);
+  R3(e, a, b, c, d, 51);
+  R3(d, e, a, b, c, 52);
+  R3(c, d, e, a, b, 53);
+  R3(b, c, d, e, a, 54);
+  R3(a, b, c, d, e, 55);
+  R3(e, a, b, c, d, 56);
+  R3(d, e, a, b, c, 57);
+  R3(c, d, e, a, b, 58);
+  R3(b, c, d, e, a, 59);
+  R4(a, b, c, d, e, 60);
+  R4(e, a, b, c, d, 61);
+  R4(d, e, a, b, c, 62);
+  R4(c, d, e, a, b, 63);
+  R4(b, c, d, e, a, 64);
+  R4(a, b, c, d, e, 65);
+  R4(e, a, b, c, d, 66);
+  R4(d, e, a, b, c, 67);
+  R4(c, d, e, a, b, 68);
+  R4(b, c, d, e, a, 69);
+  R4(a, b, c, d, e, 70);
+  R4(e, a, b, c, d, 71);
+  R4(d, e, a, b, c, 72);
+  R4(c, d, e, a, b, 73);
+  R4(b, c, d, e, a, 74);
+  R4(a, b, c, d, e, 75);
+  R4(e, a, b, c, d, 76);
+  R4(d, e, a, b, c, 77);
+  R4(c, d, e, a, b, 78);
+  R4(b, c, d, e, a, 79);
   state[0] += a;
   state[1] += b;
   state[2] += c;
@@ -254,10 +328,14 @@ ON_FLASH void SHA1Transform(uint32_t state[5], const unsigned char buffer[64]) {
    * used to ensure that compiler doesn't optimize those out. */
   memset(block, 0, sizeof(block));
   a = b = c = d = e = 0;
-  (void) a; (void) b; (void) c; (void) d; (void) e;
+  (void) a;
+  (void) b;
+  (void) c;
+  (void) d;
+  (void) e;
 }
 
-ON_FLASH void SHA1Init(SHA1_CTX *context) {
+void SHA1Init(SHA1_CTX *context) {
   context->state[0] = 0x67452301;
   context->state[1] = 0xEFCDAB89;
   context->state[2] = 0x98BADCFE;
@@ -266,33 +344,33 @@ ON_FLASH void SHA1Init(SHA1_CTX *context) {
   context->count[0] = context->count[1] = 0;
 }
 
-ON_FLASH void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
+void SHA1Update(SHA1_CTX *context, const unsigned char *data, uint32_t len) {
   uint32_t i, j;
 
   j = context->count[0];
-  if ((context->count[0] += len << 3) < j)
-    context->count[1]++;
-  context->count[1] += (len>>29);
+  if ((context->count[0] += len << 3) < j) context->count[1]++;
+  context->count[1] += (len >> 29);
   j = (j >> 3) & 63;
   if ((j + len) > 63) {
-    memcpy(&context->buffer[j], data, (i = 64-j));
+    memcpy(&context->buffer[j], data, (i = 64 - j));
     SHA1Transform(context->state, context->buffer);
-    for ( ; i + 63 < len; i += 64) {
+    for (; i + 63 < len; i += 64) {
       SHA1Transform(context->state, &data[i]);
     }
     j = 0;
-  }
-  else i = 0;
+  } else
+    i = 0;
   memcpy(&context->buffer[j], &data[i], len - i);
 }
 
-ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
+void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   unsigned i;
   unsigned char finalcount[8], c;
 
   for (i = 0; i < 8; i++) {
-    finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
-                                     >> ((3-(i & 3)) * 8) ) & 255);
+    finalcount[i] = (unsigned char) ((context->count[(i >= 4 ? 0 : 1)] >>
+                                      ((3 - (i & 3)) * 8)) &
+                                     255);
   }
   c = 0200;
   SHA1Update(context, &c, 1);
@@ -302,16 +380,16 @@ ON_FLASH void SHA1Final(unsigned char digest[20], SHA1_CTX *context) {
   }
   SHA1Update(context, finalcount, 8);
   for (i = 0; i < 20; i++) {
-    digest[i] = (unsigned char)
-      ((context->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
+    digest[i] =
+        (unsigned char) ((context->state[i >> 2] >> ((3 - (i & 3)) * 8)) & 255);
   }
   memset(context, '\0', sizeof(*context));
   memset(&finalcount, '\0', sizeof(finalcount));
 }
 
-ON_FLASH void hmac_sha1(const unsigned char *key, size_t keylen,
-                        const unsigned char *data, size_t datalen,
-                        unsigned char out[20]) {
+void hmac_sha1(const unsigned char *key, size_t keylen,
+               const unsigned char *data, size_t datalen,
+               unsigned char out[20]) {
   SHA1_CTX ctx;
   unsigned char buf1[64], buf2[64], tmp_key[20], i;
 
@@ -368,14 +446,13 @@ ON_FLASH void hmac_sha1(const unsigned char *key, size_t keylen,
 #ifndef DISABLE_MD5
 
 
-ON_FLASH static void byteReverse(unsigned char *buf, unsigned longs) {
-
-  /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
+static void byteReverse(unsigned char *buf, unsigned longs) {
+/* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
 #if BYTE_ORDER == BIG_ENDIAN
   do {
-  uint32_t t = (uint32_t) ((unsigned) buf[3] << 8 | buf[2]) << 16 |
-      ((unsigned) buf[1] << 8 | buf[0]);
-    * (uint32_t *) buf = t;
+    uint32_t t = (uint32_t)((unsigned) buf[3] << 8 | buf[2]) << 16 |
+                 ((unsigned) buf[1] << 8 | buf[0]);
+    *(uint32_t *) buf = t;
     buf += 4;
   } while (--longs);
 #else
@@ -390,13 +467,13 @@ ON_FLASH static void byteReverse(unsigned char *buf, unsigned longs) {
 #define F4(x, y, z) (y ^ (x | ~z))
 
 #define MD5STEP(f, w, x, y, z, data, s) \
-  ( w += f(x, y, z) + data,  w = w<<s | w>>(32-s),  w += x )
+  (w += f(x, y, z) + data, w = w << s | w >> (32 - s), w += x)
 
 /*
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-ON_FLASH void MD5_Init(MD5_CTX *ctx) {
+void MD5_Init(MD5_CTX *ctx) {
   ctx->buf[0] = 0x67452301;
   ctx->buf[1] = 0xefcdab89;
   ctx->buf[2] = 0x98badcfe;
@@ -406,7 +483,7 @@ ON_FLASH void MD5_Init(MD5_CTX *ctx) {
   ctx->bits[1] = 0;
 }
 
-ON_FLASH static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
+static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   register uint32_t a, b, c, d;
 
   a = buf[0];
@@ -488,12 +565,11 @@ ON_FLASH static void MD5Transform(uint32_t buf[4], uint32_t const in[16]) {
   buf[3] += d;
 }
 
-ON_FLASH void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
+void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   uint32_t t;
 
   t = ctx->bits[0];
-  if ((ctx->bits[0] = t + ((uint32_t) len << 3)) < t)
-    ctx->bits[1]++;
+  if ((ctx->bits[0] = t + ((uint32_t) len << 3)) < t) ctx->bits[1]++;
   ctx->bits[1] += (uint32_t) len >> 29;
 
   t = (t >> 3) & 0x3f;
@@ -524,7 +600,7 @@ ON_FLASH void MD5_Update(MD5_CTX *ctx, const unsigned char *buf, size_t len) {
   memcpy(ctx->in, buf, len);
 }
 
-ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
+void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   unsigned count;
   unsigned char *p;
   uint32_t *a;
@@ -544,7 +620,7 @@ ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   }
   byteReverse(ctx->in, 14);
 
-  a = (uint32_t *)ctx->in;
+  a = (uint32_t *) ctx->in;
   a[14] = ctx->bits[0];
   a[15] = ctx->bits[1];
 
@@ -564,7 +640,7 @@ ON_FLASH void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  */
 
 
-ON_FLASH void base64_encode(const unsigned char *src, int src_len, char *dst) {
+void base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
@@ -590,7 +666,7 @@ ON_FLASH void base64_encode(const unsigned char *src, int src_len, char *dst) {
 }
 
 /* Convert one byte of encoded base64 input stream to 6-bit chunk */
-ON_FLASH static unsigned char from_b64(unsigned char ch) {
+static unsigned char from_b64(unsigned char ch) {
   /* Inverse lookup map */
   static const unsigned char tab[128] = {
       255, 255, 255, 255,
@@ -629,7 +705,7 @@ ON_FLASH static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-ON_FLASH int base64_decode(const unsigned char *s, int len, char *dst) {
+int base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   int orig_len = len;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
@@ -657,22 +733,21 @@ ON_FLASH int base64_decode(const unsigned char *s, int len, char *dst) {
  */
 
 
-#define C_SNPRINTF_APPEND_CHAR(ch)      \
-  do {                                  \
-    if (i < (int)buf_size) buf[i] = ch; \
-    i++;                                \
+#define C_SNPRINTF_APPEND_CHAR(ch)       \
+  do {                                   \
+    if (i < (int) buf_size) buf[i] = ch; \
+    i++;                                 \
   } while (0)
 
-#define C_SNPRINTF_FLAG_ZERO  1
+#define C_SNPRINTF_FLAG_ZERO 1
 
 #ifdef C_DISABLE_BUILTIN_SNPRINTF
-ON_FLASH int c_vsnprintf(char *buf, size_t buf_size, const char *fmt,
-                         va_list ap) {
+int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
   return vsnprintf(buf, buf_size, fmt, ap);
 }
 #else
-ON_FLASH static int c_itoa(char *buf, size_t buf_size, int64_t num, int base,
-                           int flags, int field_width) {
+static int c_itoa(char *buf, size_t buf_size, int64_t num, int base, int flags,
+                  int field_width) {
   char tmp[40];
   int i = 0, k = 0, neg = 0;
 
@@ -712,8 +787,7 @@ ON_FLASH static int c_itoa(char *buf, size_t buf_size, int64_t num, int base,
   return i;
 }
 
-ON_FLASH int c_vsnprintf(char *buf, size_t buf_size, const char *fmt,
-                         va_list ap) {
+int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
   int ch, i = 0, len_mod, flags, precision, field_width;
 
   while ((ch = *fmt++) != '\0') {
@@ -757,8 +831,14 @@ ON_FLASH int c_vsnprintf(char *buf, size_t buf_size, const char *fmt,
 
       /* Length modifier */
       switch (*fmt) {
-        case 'h': case 'l': case 'L': case 'I':
-        case 'q': case 'j': case 'z': case 't':
+        case 'h':
+        case 'l':
+        case 'L':
+        case 'I':
+        case 'q':
+        case 'j':
+        case 'z':
+        case 't':
           len_mod = *fmt++;
           if (*fmt == 'h') {
             len_mod = 'H';
@@ -780,7 +860,7 @@ ON_FLASH int c_vsnprintf(char *buf, size_t buf_size, const char *fmt,
           C_SNPRINTF_APPEND_CHAR(s[j]);
         }
       } else if (ch == 'c') {
-        ch = va_arg(ap, int);   /* Always fetch parameter */
+        ch = va_arg(ap, int); /* Always fetch parameter */
         C_SNPRINTF_APPEND_CHAR(ch);
       } else if (ch == 'd' && len_mod == 0) {
         i += c_itoa(buf + i, buf_size - i, va_arg(ap, int), 10, flags,
@@ -820,7 +900,7 @@ ON_FLASH int c_vsnprintf(char *buf, size_t buf_size, const char *fmt,
 }
 #endif
 
-ON_FLASH int c_snprintf(char *buf, size_t buf_size, const char *fmt, ...) {
+int c_snprintf(char *buf, size_t buf_size, const char *fmt, ...) {
   int result;
   va_list ap;
   va_start(ap, fmt);

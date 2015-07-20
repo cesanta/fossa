@@ -673,23 +673,26 @@ static size_t recv_avail_size(struct ns_connection *conn, size_t max) {
 }
 
 #ifdef NS_ENABLE_SSL
-static void ns_ssl_accept(struct ns_connection *conn) {
-  int res = SSL_accept(conn->ssl);
-  int ssl_err = ns_ssl_err(conn, res);
+static void ns_ssl_begin(struct ns_connection *nc) {
+  int server_side = nc->listener != NULL;
+  int res = server_side ? SSL_accept(nc->ssl) : SSL_connect(nc->ssl);
+
   if (res == 1) {
-    union socket_address sa;
-    socklen_t sa_len = sizeof(sa);
-    conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-    conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
-    /* In case port was set to 0, get the real port number */
-    (void) getsockname(conn->sock, &sa.sa, &sa_len);
-    ns_call(conn, NS_ACCEPT, &sa);
-  } else if (ssl_err == SSL_ERROR_WANT_READ ||
-             ssl_err == SSL_ERROR_WANT_WRITE) {
-    return; /* Call us again */
+    nc->flags |= NSF_SSL_HANDSHAKE_DONE;
+    nc->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
+
+    if (server_side) {
+      union socket_address sa;
+      socklen_t sa_len = sizeof(sa);
+      /* In case port was set to 0, get the real port number */
+      (void) getsockname(nc->sock, &sa.sa, &sa_len);
+      ns_call(nc, NS_ACCEPT, &sa);
+    }
   } else {
-    conn->flags |= NSF_CLOSE_IMMEDIATELY;
-    return;
+    int ssl_err = ns_ssl_err(nc, res);
+    if (ssl_err != SSL_ERROR_WANT_READ && ssl_err != SSL_ERROR_WANT_WRITE) {
+      nc->flags |= NSF_CLOSE_IMMEDIATELY;
+    }
   }
 }
 #endif /* NS_ENABLE_SSL */
@@ -705,20 +708,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
-      int res = SSL_connect(conn->ssl);
-      int ssl_err = ns_ssl_err(conn, res);
-      if (res == 1) {
-        conn->flags |= NSF_SSL_HANDSHAKE_DONE;
-        conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
-      } else if (ssl_err == SSL_ERROR_WANT_READ ||
-                 ssl_err == SSL_ERROR_WANT_WRITE) {
-        return; /* Call us again */
-      } else {
-        ok = 1;
-      }
+      ns_ssl_begin(conn);
     }
 #endif
-    (void) ret;
     DBG(("%p connect ok=%d", conn, ok));
     if (ok != 0) {
       conn->flags |= NSF_CLOSE_IMMEDIATELY;
@@ -742,7 +734,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       }
       ns_ssl_err(conn, n);
     } else {
-      ns_ssl_accept(conn);
+      ns_ssl_begin(conn);
       return;
     }
   } else
@@ -783,7 +775,7 @@ static void ns_write_to_socket(struct ns_connection *conn) {
         conn->flags &= ~(NSF_WANT_READ | NSF_WANT_WRITE);
       }
     } else {
-      ns_ssl_accept(conn);
+      ns_ssl_begin(conn);
       return;
     }
   } else

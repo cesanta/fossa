@@ -59,7 +59,6 @@
 #define NS_DISABLE_DIRECTORY_LISTING
 #define NS_DISABLE_SOCKETPAIR
 #define NS_DISABLE_PFS
-#define NS_DISABLE_RESOLVER
 #endif
 
 
@@ -6778,6 +6777,8 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
     }
     (void) fclose(fp);
   }
+#else
+  snprintf(name, name_len, "%s", ns_default_dns_server);
 #endif /* _WIN32 */
 
   return ret;

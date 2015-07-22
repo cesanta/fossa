@@ -72,9 +72,7 @@
 #endif
 
 #include <assert.h>
-#ifndef NO_LIBC
 #include <ctype.h>
-#endif
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>

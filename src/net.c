@@ -703,6 +703,8 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
+    (void) ret;
+
     socklen_t len = sizeof(ok);
 
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);

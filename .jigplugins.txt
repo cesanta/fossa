@@ -1,2 +1,0 @@
-http://github.com/robmadole/jig-plugins@whitespace
-http://github.com/robmadole/jig-plugins@woops

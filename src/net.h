@@ -136,6 +136,7 @@ struct ns_connection {
 #define NSF_DONT_SEND (1 << 11)           /* Do not send data to peer */
 #define NSF_CLOSE_IMMEDIATELY (1 << 12)   /* Disconnect */
 #define NSF_WEBSOCKET_NO_DEFRAG (1 << 13) /* Websocket specific */
+#define NSF_DELETE_CHUNK (1 << 14)        /* HTTP specific */
 
 #define NSF_USER_1 (1 << 20) /* Flags left for application */
 #define NSF_USER_2 (1 << 21)

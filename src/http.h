@@ -87,6 +87,7 @@ struct websocket_message {
 /* HTTP and websocket events. void *ev_data is described in a comment. */
 #define NS_HTTP_REQUEST 100 /* struct http_message * */
 #define NS_HTTP_REPLY 101   /* struct http_message * */
+#define NS_HTTP_CHUNK 102   /* struct http_message * */
 #define NS_SSI_CALL 105     /* char * */
 
 #define NS_WEBSOCKET_HANDSHAKE_REQUEST 111 /* NULL */
@@ -102,6 +103,17 @@ struct websocket_message {
  *   `struct http_message` through the handler's `void *ev_data` pointer.
  * - NS_HTTP_REPLY: HTTP reply has arrived. Parsed HTTP reply is passed as
  *   `struct http_message` through the handler's `void *ev_data` pointer.
+ * - NS_HTTP_CHUNK: HTTP chunked-encoding chunk has arrived.
+ *   Parsed HTTP reply is passed as `struct http_message` through the
+ *   handler's `void *ev_data` pointer. `http_message::body` would contain
+ *   incomplete, reassembled HTTP body.
+ *   It will grow with every new chunk arrived, and
+ *   potentially can consume a lot of memory. An event handler may process
+ *   the body as chunks are coming, and signal Fossa to delete processed
+ *   body by setting `NSF_DELETE_CHUNK` in `ns_connection::flags`. When
+ *   the last zero chunk is received, Fossa sends `NS_HTTP_REPLY` event will
+ *   full reassembled body (if handler did not signal to delete chunks) or
+ *   with empty body (if handler did signal to delete chunks).
  * - NS_WEBSOCKET_HANDSHAKE_REQUEST: server has received websocket handshake
  *   request. `ev_data` contains parsed HTTP request.
  * - NS_WEBSOCKET_HANDSHAKE_DONE: server has completed Websocket handshake.

@@ -2127,6 +2127,67 @@ static const char *test_http_chunk(void) {
   return NULL;
 }
 
+static int s_handle_chunk_event = 0;
+static char s_events[100];
+
+static void eh_chunk2(struct ns_connection *nc, int ev, void *ev_data) {
+  if (ev == NS_HTTP_CHUNK) {
+    if (s_handle_chunk_event) {
+      nc->flags |= NSF_DELETE_CHUNK;
+    }
+  }
+  snprintf(s_events + strlen(s_events), sizeof(s_events) - strlen(s_events),
+           "_%d", ev);
+  (void) ev_data;
+}
+
+static const char *test_http_chunk2(void) {
+  struct ns_connection nc;
+  struct http_message hm;
+  char buf[100] = "5\r\nhe";
+
+  memset(&nc, 0, sizeof(nc));
+  memset(&hm, 0, sizeof(hm));
+  nc.sock = INVALID_SOCKET;
+  nc.handler = eh_chunk2;
+  hm.message.len = hm.body.len = ~0;
+
+  s_handle_chunk_event = 0;
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 0);
+
+  /* Simulate arrival of chunks. NS_HTTP_CHUNK events are not handled. */
+  strcat(buf, "llo\r");
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 0);
+  ASSERT_STREQ(buf, "5\r\nhello\r");
+
+  strcat(buf, "\n");
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 5);
+  ASSERT_STREQ(buf, "hello");
+
+  s_handle_chunk_event = 1;
+  strcat(buf, "3\r\n:-)\r\n");
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 8);
+  ASSERT_STREQ(buf, "");
+
+  s_handle_chunk_event = 0;
+  strcat(buf, "3\r\n...\r\na\r\n0123456789\r\n0\r");
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 13);
+  ASSERT_STREQ(buf, "...01234567890\r");
+  ASSERT_EQ(hm.message.len, (size_t) ~0);
+
+  strcat(buf, "\n\r\n");
+  ASSERT_EQ(ns_handle_chunked(&nc, &hm, buf, strlen(buf)), 13);
+  ASSERT_STREQ(buf, "...0123456789");
+  ASSERT_EQ(hm.message.len, 13);
+
+  ASSERT_STREQ(s_events, "_102_102_102_102");
+
+  ASSERT(nc.proto_data != NULL);
+  free(nc.proto_data);
+
+  return NULL;
+}
+
 static const char *test_http_multipart(void) {
   struct http_message hm;
   char buf[FETCH_BUF_SIZE] = "", var_name[100], file_name[100];
@@ -3133,6 +3194,7 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_websocket_big);
   RUN_TEST(test_rpc);
   RUN_TEST(test_http_chunk);
+  RUN_TEST(test_http_chunk2);
   RUN_TEST(test_mqtt_handshake);
   RUN_TEST(test_mqtt_publish);
   RUN_TEST(test_mqtt_subscribe);

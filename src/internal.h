@@ -73,6 +73,21 @@ NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
 
+/*
+ * Reassemble the content of the buffer (buf, blen) which should be
+ * in the HTTP chunked encoding, by collapsing data chunks to the
+ * beginning of the buffer.
+ *
+ * If chunks get reassembled, modify hm->body to point to the reassembled
+ * body and fire NS_HTTP_CHUNK event. If handler sets NSF_DELETE_CHUNK
+ * in nc->flags, delete reassembled body from the mbuf.
+ *
+ * Return reassembled body size.
+ */
+NS_INTERNAL size_t ns_handle_chunked(struct ns_connection *nc,
+                                     struct http_message *hm, char *buf,
+                                     size_t blen);
+
 /* Forward declarations for testing. */
 extern void *(*test_malloc)(size_t);
 extern void *(*test_calloc)(size_t, size_t);

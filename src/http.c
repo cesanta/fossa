@@ -7,12 +7,13 @@
 
 #include "internal.h"
 
-enum http_proto_data_type { DATA_FILE, DATA_PUT, DATA_CGI };
+enum http_proto_data_type { DATA_NONE, DATA_FILE, DATA_PUT, DATA_CGI };
 
 struct proto_data_http {
-  FILE *fp;     /* Opened file. */
-  int64_t cl;   /* Content-Length. How many bytes to send. */
-  int64_t sent; /* How many bytes have been already sent. */
+  FILE *fp;         /* Opened file. */
+  int64_t cl;       /* Content-Length. How many bytes to send. */
+  int64_t sent;     /* How many bytes have been already sent. */
+  int64_t body_len; /* How many bytes of chunked body was reassembled. */
   struct ns_connection *cgi_nc;
   enum http_proto_data_type type;
 };
@@ -537,33 +538,104 @@ static void transfer_file_data(struct ns_connection *nc) {
   }
 }
 
-static void handle_chunked(struct http_message *hm, char *buf, size_t len) {
-  unsigned char *s = (unsigned char *) buf, *p = s;
-  unsigned char *end = s + len;
+/*
+ * Parse chunked-encoded buffer. Return 0 if the buffer is not encoded, or
+ * if it's incomplete. If the chunk is fully buffered, return total number of
+ * bytes in a chunk, and store data in `data`, `data_len`.
+ */
+static size_t parse_chunk(char *buf, size_t len, char **chunk_data,
+                          size_t *chunk_len) {
+  unsigned char *s = (unsigned char *) buf;
+  size_t n = 0; /* scanned chunk length */
+  size_t i = 0; /* index in s */
 
-  while (s < end) {
-    size_t chunk_len = 0;
-    while (s < end && isxdigit(*s)) {
-      chunk_len *= 16;
-      chunk_len += (*s >= '0' && *s <= '9') ? *s - '0' : tolower(*s) - 'a' + 10;
-      s++;
-    }
-    if (s < end && *s == '\r') s++;
-    if (s < end && *s == '\n') s++;
-    memmove(p, s, chunk_len);
-    p += chunk_len;
-    s += chunk_len;
+  /* Scan chunk length. That should be a hexadecimal number. */
+  while (i < len && isxdigit(s[i])) {
+    n *= 16;
+    n += (s[i] >= '0' && s[i] <= '9') ? s[i] - '0' : tolower(s[i]) - 'a' + 10;
+    i++;
+  }
 
-    if (chunk_len == 0) {
-      /* Last chunk. Set body length to reassembled length */
-      hm->body.len = (char *) p - buf;
+  /* Skip new line */
+  if (i == 0 || i + 2 > len || s[i] != '\r' || s[i + 1] != '\n') {
+    return 0;
+  }
+  i += 2;
 
-      /* Set message length to non-reassembled length and zero-out trailing */
-      hm->message.len = (char *) s - hm->message.p;
-      memset(p, 0, s - p);
+  /* Record where the data is */
+  *chunk_data = (char *) s + i;
+  *chunk_len = n;
+
+  /* Skip data */
+  i += n;
+
+  /* Skip new line */
+  if (i == 0 || i + 2 > len || s[i] != '\r' || s[i + 1] != '\n') {
+    return 0;
+  }
+  return i + 2;
+}
+
+NS_INTERNAL size_t ns_handle_chunked(struct ns_connection *nc,
+                                     struct http_message *hm, char *buf,
+                                     size_t blen) {
+  struct proto_data_http *dp;
+  char *data;
+  size_t i, n, data_len, body_len, zero_chunk_received = 0;
+
+  /* If not allocated, allocate proto_data to hold reassembled offset */
+  if (nc->proto_data == NULL &&
+      (nc->proto_data = NS_CALLOC(1, sizeof(*dp))) == NULL) {
+    nc->flags |= NSF_CLOSE_IMMEDIATELY;
+    return 0;
+  }
+
+  /* Find out piece of received data that is not yet reassembled */
+  dp = (struct proto_data_http *) nc->proto_data;
+  body_len = dp->body_len;
+  assert(blen >= body_len);
+
+  /* Traverse all fully buffered chunks */
+  for (i = body_len; (n = parse_chunk(buf + i, blen - i, &data, &data_len)) > 0;
+       i += n) {
+    /* Collapse chunk data to the rest of HTTP body */
+    memmove(buf + body_len, data, data_len);
+    body_len += data_len;
+    hm->body.len = body_len;
+
+    if (data_len == 0) {
+      zero_chunk_received = 1;
+      i += n;
       break;
     }
   }
+
+  if (i > body_len) {
+    /* Shift unparsed content to the parsed body */
+    assert(i <= blen);
+    memmove(buf + body_len, buf + i, blen - i);
+    memset(buf + body_len + blen - i, 0, i - body_len);
+    nc->recv_mbuf.len -= i - body_len;
+    dp->body_len = body_len;
+
+    /* Send NS_HTTP_CHUNK event */
+    nc->flags &= ~NSF_DELETE_CHUNK;
+    nc->handler(nc, NS_HTTP_CHUNK, hm);
+
+    /* Delete processed data if user set NSF_DELETE_CHUNK flag */
+    if (nc->flags & NSF_DELETE_CHUNK) {
+      memset(buf, 0, body_len);
+      memmove(buf, buf + body_len, blen - i);
+      nc->recv_mbuf.len -= body_len;
+      hm->body.len = dp->body_len = 0;
+    }
+
+    if (zero_chunk_received) {
+      hm->message.len = dp->body_len + blen - i;
+    }
+  }
+
+  return body_len;
 }
 
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
@@ -598,7 +670,7 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
     if (req_len > 0 &&
         (s = ns_get_http_header(&hm, "Transfer-Encoding")) != NULL &&
         ns_vcasecmp(s, "chunked") == 0) {
-      handle_chunked(&hm, io->buf + req_len, io->len - req_len);
+      ns_handle_chunked(nc, &hm, io->buf + req_len, io->len - req_len);
     }
 
     if (req_len < 0 || (req_len == 0 && io->len >= NS_MAX_HTTP_REQUEST_SIZE)) {
@@ -638,6 +710,14 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
+static void send_http_error(struct ns_connection *nc, int code,
+                            const char *reason) {
+  if (reason == NULL) {
+    reason = "";
+  }
+  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
+}
+
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
@@ -659,14 +739,6 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
 }
 
 #ifndef NS_DISABLE_FILESYSTEM
-static void send_http_error(struct ns_connection *nc, int code,
-                            const char *reason) {
-  if (reason == NULL) {
-    reason = "";
-  }
-  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
-}
-
 #ifndef NS_DISABLE_SSI
 static void send_ssi_file(struct ns_connection *, const char *, FILE *, int,
                           const struct ns_serve_http_opts *);
@@ -944,6 +1016,7 @@ static void ns_send_http_file2(struct ns_connection *nc, const char *path,
               (int) mime_type.len, mime_type.p, cl, range, etag);
     nc->proto_data = (void *) dp;
     dp->cl = cl;
+    dp->type = DATA_FILE;
     transfer_file_data(nc);
   }
 }

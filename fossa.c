@@ -654,7 +654,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  */
 
 
-void base64_encode(const unsigned char *src, int src_len, char *dst) {
+void cs_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   int i, j, a, b, c;
@@ -719,7 +719,7 @@ static unsigned char from_b64(unsigned char ch) {
   return tab[ch & 127];
 }
 
-int base64_decode(const unsigned char *s, int len, char *dst) {
+int cs_base64_decode(const unsigned char *s, int len, char *dst) {
   unsigned char a, b, c, d;
   int orig_len = len;
   while (len >= 4 && (a = from_b64(s[0])) != 255 &&
@@ -5443,11 +5443,11 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #endif
 
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
-  base64_encode(src, src_len, dst);
+  cs_base64_encode(src, src_len, dst);
 }
 
 int ns_base64_decode(const unsigned char *s, int len, char *dst) {
-  return base64_decode(s, len, dst);
+  return cs_base64_decode(s, len, dst);
 }
 
 #ifdef NS_ENABLE_THREADS

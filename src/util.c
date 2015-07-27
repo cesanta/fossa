@@ -85,11 +85,11 @@ int ns_open(const char *path, int flag, int mode) { /* LCOV_EXCL_LINE */
 #endif
 
 void ns_base64_encode(const unsigned char *src, int src_len, char *dst) {
-  base64_encode(src, src_len, dst);
+  cs_base64_encode(src, src_len, dst);
 }
 
 int ns_base64_decode(const unsigned char *s, int len, char *dst) {
-  return base64_decode(s, len, dst);
+  return cs_base64_decode(s, len, dst);
 }
 
 #ifdef NS_ENABLE_THREADS

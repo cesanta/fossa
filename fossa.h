@@ -398,8 +398,8 @@ void MD5_Final(unsigned char *md, MD5_CTX *c);
 extern "C" {
 #endif
 
-void base64_encode(const unsigned char *src, int src_len, char *dst);
-int base64_decode(const unsigned char *s, int len, char *dst);
+void cs_base64_encode(const unsigned char *src, int src_len, char *dst);
+int cs_base64_decode(const unsigned char *s, int len, char *dst);
 
 #ifdef __cplusplus
 }

@@ -106,6 +106,8 @@ extern void *(*test_calloc)(size_t, size_t);
  * All rights reserved
  */
 
+#ifndef EXCLUDE_COMMON
+
 #include <assert.h>
 #include <string.h>
 
@@ -185,6 +187,8 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
     mb->len -= n;
   }
 }
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/sha1.c"
 /**/
@@ -192,7 +196,7 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 /* Copyright(c) By Steve Reid <steve@edmweb.com> */
 /* 100% Public Domain */
 
-#ifndef DISABLE_SHA1
+#if !defined(DISABLE_SHA1) && !defined(EXCLUDE_COMMON)
 
 
 #define SHA1HANDSOFF
@@ -435,7 +439,8 @@ void hmac_sha1(const unsigned char *key, size_t keylen,
   SHA1Update(&ctx, out, 20);
   SHA1Final(out, &ctx);
 }
-#endif
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/md5.c"
 /**/
@@ -457,7 +462,7 @@ void hmac_sha1(const unsigned char *key, size_t keylen,
  * will fill a supplied 16-byte array with the digest.
  */
 
-#ifndef DISABLE_MD5
+#if !defined(DISABLE_MD5) && !defined(EXCLUDE_COMMON)
 
 
 static void byteReverse(unsigned char *buf, unsigned longs) {
@@ -643,7 +648,8 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
   memcpy(digest, ctx->buf, 16);
   memset((char *) ctx, 0, sizeof(*ctx));
 }
-#endif
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/base64.c"
 /**/
@@ -652,6 +658,8 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
  * Copyright (c) 2014 Cesanta Software Limited
  * All rights reserved
  */
+
+#ifndef EXCLUDE_COMMON
 
 
 void cs_base64_encode(const unsigned char *src, int src_len, char *dst) {
@@ -737,6 +745,8 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
   *dst = 0;
   return orig_len - len;
 }
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/str_util.c"
 /**/
@@ -745,6 +755,8 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
  * Copyright (c) 2015 Cesanta Software Limited
  * All rights reserved
  */
+
+#ifndef EXCLUDE_COMMON
 
 
 #define C_SNPRINTF_APPEND_CHAR(ch)       \
@@ -947,6 +959,8 @@ void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
   }
 }
 #endif /* _WIN32 */
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../../common/dirent.c"
 /**/
@@ -955,6 +969,8 @@ void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
  * Copyright (c) 2015 Cesanta Software Limited
  * All rights reserved
  */
+
+#ifndef EXCLUDE_COMMON
 
 
 /*
@@ -1036,6 +1052,8 @@ struct dirent *readdir(DIR *dir) {
   return result;
 }
 #endif
+
+#endif /* EXCLUDE_COMMON */
 #ifdef NS_MODULE_LINES
 #line 1 "src/../deps/frozen/frozen.c"
 /**/
@@ -4882,7 +4900,12 @@ static pid_t start_process(const char *interp, const char *cmd, const char *env,
   (void) env;
 
   if (pid == 0) {
-    (void) chdir(dir);
+    /*
+     * In Linux `chdir` declared with `warn_unused_result` attribute
+     * To shutup compiler we have yo use result in some way
+     */
+    int tmp = chdir(dir);
+    (void) tmp;
     (void) dup2(sock, 0);
     (void) dup2(sock, 1);
     closesocket(sock);

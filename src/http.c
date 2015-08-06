@@ -1942,7 +1942,12 @@ static pid_t start_process(const char *interp, const char *cmd, const char *env,
   (void) env;
 
   if (pid == 0) {
-    (void) chdir(dir);
+    /*
+     * In Linux `chdir` declared with `warn_unused_result` attribute
+     * To shutup compiler we have yo use result in some way
+     */
+    int tmp = chdir(dir);
+    (void) tmp;
     (void) dup2(sock, 0);
     (void) dup2(sock, 1);
     closesocket(sock);

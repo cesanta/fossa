@@ -432,7 +432,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
                   sizeof(on)) &&
 #endif
 
-#if 1 || !defined(_WIN32) || defined(SO_EXCLUSIVEADDRUSE)
+#if !defined(_WIN32) || !defined(SO_EXCLUSIVEADDRUSE)
       /*
        * SO_RESUSEADDR is not enabled on Windows because the semantics of
        * SO_REUSEADDR on UNIX and Windows is different. On Windows,

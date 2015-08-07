@@ -2334,6 +2334,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   struct ns_connection *nc;
   char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
   int use_ssl = 0;
+  size_t addr_len = 0;
 
   if (memcmp(url, "http://", 7) == 0) {
     url += 7;
@@ -2350,7 +2351,8 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   /* addr buffer size made smaller to allow for port to be prepended */
   sscanf(url, "%1095[^/]/%4095s", addr, path);
   if (strchr(addr, ':') == NULL) {
-    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - (strlen(addr) + 1));
+    addr_len = strlen(addr);
+    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - addr_len + 1);
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
@@ -2361,7 +2363,9 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
       ns_set_ssl(nc, NULL, NULL);
 #endif
     }
-
+    if(addr_len) {
+      addr[addr_len] = 0;
+    }
     ns_printf(nc,
               "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n%s",
               post_data == NULL ? "GET" : "POST", path, addr,

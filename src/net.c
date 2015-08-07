@@ -703,10 +703,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
-    (void) ret;
-
     socklen_t len = sizeof(ok);
 
+    (void) ret;
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {

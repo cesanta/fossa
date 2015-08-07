@@ -2262,10 +2262,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
-    (void) ret;
-
     socklen_t len = sizeof(ok);
 
+    (void) ret;
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
@@ -5291,7 +5290,7 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
                                       const char *post_data) {
   struct ns_connection *nc;
   char addr[1100], path[4096]; /* NOTE: keep sizes in sync with sscanf below */
-  int use_ssl = 0;
+  int use_ssl = 0, addr_len = 0;
 
   if (memcmp(url, "http://", 7) == 0) {
     url += 7;
@@ -5308,7 +5307,8 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
   /* addr buffer size made smaller to allow for port to be prepended */
   sscanf(url, "%1095[^/]/%4095s", addr, path);
   if (strchr(addr, ':') == NULL) {
-    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - (strlen(addr) + 1));
+    addr_len = strlen(addr);
+    strncat(addr, use_ssl ? ":443" : ":80", sizeof(addr) - (addr_len + 1));
   }
 
   if ((nc = ns_connect(mgr, addr, ev_handler)) != NULL) {
@@ -5320,6 +5320,10 @@ struct ns_connection *ns_connect_http(struct ns_mgr *mgr,
 #endif
     }
 
+    if (addr_len) {
+      /* Do not add port. See https://github.com/cesanta/fossa/pull/304 */
+      addr[addr_len] = '\0';
+    }
     ns_printf(nc,
               "%s /%s HTTP/1.1\r\nHost: %s\r\nContent-Length: %lu\r\n%s\r\n%s",
               post_data == NULL ? "GET" : "POST", path, addr,

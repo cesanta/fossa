@@ -2670,7 +2670,7 @@ static void dns_resolve_cb(struct ns_dns_message *msg, void *data) {
   struct ns_dns_resource_record *rr;
   char cname[256];
   struct in_addr got_addr;
-  in_addr_t want_addr = inet_addr("54.194.65.250");
+  in_addr_t want_addr = inet_addr("52.16.170.74");
 
   rr = ns_dns_next_record(msg, NS_DNS_A_RECORD, NULL);
   if (rr != NULL) {
@@ -2686,7 +2686,7 @@ static void dns_resolve_cb(struct ns_dns_message *msg, void *data) {
    * We saw cases when A query returns only A record, or A and CNAME records.
    * Expect A answer, and optionally CNAME answer.
    */
-  if (want_addr == got_addr.s_addr || strcmp(cname, "cesanta.com") == 0) {
+  if (want_addr == got_addr.s_addr || strcmp(cname, "dev.cesanta.com") == 0) {
     *(int *) data = 1; /* Success */
   } else {
     *(int *) data = 2; /* Error */
@@ -2698,7 +2698,7 @@ static const char *test_dns_resolve(void) {
   int data = 0;
   ns_mgr_init(&mgr, NULL);
 
-  ns_resolve_async(&mgr, "www.cesanta.com", NS_DNS_A_RECORD, dns_resolve_cb,
+  ns_resolve_async(&mgr, "oncall.cesanta.com", NS_DNS_A_RECORD, dns_resolve_cb,
                    &data);
 
   poll_until(&mgr, 1000, c_int_ne, &data, (void *) 0);

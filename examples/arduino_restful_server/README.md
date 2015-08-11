@@ -1,7 +1,7 @@
 # Arduino Restful Server
 
-This example demonstrates how to use [Fossa](http://cesanta.com/fossa.shtml) to control Arduino 
-using HTTP requests. 
+This example demonstrates how to use [Fossa](https://www.cesanta.com/fossa) to control Arduino
+using HTTP requests.
 Example just blinks by LED when Fossa receives HTTP command, but it can be modified to execute any user-specific code.
 
 At the moment this example supports [Arduino Mega 2560](http://arduino.cc/en/Main/ArduinoBoardMega2560) board (and compatible) with either W5100-based
@@ -19,8 +19,8 @@ network shield (like [Arduino Ethernet Shield](http://arduino.cc/en/Main/Arduino
 3. Uncomment line `#include <Ethernet.h>`
 4. Compile and flash sketch
 5. Run `curl http://<board_ip/blink`
-   LED attached to PIN 13 will blink and board free memory size and board uptime will be displayed. 
- 
+   LED attached to PIN 13 will blink and board free memory size and board uptime will be displayed.
+
 
 ###To run with Adafruit WiFi (CC3000) shield:
 1. Add (Sketch->Add files...) the following files to sketch:
@@ -28,14 +28,14 @@ network shield (like [Arduino Ethernet Shield](http://arduino.cc/en/Main/Arduino
      - /fossa/fossa.c
      - /fossa/platforms/arduino_ethernet_W5100/avrsupport.h
      - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
-2. Import Adafruit CC3000 library for fossa  
-    (select Sketch->Import Library...->Add library... and point 
+2. Import Adafruit CC3000 library for fossa
+    (select Sketch->Import Library...->Add library... and point
      /fossa/platforms/arduino_wifi_CC3000/adafruit_CC3000_lib_fossa folder)
 3. Make the following variables suitable for your network
      - `board_ip`
      - `subnet_mask`
      - `gateway`
-     - `dns` 
+     - `dns`
      - `wlan_ssid`
      - `wlan_pwd`
      - `wlan_security`

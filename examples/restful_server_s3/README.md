@@ -28,4 +28,4 @@ Change the *Host* field to `S3_ZONE.amazonaws.com and retry`.
 
 ## Screenshot
 
-![](http://cesanta.com/images/fossa_s3_example.png)
+![](https://docs.cesanta.com/images/fossa_s3_example.png)

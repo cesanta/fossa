@@ -15,7 +15,7 @@
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 #define NS_FOSSA_VERSION "2.0.0"
@@ -443,7 +443,7 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *format, va_list ap);
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this library under a commercial
- * license, as set out in <http://cesanta.com/products.html>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 #ifndef FROZEN_HEADER_INCLUDED
@@ -509,7 +509,7 @@ int json_emit_va(char *buf, int buf_len, const char *fmt, va_list);
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 /*
@@ -1706,7 +1706,7 @@ int ns_rpc_dispatch(const char *buf, int, char *dst, int dst_len,
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 /*
@@ -1900,7 +1900,7 @@ int ns_mqtt_next_subscribe_topic(struct ns_mqtt_message *, struct ns_str *,
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 /*
@@ -2307,7 +2307,7 @@ int ns_resolve_from_hosts_file(const char *host, union socket_address *usa);
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 /*

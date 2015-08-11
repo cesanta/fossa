@@ -1074,7 +1074,7 @@ struct dirent *readdir(DIR *dir) {
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this library under a commercial
- * license, as set out in <http://cesanta.com/products.html>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 #define _CRT_SECURE_NO_WARNINGS /* Disable deprecation warning in VS2005+ */
@@ -1573,7 +1573,7 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 
@@ -7039,7 +7039,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
  * See the GNU General Public License for more details.
  *
  * Alternatively, you can license this software under a commercial
- * license, as set out in <http://cesanta.com/>.
+ * license, as set out in <https://www.cesanta.com/license>.
  */
 
 

@@ -1,6 +1,6 @@
 # Arduino Restful Client
 
-This example demonstrates how to use [Fossa](http://cesanta.com/fossa.shtml) to send HTTP commands from Arduino.
+This example demonstrates how to use [Fossa](https://www.cesanta.com/fossa) to send HTTP commands from Arduino.
 
 Example sends free memory size and current board uptime, but it can be modified to send any user-specific data.
 
@@ -20,7 +20,7 @@ network shield (like [Arduino Ethernet Shield](http://arduino.cc/en/Main/Arduino
 5. Change IP address in `s_target_address` variable to IP address of host running restful_server
 6. Uncomment line `#include <Ethernet.h>`
 7. Compile and flash sketch
-8. restful_server will start to show current uptime and free memory size (with 5 seconds interval)  
+8. restful_server will start to show current uptime and free memory size (with 5 seconds interval)
 
 ###To run with Adafruit WiFi (CC3000) shield:
 1. Add (Sketch->Add files...) the following files to sketch:
@@ -28,19 +28,19 @@ network shield (like [Arduino Ethernet Shield](http://arduino.cc/en/Main/Arduino
      - /fossa/fossa.c
      - /fossa/platforms/arduino_ethernet_W5100/avrsupport.h
      - /fossa/platforms/arduino_ethernet_W5100/avrsupport.cpp
-2. Import Adafruit CC3000 library for fossa  
-    (select Sketch->Import Library...->Add library... and point 
+2. Import Adafruit CC3000 library for fossa
+    (select Sketch->Import Library...->Add library... and point
      /fossa/platforms/arduino_wifi_CC3000/adafruit_CC3000_lib_fossa folder)
 3. Buils and start (in console) /Users/alex/Projects/fossa/examples/restful_server example
 4. Make the following variables suitable for your network
      - `board_ip`
      - `subnet_mask`
      - `gateway`
-     - `dns` 
+     - `dns`
      - `wlan_ssid`
      - `wlan_pwd`
      - `wlan_security`
 5. Change IP address in `s_target_address` variable to IP address of host running restful_server
 6. Uncomment line `#include <Adafruit_CC3000.h>`
 8. Compile and flash sketch
-9. restful_server will start to show current uptime and free memory size (with 5 seconds interval)  
+9. restful_server will start to show current uptime and free memory size (with 5 seconds interval)

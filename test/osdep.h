@@ -25,6 +25,14 @@
 #endif
 #define _FILE_OFFSET_BITS 64 /* Enable 64-bit file offsets */
 
+#if !(defined(AVR_LIBC) || defined(PICOTCP))
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+#include <signal.h>
+#endif
+
 #ifndef BYTE_ORDER
 #define LITTLE_ENDIAN 0x41424344
 #define BIG_ENDIAN 0x44434241
@@ -48,14 +56,6 @@
 #ifdef _MSC_VER
 #pragma warning(disable : 4127) /* FD_SET() emits warning, disable it */
 #pragma warning(disable : 4204) /* missing c99 support */
-#endif
-
-#if !(defined(AVR_LIBC) || defined(PICOTCP))
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <time.h>
-#include <signal.h>
 #endif
 
 #ifdef PICOTCP

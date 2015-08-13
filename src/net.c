@@ -346,6 +346,7 @@ NS_INTERNAL void ns_set_sock(struct ns_connection *nc, sock_t sock) {
   ns_set_close_on_exec(sock);
   nc->sock = sock;
   ns_add_conn(nc->mgr, nc);
+
   DBG(("%p %d", nc, sock));
 }
 
@@ -608,7 +609,11 @@ const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
   } else if (!(nc->flags & NSF_LISTENING) &&
              (nc->ssl = SSL_new(nc->ssl_ctx)) == NULL) {
     result = "SSL_new() failed";
-  } else if (!(nc->flags & NSF_LISTENING)) {
+  } else if (!(nc->flags & NSF_LISTENING) && nc->sock != INVALID_SOCKET) {
+    /*
+     * Socket is open here only if we are connecting to IP address
+     * and does not open if we are connecting using async DNS resolver
+     */
     SSL_set_fd(nc->ssl, nc->sock);
   }
   SSL_CTX_set_cipher_list(nc->ssl_ctx, ns_s_cipher_list);
@@ -1168,6 +1173,18 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
   /* No ns_destroy_conn() call after this! */
   ns_set_sock(nc, sock);
+
+#ifdef NS_ENABLE_SSL
+  /*
+   * If we are using async resolver, socket isn't open
+   * before this place, so
+   * for SSL connections we have to add socket to SSL fd set
+   */
+  if (nc->ssl != NULL && !(nc->flags & NSF_LISTENING)) {
+    SSL_set_fd(nc->ssl, nc->sock);
+  }
+#endif
+
   return nc;
 }
 

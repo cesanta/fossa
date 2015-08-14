@@ -47,17 +47,17 @@ double _now();
     if (!(expr)) FAIL(#expr, __LINE__); \
   } while (0)
 
-#define RUN_TEST(test)                          \
-  do {                                          \
-    const char *msg = NULL;                     \
-    if (strstr(#test, filter)) {                \
-      double elapsed = _now();                  \
-      msg = test();                             \
-      elapsed = _now() - elapsed;               \
-      printf("  [%.3lf] %s\n", elapsed, #test); \
-      *total_elapsed += elapsed;                \
-    }                                           \
-    if (msg) return msg;                        \
+#define RUN_TEST(test)                         \
+  do {                                         \
+    const char *msg = NULL;                    \
+    if (strstr(#test, filter)) {               \
+      double elapsed = _now();                 \
+      msg = test();                            \
+      elapsed = _now() - elapsed;              \
+      printf("  [%.3f] %s\n", elapsed, #test); \
+      *total_elapsed += elapsed;               \
+    }                                          \
+    if (msg) return msg;                       \
   } while (0)
 
 /* VC6 doesn't know how to cast an unsigned 64-bit int to double */
@@ -71,13 +71,13 @@ double _now();
  * Numeric equality assertion. Compariosn is made in native types but for
  * printing both are convetrted to double.
  */
-#define ASSERT_EQ(actual, expected)                                   \
-  do {                                                                \
-    num_tests++;                                                      \
-    if (!(actual == expected)) {                                      \
-      printf("%lf != %lf\n", AS_DOUBLE(actual), AS_DOUBLE(expected)); \
-      FAIL(#actual " == " #expected, __LINE__);                       \
-    }                                                                 \
+#define ASSERT_EQ(actual, expected)                                 \
+  do {                                                              \
+    num_tests++;                                                    \
+    if (!(actual == expected)) {                                    \
+      printf("%f != %f\n", AS_DOUBLE(actual), AS_DOUBLE(expected)); \
+      FAIL(#actual " == " #expected, __LINE__);                     \
+    }                                                               \
   } while (0)
 
 /* Assert that actual == expected, where both are NUL-terminated. */

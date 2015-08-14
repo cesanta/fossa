@@ -170,7 +170,9 @@ struct dirent *readdir(DIR *dir);
 #include <stdarg.h>
 #ifndef AVR_LIBC
 #define closesocket(x) close(x)
+#ifndef __cdecl
 #define __cdecl
+#endif
 #define INVALID_SOCKET (-1)
 #define INT64_FMT PRId64
 #define to64(x) strtoll(x, NULL, 10)

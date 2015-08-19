@@ -3332,7 +3332,39 @@ static int deliver_websocket_data(struct ns_connection *nc) {
   return ok;
 }
 
-static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
+struct ws_mask_ctx {
+  size_t pos; /* zero means unmasked */
+  uint32_t mask;
+};
+
+static uint32_t ws_random_mask() {
+/*
+ * The spec requires WS client to generate hard to
+ * guess mask keys. From RFC6455, Section 5.3:
+ *
+ * The unpredictability of the masking key is essential to prevent
+ * authors of malicious applications from selecting the bytes that appear on
+ * the wire.
+ *
+ * Hence this feature is essential when the actual end user of this API
+ * is untrusted code that wouldn't have access to a lower level net API
+ * anyway (e.g. web browsers). Hence this feature is low prio for most
+ * fossa use cases and thus can be disabled, e.g. when porting to a platform
+ * that lacks random().
+ */
+#if NS_DISABLE_WS_RANDOM_MASK
+  return 0xefbeadde; /* generated with a random number generator, I swear */
+#else
+  if (sizeof(long) >= 4) {
+    return (uint32_t) random();
+  } else if (sizeof(long) == 2) {
+    return (uint32_t) random() << 16 | (uint32_t) random();
+  }
+#endif
+}
+
+static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len,
+                              struct ws_mask_ctx *ctx) {
   int header_len;
   unsigned char header[10];
 
@@ -3354,13 +3386,35 @@ static void ns_send_ws_header(struct ns_connection *nc, int op, size_t len) {
     memcpy(&header[6], &tmp, sizeof(tmp));
     header_len = 10;
   }
-  ns_send(nc, header, header_len);
+
+  /* client connections enable masking */
+  if (nc->listener == NULL) {
+    header[1] |= 1 << 7; /* set masking flag */
+    ns_send(nc, header, header_len);
+    ctx->mask = ws_random_mask();
+    ns_send(nc, &ctx->mask, sizeof(ctx->mask));
+    ctx->pos = nc->send_mbuf.len;
+  } else {
+    ns_send(nc, header, header_len);
+    ctx->pos = 0;
+  }
+}
+
+static void ws_mask_frame(struct mbuf *mbuf, struct ws_mask_ctx *ctx) {
+  size_t i;
+  if (ctx->pos == 0) return;
+  for (i = 0; i < (mbuf->len - ctx->pos); i++) {
+    mbuf->buf[ctx->pos + i] ^= ((char *) &ctx->mask)[i % 4];
+  }
 }
 
 void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
                              size_t len) {
-  ns_send_ws_header(nc, op, len);
+  struct ws_mask_ctx ctx;
+  ns_send_ws_header(nc, op, len, &ctx);
   ns_send(nc, data, len);
+
+  ws_mask_frame(&nc->send_mbuf, &ctx);
 
   if (op == WEBSOCKET_OP_CLOSE) {
     nc->flags |= NSF_SEND_AND_CLOSE;
@@ -3369,17 +3423,20 @@ void ns_send_websocket_frame(struct ns_connection *nc, int op, const void *data,
 
 void ns_send_websocket_framev(struct ns_connection *nc, int op,
                               const struct ns_str *strv, int strvcnt) {
+  struct ws_mask_ctx ctx;
   int i;
   int len = 0;
   for (i = 0; i < strvcnt; i++) {
     len += strv[i].len;
   }
 
-  ns_send_ws_header(nc, op, len);
+  ns_send_ws_header(nc, op, len, &ctx);
 
   for (i = 0; i < strvcnt; i++) {
     ns_send(nc, strv[i].p, strv[i].len);
   }
+
+  ws_mask_frame(&nc->send_mbuf, &ctx);
 
   if (op == WEBSOCKET_OP_CLOSE) {
     nc->flags |= NSF_SEND_AND_CLOSE;

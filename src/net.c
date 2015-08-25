@@ -23,9 +23,9 @@
 #endif
 
 #define NS_CTL_MSG_MESSAGE_SIZE 8192
-#define NS_READ_BUFFER_SIZE 2048
-#define NS_UDP_RECEIVE_BUFFER_SIZE 2000
-#define NS_VPRINTF_BUFFER_SIZE 500
+#define NS_READ_BUFFER_SIZE 1024
+#define NS_UDP_RECEIVE_BUFFER_SIZE 1500
+#define NS_VPRINTF_BUFFER_SIZE 100
 #define NS_MAX_HOST_LEN 200
 
 #define NS_COPY_COMMON_CONNECTION_OPTIONS(dst, src) \
@@ -100,6 +100,7 @@ NS_INTERNAL void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
                   (nc->flags & _NS_CALLBACK_MODIFIABLE_FLAGS_MASK);
     }
   }
+  DBG(("call done, flags %d", nc->flags));
 }
 
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {
@@ -230,6 +231,8 @@ static void ns_set_non_blocking_mode(sock_t sock) {
 #ifdef _WIN32
   unsigned long on = 1;
   ioctlsocket(sock, FIONBIO, &on);
+#elif defined(NS_CC3200)
+  cc3200_set_non_blocking_mode(sock);
 #else
   int flags = fcntl(sock, F_GETFL, 0);
   fcntl(sock, F_SETFL, flags | O_NONBLOCK);
@@ -248,7 +251,7 @@ int ns_socketpair(sock_t sp[2], int sock_type) {
   (void) memset(&sa, 0, sizeof(sa));
   sa.sin.sin_family = AF_INET;
   sa.sin.sin_port = htons(0);
-  sa.sin.sin_addr.s_addr = htonl(0x7f000001);
+  sa.sin.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
 
   if ((sock = socket(AF_INET, sock_type, 0)) == INVALID_SOCKET) {
   } else if (bind(sock, &sa.sa, len) != 0) {
@@ -308,7 +311,7 @@ static int ns_resolve2(const char *host, struct in_addr *ina) {
     return 1;
   }
   return 0;
-#endif
+#endif /* NS_ENABLE_GETADDRINFO */
 }
 
 int ns_resolve(const char *host, char *buf, size_t n) {
@@ -342,7 +345,12 @@ NS_INTERNAL struct ns_connection *ns_create_connection(
 
 /* Associate a socket to a connection and and add to the manager. */
 NS_INTERNAL void ns_set_sock(struct ns_connection *nc, sock_t sock) {
+#ifndef NS_CC3200
+  /* Can't get non-blocking connect to work.
+   * TODO(rojer): Figure out why it fails where blocking succeeds.
+   */
   ns_set_non_blocking_mode(sock);
+#endif
   ns_set_close_on_exec(sock);
   nc->sock = sock;
   ns_add_conn(nc->mgr, nc);
@@ -427,6 +435,7 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   int on = 1;
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
+#ifndef NS_CC3200 /* CC3200 doesn't support either */
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
       /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
       !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (void *) &on,
@@ -445,12 +454,15 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
        */
       !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
 #endif
+#endif /* !NS_CC3200 */
 
       !bind(sock, &sa->sa, sa_len) &&
       (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0)) {
+#ifndef NS_CC3200 /* TODO(rojer): Fix this. */
     ns_set_non_blocking_mode(sock);
     /* In case port was set to 0, get the real port number */
     (void) getsockname(sock, &sa->sa, &sa_len);
+#endif
   } else if (sock != INVALID_SOCKET) {
     closesocket(sock);
     sock = INVALID_SOCKET;
@@ -661,8 +673,15 @@ static struct ns_connection *accept_conn(struct ns_connection *ls) {
 }
 
 static int ns_is_error(int n) {
+#ifdef NS_CC3200
+  DBG(("n = %d, errno = %d", n, errno));
+  if (n < 0) errno = n;
+#endif
   return n == 0 || (n < 0 && errno != EINTR && errno != EINPROGRESS &&
                     errno != EAGAIN && errno != EWOULDBLOCK
+#ifdef NS_CC3200
+                    && errno != SL_EALREADY
+#endif
 #ifdef _WIN32
                     && WSAGetLastError() != WSAEINTR &&
                     WSAGetLastError() != WSAEWOULDBLOCK
@@ -711,7 +730,16 @@ static void ns_read_from_socket(struct ns_connection *conn) {
     socklen_t len = sizeof(ok);
 
     (void) ret;
+#ifdef NS_CC3200
+    /* On CC3200 we use blocking connect. If we got as far as this,
+     * this means connect() was successful.
+     * TODO(rojer): Figure out why it fails where blocking succeeds.
+     */
+    ns_set_non_blocking_mode(conn->sock);
+    ret = ok = 0;
+#else
     ret = getsockopt(conn->sock, SOL_SOCKET, SO_ERROR, (char *) &ok, &len);
+#endif
 #ifdef NS_ENABLE_SSL
     if (ret == 0 && ok == 0 && conn->ssl != NULL) {
       ns_ssl_begin(conn);
@@ -752,6 +780,7 @@ static void ns_read_from_socket(struct ns_connection *conn) {
       mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
     }
+    DBG(("recv returns %d", n));
   }
 
   if (ns_is_error(n)) {
@@ -1070,7 +1099,7 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
   struct timeval tv;
   fd_set read_set, write_set, err_set;
   sock_t max_fd = INVALID_SOCKET;
-  int num_selected, fd_flags;
+  int num_selected;
 
   FD_ZERO(&read_set);
   FD_ZERO(&write_set);
@@ -1105,13 +1134,20 @@ time_t ns_mgr_poll(struct ns_mgr *mgr, int milli) {
     ns_mgr_handle_ctl_sock(mgr);
   }
 
-  fd_flags = 0;
   for (nc = mgr->active_connections; nc != NULL; nc = tmp) {
+    int fd_flags = 0;
     if (num_selected > 0) {
       fd_flags = (FD_ISSET(nc->sock, &read_set) ? _NSF_FD_CAN_READ : 0) |
                  (FD_ISSET(nc->sock, &write_set) ? _NSF_FD_CAN_WRITE : 0) |
                  (FD_ISSET(nc->sock, &err_set) ? _NSF_FD_ERROR : 0);
     }
+#ifdef NS_CC3200
+    // CC3200 does not report UDP sockets as writeable.
+    if (nc->flags & NSF_UDP &&
+        (nc->send_mbuf.len > 0 || nc->flags & NSF_CONNECTING)) {
+      fd_flags |= _NSF_FD_CAN_WRITE;
+    }
+#endif
     tmp = nc->next;
     ns_mgr_handle_connection(nc, fd_flags, now);
   }
@@ -1155,7 +1191,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
     return NULL;
   }
 
+#ifndef NS_CC3200
   ns_set_non_blocking_mode(sock);
+#endif
   rc = (proto == SOCK_DGRAM) ? 0 : connect(sock, &sa->sa, sizeof(sa->sin));
 
   if (rc != 0 && ns_is_error(rc)) {

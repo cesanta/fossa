@@ -129,12 +129,13 @@ void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   socklen_t slen = sizeof(sa);
 
   memset(&sa, 0, sizeof(sa));
+#ifndef NS_CC3200
   if (flags & NS_SOCK_STRINGIFY_REMOTE) {
     getpeername(sock, &sa.sa, &slen);
   } else {
     getsockname(sock, &sa.sa, &slen);
   }
-
+#endif
   ns_sock_addr_to_str(&sa, buf, len, flags);
 }
 

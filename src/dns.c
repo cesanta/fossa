@@ -161,6 +161,8 @@ void ns_send_dns_query(struct ns_connection *nc, const char *name,
   struct mbuf pkt;
   struct ns_dns_resource_record *rr = &msg.questions[0];
 
+  DBG(("%s %d", name, query_type));
+
   mbuf_init(&pkt, MAX_DNS_PACKET_LEN);
   memset(&msg, 0, sizeof(msg));
 

@@ -143,6 +143,8 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   struct ns_resolve_async_request *req;
   struct ns_dns_message msg;
 
+  DBG(("ev=%d", ev));
+
   req = (struct ns_resolve_async_request *) nc->user_data;
 
   switch (ev) {
@@ -185,6 +187,8 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
   struct ns_resolve_async_request *req;
   struct ns_connection *dns_nc;
   const char *nameserver = opts.nameserver_url;
+
+  DBG(("%s %d", name, query));
 
   /* resolve with DNS */
   req = (struct ns_resolve_async_request *) NS_CALLOC(1, sizeof(*req));

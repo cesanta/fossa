@@ -39,7 +39,7 @@
 #define _NS_CALLBACK_MODIFIABLE_FLAGS_MASK                                     \
   (NSF_USER_1 | NSF_USER_2 | NSF_USER_3 | NSF_USER_4 | NSF_USER_5 |            \
    NSF_USER_6 | NSF_WEBSOCKET_NO_DEFRAG | NSF_SEND_AND_CLOSE | NSF_DONT_SEND | \
-   NSF_CLOSE_IMMEDIATELY)
+   NSF_CLOSE_IMMEDIATELY | NSF_IS_WEBSOCKET)
 
 #ifndef intptr_t
 #define intptr_t long

@@ -100,7 +100,7 @@ NS_INTERNAL void ns_call(struct ns_connection *nc, int ev, void *ev_data) {
                   (nc->flags & _NS_CALLBACK_MODIFIABLE_FLAGS_MASK);
     }
   }
-  DBG(("call done, flags %d", nc->flags));
+  DBG(("call done, flags %d", (int) nc->flags));
 }
 
 static size_t ns_out(struct ns_connection *nc, const void *buf, size_t len) {

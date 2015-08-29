@@ -141,7 +141,7 @@ int ns_resolve_from_hosts_file(const char *name, union socket_address *usa) {
 static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
   time_t now = time(NULL);
   struct ns_resolve_async_request *req;
-  struct ns_dns_message msg;
+  struct ns_dns_message *msg;
 
   DBG(("ev=%d", ev));
 
@@ -163,14 +163,16 @@ static void ns_resolve_async_eh(struct ns_connection *nc, int ev, void *data) {
       }
       break;
     case NS_RECV:
-      if (ns_parse_dns(nc->recv_mbuf.buf, *(int *) data, &msg) == 0 &&
-          msg.num_answers > 0) {
-        req->callback(&msg, req->data);
+      msg = (struct ns_dns_message *) NS_MALLOC(sizeof(*msg));
+      if (ns_parse_dns(nc->recv_mbuf.buf, *(int *) data, msg) == 0 &&
+          msg->num_answers > 0) {
+        req->callback(msg, req->data);
       } else {
         req->callback(NULL, req->data);
       }
       NS_FREE(req);
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
+      NS_FREE(msg);
       break;
   }
 }

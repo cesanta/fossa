@@ -157,20 +157,20 @@ int ns_dns_encode_record(struct mbuf *io, struct ns_dns_resource_record *rr,
 
 void ns_send_dns_query(struct ns_connection *nc, const char *name,
                        int query_type) {
-  struct ns_dns_message msg;
+  struct ns_dns_message *msg =
+      (struct ns_dns_message *) NS_CALLOC(1, sizeof(*msg));
   struct mbuf pkt;
-  struct ns_dns_resource_record *rr = &msg.questions[0];
+  struct ns_dns_resource_record *rr = &msg->questions[0];
 
   DBG(("%s %d", name, query_type));
 
   mbuf_init(&pkt, MAX_DNS_PACKET_LEN);
-  memset(&msg, 0, sizeof(msg));
 
-  msg.transaction_id = ++ns_dns_tid;
-  msg.flags = 0x100;
-  msg.num_questions = 1;
+  msg->transaction_id = ++ns_dns_tid;
+  msg->flags = 0x100;
+  msg->num_questions = 1;
 
-  ns_dns_insert_header(&pkt, 0, &msg);
+  ns_dns_insert_header(&pkt, 0, msg);
 
   rr->rtype = query_type;
   rr->rclass = 1; /* Class: inet */
@@ -178,7 +178,7 @@ void ns_send_dns_query(struct ns_connection *nc, const char *name,
 
   if (ns_dns_encode_record(&pkt, rr, name, strlen(name), NULL, 0) == -1) {
     /* TODO(mkm): return an error code */
-    return; /* LCOV_EXCL_LINE */
+    goto cleanup; /* LCOV_EXCL_LINE */
   }
 
   /* TCP DNS requires messages to be prefixed with len */
@@ -189,6 +189,9 @@ void ns_send_dns_query(struct ns_connection *nc, const char *name,
 
   ns_send(nc, pkt.buf, pkt.len);
   mbuf_free(&pkt);
+
+cleanup:
+  NS_FREE(msg);
 }
 
 static unsigned char *ns_parse_dns_resource_record(

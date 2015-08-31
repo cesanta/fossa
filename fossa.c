@@ -70,8 +70,11 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
-NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
 NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
+
+#ifndef NS_DISABLE_FILESYSTEM
+NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
+#endif
 
 #ifdef _WIN32
 NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
@@ -3779,14 +3782,6 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-static void send_http_error(struct ns_connection *nc, int code,
-                            const char *reason) {
-  if (reason == NULL) {
-    reason = "";
-  }
-  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
-}
-
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
@@ -3808,6 +3803,14 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
 }
 
 #ifndef NS_DISABLE_FILESYSTEM
+static void send_http_error(struct ns_connection *nc, int code,
+                            const char *reason) {
+  if (reason == NULL) {
+    reason = "";
+  }
+  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
+}
+
 #ifndef NS_DISABLE_SSI
 static void send_ssi_file(struct ns_connection *, const char *, FILE *, int,
                           const struct ns_serve_http_opts *);

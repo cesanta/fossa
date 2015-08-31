@@ -432,7 +432,9 @@ static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
   socklen_t sa_len =
       (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
+#ifndef NS_CC3200
   int on = 1;
+#endif
 
   if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
 #ifndef NS_CC3200 /* CC3200 doesn't support either */
@@ -727,7 +729,9 @@ static void ns_read_from_socket(struct ns_connection *conn) {
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
+#ifndef NS_CC3200
     socklen_t len = sizeof(ok);
+#endif
 
     (void) ret;
 #ifdef NS_CC3200

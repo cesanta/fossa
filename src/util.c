@@ -126,7 +126,9 @@ void ns_set_close_on_exec(sock_t sock) {
 
 void ns_sock_to_str(sock_t sock, char *buf, size_t len, int flags) {
   union socket_address sa;
+#ifndef NS_CC3200
   socklen_t slen = sizeof(sa);
+#endif
 
   memset(&sa, 0, sizeof(sa));
 #ifndef NS_CC3200

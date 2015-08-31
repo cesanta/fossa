@@ -9,4 +9,4 @@ all: ../fossa.c ../fossa.h
 
 ../fossa.c: Makefile internal.h modules.mk $(SOURCES)
 	@echo "AMALGAMATING\tfossa.c"
-	@(echo '#include "fossa.h"'; ../../tools/amalgam internal.h $(SOURCES)) >$@
+	@(echo '#include "fossa.h"'; ../../tools/amalgam --srcdir src internal.h $(SOURCES)) >$@

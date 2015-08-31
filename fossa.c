@@ -61,6 +61,7 @@
 #define NS_DISABLE_PFS
 #endif
 
+/* Amalgamated: #include "../fossa.h" */
 
 /* internals that need to be accessible in unit tests */
 NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
@@ -113,6 +114,7 @@ extern void *(*test_calloc)(size_t, size_t);
 
 #include <assert.h>
 #include <string.h>
+/* Amalgamated: #include "mbuf.h" */
 
 #ifndef MBUF_REALLOC
 #define MBUF_REALLOC realloc
@@ -201,9 +203,11 @@ void mbuf_remove(struct mbuf *mb, size_t n) {
 
 #if !defined(DISABLE_SHA1) && !defined(EXCLUDE_COMMON)
 
+/* Amalgamated: #include "sha1.h" */
 
 #define SHA1HANDSOFF
 #if defined(__sun)
+/* Amalgamated: #include "solarisfixes.h" */
 #endif
 
 union char64long16 {
@@ -467,6 +471,7 @@ void hmac_sha1(const unsigned char *key, size_t keylen,
 
 #if !defined(DISABLE_MD5) && !defined(EXCLUDE_COMMON)
 
+/* Amalgamated: #include "md5.h" */
 
 static void byteReverse(unsigned char *buf, unsigned longs) {
 /* Forrest: MD5 expect LITTLE_ENDIAN, swap if BIG_ENDIAN */
@@ -664,6 +669,7 @@ void MD5_Final(unsigned char digest[16], MD5_CTX *ctx) {
 
 #ifndef EXCLUDE_COMMON
 
+/* Amalgamated: #include "base64.h" */
 
 void cs_base64_encode(const unsigned char *src, int src_len, char *dst) {
   static const char *b64 =
@@ -761,6 +767,8 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
 
 #ifndef EXCLUDE_COMMON
 
+/* Amalgamated: #include "osdep.h" */
+/* Amalgamated: #include "str_util.h" */
 
 #define C_SNPRINTF_APPEND_CHAR(ch)       \
   do {                                   \
@@ -975,6 +983,7 @@ void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len) {
 
 #ifndef EXCLUDE_COMMON
 
+/* Amalgamated: #include "osdep.h" */
 
 /*
  * This file contains POSIX opendir/closedir/readdir API implementation
@@ -1086,6 +1095,7 @@ struct dirent *readdir(DIR *dir) {
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+/* Amalgamated: #include "frozen.h" */
 
 #ifdef _WIN32
 #define snprintf _snprintf
@@ -1579,6 +1589,7 @@ int json_emit(char *buf, int buf_len, const char *fmt, ...) {
  * license, as set out in <https://www.cesanta.com/license>.
  */
 
+/* Amalgamated: #include "internal.h" */
 
 #if NS_MGR_EV_MGR == 1 /* epoll() */
 #include <sys/epoll.h>
@@ -3021,6 +3032,7 @@ int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
 
 #ifndef NS_DISABLE_HTTP_WEBSOCKET
 
+/* Amalgamated: #include "internal.h" */
 
 enum http_proto_data_type { DATA_NONE, DATA_FILE, DATA_PUT, DATA_CGI };
 
@@ -5504,6 +5516,7 @@ size_t ns_parse_multipart(const char *buf, size_t buf_len, char *var_name,
  * All rights reserved
  */
 
+/* Amalgamated: #include "internal.h" */
 
 const char *ns_skip(const char *s, const char *end, const char *delims,
                     struct ns_str *v) {
@@ -5859,6 +5872,7 @@ int ns_match_prefix(const char *pattern, int pattern_len, const char *str) {
 
 #ifndef NS_DISABLE_JSON_RPC
 
+/* Amalgamated: #include "internal.h" */
 
 int ns_rpc_create_reply(char *buf, int len, const struct ns_rpc_request *req,
                         const char *result_fmt, ...) {
@@ -6020,6 +6034,7 @@ int ns_rpc_parse_reply(const char *buf, int len, struct json_token *toks,
 
 #ifndef NS_DISABLE_MQTT
 
+/* Amalgamated: #include "internal.h" */
 
 static int parse_mqtt(struct mbuf *io, struct ns_mqtt_message *mm) {
   uint8_t header;
@@ -6318,6 +6333,7 @@ void ns_mqtt_disconnect(struct ns_connection *nc) {
  * All rights reserved
  */
 
+/* Amalgamated: #include "internal.h" */
 
 #ifdef NS_ENABLE_MQTT_BROKER
 
@@ -6491,6 +6507,7 @@ struct ns_mqtt_session *ns_mqtt_next(struct ns_mqtt_broker *brk,
 
 #ifndef NS_DISABLE_DNS
 
+/* Amalgamated: #include "internal.h" */
 
 #define MAX_DNS_PACKET_LEN 2048
 
@@ -6852,6 +6869,7 @@ void ns_set_protocol_dns(struct ns_connection *nc) {
 
 #ifdef NS_ENABLE_DNS_SERVER
 
+/* Amalgamated: #include "internal.h" */
 
 struct ns_dns_reply ns_dns_create_reply(struct mbuf *io,
                                         struct ns_dns_message *msg) {
@@ -6926,6 +6944,7 @@ int ns_dns_reply_record(struct ns_dns_reply *reply,
 
 #ifndef NS_DISABLE_RESOLVER
 
+/* Amalgamated: #include "internal.h" */
 
 #ifndef NS_DEFAULT_NAMESERVER
 #define NS_DEFAULT_NAMESERVER "8.8.8.8"
@@ -7169,6 +7188,7 @@ int ns_resolve_async_opt(struct ns_mgr *mgr, const char *name, int query,
  * license, as set out in <https://www.cesanta.com/license>.
  */
 
+/* Amalgamated: #include "internal.h" */
 
 #ifdef NS_ENABLE_COAP
 

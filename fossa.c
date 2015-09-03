@@ -78,7 +78,7 @@ NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
 #endif
 
 #ifdef _WIN32
-NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
+void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
 
 /*
@@ -3139,6 +3139,15 @@ static const struct {
 
 #ifndef NS_DISABLE_FILESYSTEM
 
+static int ns_mkdir(const char *path, uint32_t mode) {
+#ifndef _WIN32
+  return mkdir(path, mode);
+#else
+  (void) mode;
+  return _mkdir(path);
+#endif
+}
+
 static struct ns_str get_mime_type(const char *path, const char *dflt,
                                    const struct ns_serve_http_opts *opts) {
   const char *ext, *overrides;
@@ -4702,7 +4711,7 @@ static void handle_mkcol(struct ns_connection *nc, const char *path,
   int status_code = 500;
   if (ns_get_http_header(hm, "Content-Length") != NULL) {
     status_code = 415;
-  } else if (!mkdir(path, 0755)) {
+  } else if (!ns_mkdir(path, 0755)) {
     status_code = 201;
   } else if (errno == EEXIST) {
     status_code = 405;
@@ -4763,7 +4772,7 @@ static int create_itermediate_directories(const char *path) {
       ns_stat_t st;
       snprintf(buf, sizeof(buf), "%.*s", (int) (s - path), path);
       buf[sizeof(buf) - 1] = '\0';
-      if (ns_stat(buf, &st) != 0 && mkdir(buf, 0755) != 0) {
+      if (ns_stat(buf, &st) != 0 && ns_mkdir(buf, 0755) != 0) {
         return -1;
       }
     }
@@ -5599,7 +5608,7 @@ int ns_stat(const char *path, ns_stat_t *st) {
   wchar_t wpath[MAX_PATH_SIZE];
   to_wchar(path, wpath, ARRAY_SIZE(wpath));
   DBG(("[%ls] -> %d", wpath, _wstati64(wpath, st)));
-  return _wstati64(wpath, st);
+  return _wstati64(wpath, (struct _stati64 *) st);
 #else
   return stat(path, st);
 #endif
@@ -7011,7 +7020,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   int i;
   LONG err;
   HKEY hKey, hSub;
-  char subkey[512], dhcpns[512], ns[512], value[128],
+  char subkey[512], value[128],
       *key = "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
 
   if ((err = RegOpenKey(HKEY_LOCAL_MACHINE, key, &hKey)) != ERROR_SUCCESS) {
@@ -7022,10 +7031,10 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
          RegEnumKey(hKey, i, subkey, sizeof(subkey)) == ERROR_SUCCESS; i++) {
       DWORD type, len = sizeof(value);
       if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
-          (RegQueryValueEx(hSub, "NameServer", 0, &type, value, &len) ==
-               ERROR_SUCCESS ||
-           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, value, &len) ==
-               ERROR_SUCCESS)) {
+          (RegQueryValueEx(hSub, "NameServer", 0, &type, (void *) value,
+                           &len) == ERROR_SUCCESS ||
+           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, (void *) value,
+                           &len) == ERROR_SUCCESS)) {
         /*
          * See https://github.com/cesanta/fossa/issues/176
          * The value taken from the registry can be empty, a single

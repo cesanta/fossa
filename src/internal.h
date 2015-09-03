@@ -73,7 +73,7 @@ NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
 #endif
 
 #ifdef _WIN32
-NS_INTERNAL void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
+void to_wchar(const char *path, wchar_t *wbuf, size_t wbuf_len);
 #endif
 
 /*

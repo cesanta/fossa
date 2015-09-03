@@ -95,6 +95,15 @@ static const struct {
 
 #ifndef NS_DISABLE_FILESYSTEM
 
+static int ns_mkdir(const char *path, uint32_t mode) {
+#ifndef _WIN32
+  return mkdir(path, mode);
+#else
+  (void) mode;
+  return _mkdir(path);
+#endif
+}
+
 static struct ns_str get_mime_type(const char *path, const char *dflt,
                                    const struct ns_serve_http_opts *opts) {
   const char *ext, *overrides;
@@ -1658,7 +1667,7 @@ static void handle_mkcol(struct ns_connection *nc, const char *path,
   int status_code = 500;
   if (ns_get_http_header(hm, "Content-Length") != NULL) {
     status_code = 415;
-  } else if (!mkdir(path, 0755)) {
+  } else if (!ns_mkdir(path, 0755)) {
     status_code = 201;
   } else if (errno == EEXIST) {
     status_code = 405;
@@ -1719,7 +1728,7 @@ static int create_itermediate_directories(const char *path) {
       ns_stat_t st;
       snprintf(buf, sizeof(buf), "%.*s", (int) (s - path), path);
       buf[sizeof(buf) - 1] = '\0';
-      if (ns_stat(buf, &st) != 0 && mkdir(buf, 0755) != 0) {
+      if (ns_stat(buf, &st) != 0 && ns_mkdir(buf, 0755) != 0) {
         return -1;
       }
     }

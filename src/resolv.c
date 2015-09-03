@@ -40,7 +40,7 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
   int i;
   LONG err;
   HKEY hKey, hSub;
-  char subkey[512], dhcpns[512], ns[512], value[128],
+  char subkey[512], value[128],
       *key = "SYSTEM\\ControlSet001\\Services\\Tcpip\\Parameters\\Interfaces";
 
   if ((err = RegOpenKey(HKEY_LOCAL_MACHINE, key, &hKey)) != ERROR_SUCCESS) {
@@ -51,10 +51,10 @@ static int ns_get_ip_address_of_nameserver(char *name, size_t name_len) {
          RegEnumKey(hKey, i, subkey, sizeof(subkey)) == ERROR_SUCCESS; i++) {
       DWORD type, len = sizeof(value);
       if (RegOpenKey(hKey, subkey, &hSub) == ERROR_SUCCESS &&
-          (RegQueryValueEx(hSub, "NameServer", 0, &type, value, &len) ==
-               ERROR_SUCCESS ||
-           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, value, &len) ==
-               ERROR_SUCCESS)) {
+          (RegQueryValueEx(hSub, "NameServer", 0, &type, (void *) value,
+                           &len) == ERROR_SUCCESS ||
+           RegQueryValueEx(hSub, "DhcpNameServer", 0, &type, (void *) value,
+                           &len) == ERROR_SUCCESS)) {
         /*
          * See https://github.com/cesanta/fossa/issues/176
          * The value taken from the registry can be empty, a single

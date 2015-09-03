@@ -158,7 +158,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     WSADATA data;
     WSAStartup(MAKEWORD(2, 2), &data);
   }
-#elif !defined(AVR_LIBC)
+#elif !defined(AVR_LIBC) && !defined(NS_ESP8266)
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
@@ -725,7 +725,7 @@ static void ns_ssl_begin(struct ns_connection *nc) {
 
 static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[NS_READ_BUFFER_SIZE];
-  int n = 0;
+  int n = 0, to_recv;
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
@@ -778,11 +778,24 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = (int) NS_RECV_FUNC(
-                conn->sock, buf, recv_avail_size(conn, sizeof(buf)), 0)) > 0) {
+    to_recv = recv_avail_size(conn, sizeof(buf));
+    while ((n = (int) NS_RECV_FUNC(conn->sock, buf, to_recv, 0)) > 0) {
       DBG(("%p %d bytes (PLAIN) <- %d", conn, n, conn->sock));
       mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
+#ifdef NS_ESP8266
+      /*
+       * TODO(alashkin): ESP/RTOS recv implementation tend to block
+       * even in non-blocking mode, so, break the loop
+       * if received size less than buffer size
+       * and wait for next select()
+       * Some of RTOS specific call missed?
+       */
+      if (to_recv > n) {
+        break;
+      }
+      to_recv = recv_avail_size(conn, sizeof(buf));
+#endif
     }
     DBG(("recv returns %d", n));
   }

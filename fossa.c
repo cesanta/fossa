@@ -1731,7 +1731,7 @@ void ns_mgr_init(struct ns_mgr *s, void *user_data) {
     WSADATA data;
     WSAStartup(MAKEWORD(2, 2), &data);
   }
-#elif !defined(AVR_LIBC)
+#elif !defined(AVR_LIBC) && !defined(NS_ESP8266)
   /* Ignore SIGPIPE signal, so if client cancels the request, it
    * won't kill the whole process. */
   signal(SIGPIPE, SIG_IGN);
@@ -2298,7 +2298,7 @@ static void ns_ssl_begin(struct ns_connection *nc) {
 
 static void ns_read_from_socket(struct ns_connection *conn) {
   char buf[NS_READ_BUFFER_SIZE];
-  int n = 0;
+  int n = 0, to_recv;
 
   if (conn->flags & NSF_CONNECTING) {
     int ok = 1, ret;
@@ -2351,11 +2351,24 @@ static void ns_read_from_socket(struct ns_connection *conn) {
   } else
 #endif
   {
-    while ((n = (int) NS_RECV_FUNC(
-                conn->sock, buf, recv_avail_size(conn, sizeof(buf)), 0)) > 0) {
+    to_recv = recv_avail_size(conn, sizeof(buf));
+    while ((n = (int) NS_RECV_FUNC(conn->sock, buf, to_recv, 0)) > 0) {
       DBG(("%p %d bytes (PLAIN) <- %d", conn, n, conn->sock));
       mbuf_append(&conn->recv_mbuf, buf, n);
       ns_call(conn, NS_RECV, &n);
+#ifdef NS_ESP8266
+      /*
+       * TODO(alashkin): ESP/RTOS recv implementation tend to block
+       * even in non-blocking mode, so, break the loop
+       * if received size less than buffer size
+       * and wait for next select()
+       * Some of RTOS specific call missed?
+       */
+      if (to_recv > n) {
+        break;
+      }
+      to_recv = recv_avail_size(conn, sizeof(buf));
+#endif
     }
     DBG(("recv returns %d", n));
   }
@@ -3034,7 +3047,7 @@ int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
  * All rights reserved
  */
 
-#ifndef NS_DISABLE_HTTP_WEBSOCKET
+#ifndef NS_DISABLE_HTTP
 
 /* Amalgamated: #include "internal.h" */
 
@@ -3285,6 +3298,8 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
 
   return NULL;
 }
+
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 static int is_ws_fragment(unsigned char flags) {
   return (flags & 0x80) == 0 || (flags & 0x0f) == 0;
@@ -3560,6 +3575,8 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             b64_sha, "\r\n\r\n");
 }
 
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+
 static void free_http_proto_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
   if (dp != NULL) {
@@ -3729,10 +3746,11 @@ NS_INTERNAL size_t ns_handle_chunked(struct ns_connection *nc,
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
-  struct ns_str *vec;
   int req_len;
   const int is_req = (nc->listener != NULL);
-
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
+  struct ns_str *vec;
+#endif
   /*
    * For HTTP messages without Content-Length, always send HTTP message
    * before NS_CLOSE message.
@@ -3765,8 +3783,10 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
       /* Do nothing, request is not yet fully buffered */
-    } else if (nc->listener == NULL &&
-               ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
+    }
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
+    else if (nc->listener == NULL &&
+             ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
       /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
       mbuf_remove(io, req_len);
@@ -3790,7 +3810,9 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
       }
-    } else if (hm.message.len <= io->len) {
+    }
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+    else if (hm.message.len <= io->len) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       mbuf_remove(io, hm.message.len);
@@ -3801,6 +3823,8 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
+
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
@@ -3817,6 +3841,8 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             "%s\r\n",
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
+
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
 
 #ifndef NS_DISABLE_FILESYSTEM
 static void send_http_error(struct ns_connection *nc, int code,
@@ -5510,7 +5536,7 @@ size_t ns_parse_multipart(const char *buf, size_t buf_len, char *var_name,
   return 0;
 }
 
-#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+#endif /* NS_DISABLE_HTTP */
 #ifdef NS_MODULE_LINES
 #line 1 "src/util.c"
 /**/
@@ -5686,7 +5712,7 @@ void ns_sock_addr_to_str(const union socket_address *sa, char *buf, size_t len,
     if (inet_ntop(sa->sa.sa_family, addr, start, capacity) == NULL) {
       *buf = '\0';
     }
-#elif defined(_WIN32)
+#elif defined(_WIN32) || defined(NS_ESP8266)
     /* Only Windoze Vista (and newer) have inet_ntop() */
     strncpy(buf, inet_ntoa(sa->sin.sin_addr), len);
 #else

@@ -3,7 +3,7 @@
  * All rights reserved
  */
 
-#ifndef NS_DISABLE_HTTP_WEBSOCKET
+#ifndef NS_DISABLE_HTTP
 
 #include "internal.h"
 
@@ -254,6 +254,8 @@ struct ns_str *ns_get_http_header(struct http_message *hm, const char *name) {
 
   return NULL;
 }
+
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 static int is_ws_fragment(unsigned char flags) {
   return (flags & 0x80) == 0 || (flags & 0x0f) == 0;
@@ -529,6 +531,8 @@ static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
             b64_sha, "\r\n\r\n");
 }
 
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+
 static void free_http_proto_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
   if (dp != NULL) {
@@ -698,10 +702,11 @@ NS_INTERNAL size_t ns_handle_chunked(struct ns_connection *nc,
 static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   struct mbuf *io = &nc->recv_mbuf;
   struct http_message hm;
-  struct ns_str *vec;
   int req_len;
   const int is_req = (nc->listener != NULL);
-
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
+  struct ns_str *vec;
+#endif
   /*
    * For HTTP messages without Content-Length, always send HTTP message
    * before NS_CLOSE message.
@@ -734,8 +739,10 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
       nc->flags |= NSF_CLOSE_IMMEDIATELY;
     } else if (req_len == 0) {
       /* Do nothing, request is not yet fully buffered */
-    } else if (nc->listener == NULL &&
-               ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
+    }
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
+    else if (nc->listener == NULL &&
+             ns_get_http_header(&hm, "Sec-WebSocket-Accept")) {
       /* We're websocket client, got handshake response from server. */
       /* TODO(lsm): check the validity of accept Sec-WebSocket-Accept */
       mbuf_remove(io, req_len);
@@ -759,7 +766,9 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
         nc->handler(nc, NS_WEBSOCKET_HANDSHAKE_DONE, NULL);
         websocket_handler(nc, NS_RECV, ev_data);
       }
-    } else if (hm.message.len <= io->len) {
+    }
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+    else if (hm.message.len <= io->len) {
       /* Whole HTTP message is fully buffered, call event handler */
       nc->handler(nc, nc->listener ? NS_HTTP_REQUEST : NS_HTTP_REPLY, &hm);
       mbuf_remove(io, hm.message.len);
@@ -767,17 +776,11 @@ static void http_handler(struct ns_connection *nc, int ev, void *ev_data) {
   }
 }
 
-static void send_http_error(struct ns_connection *nc, int code,
-                            const char *reason) {
-  if (reason == NULL) {
-    reason = "";
-  }
-  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
-}
-
 void ns_set_protocol_http_websocket(struct ns_connection *nc) {
   nc->proto_handler = http_handler;
 }
+
+#ifndef NS_DISABLE_HTTP_WEBSOCKET
 
 void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
                                  const char *extra_headers) {
@@ -795,7 +798,17 @@ void ns_send_websocket_handshake(struct ns_connection *nc, const char *uri,
             uri, key, extra_headers == NULL ? "" : extra_headers);
 }
 
+#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+
 #ifndef NS_DISABLE_FILESYSTEM
+static void send_http_error(struct ns_connection *nc, int code,
+                            const char *reason) {
+  if (reason == NULL) {
+    reason = "";
+  }
+  ns_printf(nc, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n", code, reason);
+}
+
 #ifndef NS_DISABLE_SSI
 static void send_ssi_file(struct ns_connection *, const char *, FILE *, int,
                           const struct ns_serve_http_opts *);
@@ -2479,4 +2492,4 @@ size_t ns_parse_multipart(const char *buf, size_t buf_len, char *var_name,
   return 0;
 }
 
-#endif /* NS_DISABLE_HTTP_WEBSOCKET */
+#endif /* NS_DISABLE_HTTP */

@@ -630,7 +630,11 @@ const char *ns_set_ssl(struct ns_connection *nc, const char *cert,
      */
     SSL_set_fd(nc->ssl, nc->sock);
   }
+
+/* TODO(rojer): remove when krypton exposes this function, even a dummy one */
+#ifdef OPENSSL_VERSION_NUMBER
   SSL_CTX_set_cipher_list(nc->ssl_ctx, ns_s_cipher_list);
+#endif
   return result;
 }
 

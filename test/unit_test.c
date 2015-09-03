@@ -248,6 +248,11 @@ static void eh_hello_server(struct ns_connection *nc, int ev, void *ev_data) {
   if (ev == NS_ACCEPT) ns_printf(nc, "hello");
 }
 
+/*
+ * unfortunately krypton has no BIO so it's hard to test this way
+ * We still set NS_ENABLE_SSL so that vc6 has a binary to build
+ */
+#ifndef _KRYPTON_H
 static const char *test_modern_crypto(void) {
   char addr[100] = "127.0.0.1:8000";
   struct ns_mgr *mgr = (struct ns_mgr *) malloc(sizeof(*mgr));
@@ -306,7 +311,8 @@ static const char *test_modern_crypto(void) {
   mgr->user_data = (void *) 1;
   return NULL;
 }
-#endif
+#endif /* _KRYPTON_H */
+#endif /* NS_ENABLE_SSL */
 
 static const char *test_to64(void) {
   ASSERT_EQ(to64("0"), 0);
@@ -3230,7 +3236,9 @@ static const char *run_tests(const char *filter, double *total_elapsed) {
   RUN_TEST(test_hexdump_file);
 #ifdef NS_ENABLE_SSL
   RUN_TEST(test_ssl);
+#ifndef _KRYPTON_H
   RUN_TEST(test_modern_crypto);
+#endif
 #endif
   RUN_TEST(test_udp);
 #ifdef NS_ENABLE_COAP

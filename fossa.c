@@ -770,8 +770,8 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
 /* Amalgamated: #include "osdep.h" */
 /* Amalgamated: #include "str_util.h" */
 
-#if !(_XOPEN_SOURCE >= 700 || _POSIX_C_SOURCE >= 200809L) && \
-        !(__DARWIN_C_LEVEL >= 200809L) ||                    \
+#if !(_XOPEN_SOURCE >= 700 || _POSIX_C_SOURCE >= 200809L) &&    \
+        !(__DARWIN_C_LEVEL >= 200809L) && !defined(RTOS_SDK) || \
     defined(_WIN32)
 int strnlen(const char *s, size_t maxlen) {
   size_t l = 0;

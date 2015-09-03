@@ -770,6 +770,17 @@ int cs_base64_decode(const unsigned char *s, int len, char *dst) {
 /* Amalgamated: #include "osdep.h" */
 /* Amalgamated: #include "str_util.h" */
 
+#if !(_XOPEN_SOURCE >= 700 || _POSIX_C_SOURCE >= 200809L) && \
+        !(__DARWIN_C_LEVEL >= 200809L) ||                    \
+    defined(_WIN32)
+int strnlen(const char *s, size_t maxlen) {
+  size_t l = 0;
+  for (; l < maxlen && s[l] != '\0'; l++) {
+  }
+  return l;
+}
+#endif
+
 #define C_SNPRINTF_APPEND_CHAR(ch)       \
   do {                                   \
     if (i < (int) buf_size) buf[i] = ch; \
@@ -851,6 +862,11 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
         field_width *= 10;
         field_width += *fmt++ - '0';
       }
+      /* Dynamic field width */
+      if (*fmt == '*') {
+        field_width = va_arg(ap, int);
+        fmt++;
+      }
 
       /* Precision */
       if (*fmt == '.') {
@@ -892,6 +908,11 @@ int c_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap) {
       if (ch == 's') {
         const char *s = va_arg(ap, const char *); /* Always fetch parameter */
         int j;
+        int pad = field_width - (precision >= 0 ? strnlen(s, precision) : 0);
+        for (j = 0; j < pad; j++) {
+          C_SNPRINTF_APPEND_CHAR(' ');
+        }
+
         /* Ignore negative and 0 precisions */
         for (j = 0; (precision <= 0 || j < precision) && s[j] != '\0'; j++) {
           C_SNPRINTF_APPEND_CHAR(s[j]);

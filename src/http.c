@@ -523,13 +523,13 @@ static void websocket_handler(struct ns_connection *nc, int ev, void *ev_data) {
 static void ws_handshake(struct ns_connection *nc, const struct ns_str *key) {
   static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   char buf[500], sha[20], b64_sha[sizeof(sha) * 2];
-  SHA1_CTX sha_ctx;
+  cs_sha1_ctx sha_ctx;
 
   snprintf(buf, sizeof(buf), "%.*s%s", (int) key->len, key->p, magic);
 
-  SHA1Init(&sha_ctx);
-  SHA1Update(&sha_ctx, (unsigned char *) buf, strlen(buf));
-  SHA1Final((unsigned char *) sha, &sha_ctx);
+  cs_sha1_init(&sha_ctx);
+  cs_sha1_update(&sha_ctx, (unsigned char *) buf, strlen(buf));
+  cs_sha1_final((unsigned char *) sha, &sha_ctx);
 
   ns_base64_encode((unsigned char *) sha, sizeof(sha), b64_sha);
   ns_printf(nc, "%s%s%s",

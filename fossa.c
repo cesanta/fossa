@@ -72,6 +72,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
+NS_INTERNAL void ns_forward(struct ns_connection *, struct ns_connection *);
+NS_INTERNAL void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c);
+NS_INTERNAL void ns_remove_conn(struct ns_connection *c);
 
 #ifndef NS_DISABLE_FILESYSTEM
 NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);
@@ -1649,7 +1652,8 @@ static void ns_ev_mgr_free(struct ns_mgr *mgr);
 static void ns_ev_mgr_add_conn(struct ns_connection *nc);
 static void ns_ev_mgr_remove_conn(struct ns_connection *nc);
 
-static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+NS_INTERNAL void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+  c->mgr = mgr;
   c->next = mgr->active_connections;
   mgr->active_connections = c;
   c->prev = NULL;
@@ -1657,7 +1661,7 @@ static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   ns_ev_mgr_add_conn(c);
 }
 
-static void ns_remove_conn(struct ns_connection *conn) {
+NS_INTERNAL void ns_remove_conn(struct ns_connection *conn) {
   if (conn->prev == NULL) conn->mgr->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
@@ -3063,6 +3067,118 @@ int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
 
   return allowed == '+';
 }
+
+/* Move data from one connection to another */
+void ns_forward(struct ns_connection *from, struct ns_connection *to) {
+  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
+  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
+}
+#ifdef NS_MODULE_LINES
+#line 1 "src/multithreading.c"
+/**/
+#endif
+/*
+ * Copyright (c) 2014 Cesanta Software Limited
+ * All rights reserved
+ */
+
+/* Amalgamated: #include "internal.h" */
+
+#ifdef NS_ENABLE_THREADS
+
+static void multithreaded_ev_handler(struct ns_connection *c, int ev, void *p);
+
+/*
+ * This thread function executes user event handler.
+ * It runs an event manager that has only one connection, until that
+ * connection is alive.
+ */
+static void *per_connection_thread_function(void *param) {
+  struct ns_connection *c = (struct ns_connection *) param;
+  struct ns_mgr m;
+
+  ns_mgr_init(&m, NULL);
+  ns_add_conn(&m, c);
+  while (m.active_connections != NULL) {
+    ns_mgr_poll(&m, 1000);
+  }
+  ns_mgr_free(&m);
+
+  return param;
+}
+
+static void link_conns(struct ns_connection *c1, struct ns_connection *c2) {
+  c1->priv_2 = c2;
+  c2->priv_2 = c1;
+}
+
+static void unlink_conns(struct ns_connection *c) {
+  struct ns_connection *peer = (struct ns_connection *) c->priv_2;
+  if (peer != NULL) {
+    peer->flags |= NSF_SEND_AND_CLOSE;
+    peer->priv_2 = NULL;
+  }
+  c->priv_2 = NULL;
+}
+
+static void forwarder_ev_handler(struct ns_connection *c, int ev, void *p) {
+  (void) p;
+  if (ev == NS_RECV && c->priv_2) {
+    ns_forward(c, c->priv_2);
+  } else if (ev == NS_CLOSE) {
+    unlink_conns(c);
+  }
+}
+
+static void spawn_handling_thread(struct ns_connection *nc) {
+  struct ns_mgr dummy = {};
+  sock_t sp[2];
+  struct ns_connection *c[2];
+
+  /*
+   * Create a socket pair, and wrap each socket into the connection with
+   * dummy event manager.
+   * c[0] stays in this thread, c[1] goes to another thread.
+   */
+  ns_socketpair(sp, SOCK_STREAM);
+  c[0] = ns_add_sock(&dummy, sp[0], forwarder_ev_handler);
+  c[1] = ns_add_sock(&dummy, sp[1], nc->listener->priv_1);
+
+  /* Interlink client connection with c[0] */
+  link_conns(c[0], nc);
+
+  /*
+   * Switch c[0] manager from the dummy one to the real one. c[1] manager
+   * will be set in another thread, allocated on stack of that thread.
+   */
+  ns_add_conn(nc->mgr, c[0]);
+
+  /*
+   * Dress c[1] as nc.
+   * TODO(lsm): code in accept_conn() looks similar. Refactor.
+   */
+  c[1]->listener = nc->listener;
+  c[1]->proto_handler = nc->proto_handler;
+  c[1]->proto_data = nc->proto_data;
+  c[1]->user_data = nc->user_data;
+
+  ns_start_thread(per_connection_thread_function, c[1]);
+}
+
+static void multithreaded_ev_handler(struct ns_connection *c, int ev, void *p) {
+  (void) p;
+  if (ev == NS_ACCEPT) {
+    spawn_handling_thread(c);
+    c->handler = forwarder_ev_handler;
+  }
+}
+
+void ns_enable_multithreading(struct ns_connection *nc) {
+  /* Wrap user event handler into our multithreaded_ev_handler */
+  nc->priv_1 = nc->handler;
+  nc->handler = multithreaded_ev_handler;
+}
+#endif
 #ifdef NS_MODULE_LINES
 #line 1 "src/http.c"
 /**/
@@ -3623,12 +3739,6 @@ static void free_http_proto_data(struct ns_connection *nc) {
     NS_FREE(dp);
     nc->proto_data = NULL;
   }
-}
-
-/* Move data from one connection to another */
-static void ns_forward(struct ns_connection *from, struct ns_connection *to) {
-  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
-  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
 }
 
 static void transfer_file_data(struct ns_connection *nc) {
@@ -5833,8 +5943,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
   if ((fp = fopen(path, "a")) != NULL) {
     ns_sock_to_str(nc->sock, src, sizeof(src), 3);
     ns_sock_to_str(nc->sock, dst, sizeof(dst), 7);
-    fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL),
-            nc->user_data, src,
+    fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL), nc, src,
             ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" : ev == NS_ACCEPT
                                                               ? "<A"
                                                               : ev == NS_CONNECT

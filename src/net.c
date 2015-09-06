@@ -55,7 +55,8 @@ static void ns_ev_mgr_free(struct ns_mgr *mgr);
 static void ns_ev_mgr_add_conn(struct ns_connection *nc);
 static void ns_ev_mgr_remove_conn(struct ns_connection *nc);
 
-static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+NS_INTERNAL void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
+  c->mgr = mgr;
   c->next = mgr->active_connections;
   mgr->active_connections = c;
   c->prev = NULL;
@@ -63,7 +64,7 @@ static void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c) {
   ns_ev_mgr_add_conn(c);
 }
 
-static void ns_remove_conn(struct ns_connection *conn) {
+NS_INTERNAL void ns_remove_conn(struct ns_connection *conn) {
   if (conn->prev == NULL) conn->mgr->active_connections = conn->next;
   if (conn->prev) conn->prev->next = conn->next;
   if (conn->next) conn->next->prev = conn->prev;
@@ -1468,4 +1469,10 @@ int ns_check_ip_acl(const char *acl, uint32_t remote_ip) {
   }
 
   return allowed == '+';
+}
+
+/* Move data from one connection to another */
+void ns_forward(struct ns_connection *from, struct ns_connection *to) {
+  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
+  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
 }

@@ -28,6 +28,7 @@ SOURCES = $(COMMON)/mbuf.c \
           $(COMMON)/dirent.c \
           $(FROZEN)/frozen.c \
           net.c \
+          multithreading.c \
           http.c \
           util.c \
           json-rpc.c \

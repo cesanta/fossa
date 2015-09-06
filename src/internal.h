@@ -67,6 +67,9 @@ NS_INTERNAL struct ns_connection *ns_finish_connect(struct ns_connection *nc,
 NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
                                  int *proto, char *host, size_t host_len);
 NS_INTERNAL void ns_call(struct ns_connection *, int ev, void *ev_data);
+NS_INTERNAL void ns_forward(struct ns_connection *, struct ns_connection *);
+NS_INTERNAL void ns_add_conn(struct ns_mgr *mgr, struct ns_connection *c);
+NS_INTERNAL void ns_remove_conn(struct ns_connection *c);
 
 #ifndef NS_DISABLE_FILESYSTEM
 NS_INTERNAL int find_index_file(char *, size_t, const char *, ns_stat_t *);

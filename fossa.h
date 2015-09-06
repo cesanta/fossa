@@ -137,6 +137,7 @@
 #else
 #define fseeko(x, y, z) fseek((x), (y), (z))
 #endif
+#define random() rand()
 typedef int socklen_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
@@ -626,6 +627,8 @@ struct ns_connection {
   void *proto_data;                 /* Protocol-specific data */
   ns_event_handler_t handler;       /* Event handler function */
   void *user_data;                  /* User-specific data */
+  void *priv_1;                     /* Used by ns_enable_multithreading() */
+  void *priv_2;                     /* Used by ns_enable_multithreading() */
   void *mgr_data; /* Implementation-specific event manager's data. */
 
   unsigned long flags;
@@ -921,6 +924,15 @@ int ns_resolve(const char *domain_name, char *ip_addr_buf, size_t buf_len);
  * Return -1 if ACL is malformed, 0 if address is disallowed, 1 if allowed.
  */
 int ns_check_ip_acl(const char *acl, uint32_t remote_ip);
+
+/*
+ * Enable multi-threaded handling for the given listening connection `nc`.
+ * For each accepted connection, Mongoose will create a separate thread
+ * and run event handler in that thread. Thus, if an event hanler is doing
+ * a blocking call or some long computation, that will not slow down
+ * other connections.
+ */
+void ns_enable_multithreading(struct ns_connection *nc);
 
 #ifdef __cplusplus
 }

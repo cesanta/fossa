@@ -556,12 +556,6 @@ static void free_http_proto_data(struct ns_connection *nc) {
   }
 }
 
-/* Move data from one connection to another */
-static void ns_forward(struct ns_connection *from, struct ns_connection *to) {
-  ns_send(to, from->recv_mbuf.buf, from->recv_mbuf.len);
-  mbuf_remove(&from->recv_mbuf, from->recv_mbuf.len);
-}
-
 static void transfer_file_data(struct ns_connection *nc) {
   struct proto_data_http *dp = (struct proto_data_http *) nc->proto_data;
   char buf[NS_MAX_HTTP_SEND_IOBUF];

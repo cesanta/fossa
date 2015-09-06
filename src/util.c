@@ -256,8 +256,7 @@ void ns_hexdump_connection(struct ns_connection *nc, const char *path,
   if ((fp = fopen(path, "a")) != NULL) {
     ns_sock_to_str(nc->sock, src, sizeof(src), 3);
     ns_sock_to_str(nc->sock, dst, sizeof(dst), 7);
-    fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL),
-            nc->user_data, src,
+    fprintf(fp, "%lu %p %s %s %s %d\n", (unsigned long) time(NULL), nc, src,
             ev == NS_RECV ? "<-" : ev == NS_SEND ? "->" : ev == NS_ACCEPT
                                                               ? "<A"
                                                               : ev == NS_CONNECT

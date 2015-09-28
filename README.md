@@ -1,5 +1,7 @@
 # Fossa: Multi-Protocol Networking Library
 
+# Note: As of September 21st 2015, Fossa project has been merged back into [Mongoose](http://t.sidekickopen21.com/e1t/c/5/f18dQhb0S7lM8dDMPbW2n0x6l2B9nMJW7t5XX45w2sgKVcVW4q2BgH-gMQszCH1tQDwf61QVLl03?t=https%3A%2F%2Fgithub.com%2Fcesanta%2Fmongoose&si=4999990023290880&pi=5cbfa88b-4d9d-475f-f33d-494b2b8f6ccf) project
+
 ![](https://img.shields.io/badge/license-GPL_2-green.svg "License")
 
 [Fossa](https://www.cesanta.com/fossa) is a

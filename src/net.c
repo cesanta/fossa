@@ -430,43 +430,42 @@ NS_INTERNAL int ns_parse_address(const char *str, union socket_address *sa,
 
 /* 'sa' must be an initialized address to bind to */
 static sock_t ns_open_listening_socket(union socket_address *sa, int proto) {
-  socklen_t sa_len =
-      (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
+  bool check_socket;
+  socklen_t sa_len = (sa->sa.sa_family == AF_INET) ? sizeof(sa->sin) : sizeof(sa->sin6);
   sock_t sock = INVALID_SOCKET;
 #ifndef NS_CC3200
   int on = 1;
 #endif
 
-  if ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET &&
+  check_socket = ((sock = socket(sa->sa.sa_family, proto, 0)) != INVALID_SOCKET);
 #ifndef NS_CC3200 /* CC3200 doesn't support either */
 #if defined(_WIN32) && defined(SO_EXCLUSIVEADDRUSE)
-      /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
-      !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (void *) &on,
-                  sizeof(on)) &&
+  /* "Using SO_REUSEADDR and SO_EXCLUSIVEADDRUSE" http://goo.gl/RmrFTm */
+  check_socket = (check_socket && !setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (void *) &on, sizeof(on)));
 #endif
 
 #if !defined(_WIN32) || !defined(SO_EXCLUSIVEADDRUSE)
-      /*
-       * SO_RESUSEADDR is not enabled on Windows because the semantics of
-       * SO_REUSEADDR on UNIX and Windows is different. On Windows,
-       * SO_REUSEADDR allows to bind a socket to a port without error even if
-       * the port is already open by another program. This is not the behavior
-       * SO_REUSEADDR was designed for, and leads to hard-to-track failure
-       * scenarios. Therefore, SO_REUSEADDR was disabled on Windows unless
-       * SO_EXCLUSIVEADDRUSE is supported and set on a socket.
-       */
-      !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&
+ /*
+  * SO_RESUSEADDR is not enabled on Windows because the semantics of
+  * SO_REUSEADDR on UNIX and Windows is different. On Windows,
+  * SO_REUSEADDR allows to bind a socket to a port without error even if
+  * the port is already open by another program. This is not the behavior
+  * SO_REUSEADDR was designed for, and leads to hard-to-track failure
+  * scenarios. Therefore, SO_REUSEADDR was disabled on Windows unless
+  * SO_EXCLUSIVEADDRUSE is supported and set on a socket.
+  */
+  check_socket = (check_socket && !setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on)) &&);
 #endif
 #endif /* !NS_CC3200 */
-
-      !bind(sock, &sa->sa, sa_len) &&
-      (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0)) {
+  check_socket = (check_socket && !bind(sock, &sa->sa, sa_len) && (proto == SOCK_DGRAM || listen(sock, SOMAXCONN) == 0));
+  if (check_socket){
 #ifndef NS_CC3200 /* TODO(rojer): Fix this. */
-    ns_set_non_blocking_mode(sock);
-    /* In case port was set to 0, get the real port number */
-    (void) getsockname(sock, &sa->sa, &sa_len);
+  ns_set_non_blocking_mode(sock);
+  /* In case port was set to 0, get the real port number */
+  (void) getsockname(sock, &sa->sa, &sa_len);
+}
 #endif
-  } else if (sock != INVALID_SOCKET) {
+  if (!check_socket && (sock != INVALID_SOCKET)) {
     closesocket(sock);
     sock = INVALID_SOCKET;
   }
